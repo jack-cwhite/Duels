@@ -1,0 +1,1 @@
+Duels plugin built ui=sing the JCore framework
