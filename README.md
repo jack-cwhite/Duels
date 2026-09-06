@@ -1,1 +1,2 @@
-Duels plugin built ui=sing the JCore framework
+Duels plugin built using the JCore framework
+
