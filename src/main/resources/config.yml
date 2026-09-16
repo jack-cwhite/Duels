@@ -1,0 +1,19 @@
+# How match results/stats are stored.
+# SQL uses whatever database.yml (in this same folder) points at.
+# YAML stores everything in stats.yml instead - no database needed, but doesn't scale to a large match history.
+# Options: SQL, YAML
+stats-storage: SQL
+
+# How long (in seconds) a duel challenge stays pending before it expires and
+# the challenger has to send it again. Set to 0 for challenges to never expire.
+duel-request-expiry-time: 30
+
+# How long (in seconds) players get to free-roam the arena and pick a kit
+# before the fight actually starts. Must be at least 1. If an arena has no kits enabled this is
+# just a countdown to the fight starting, bare-fisted.
+kit-selection-time: 15
+
+# When a duel starts, should the involved players have all other outstanding challenge requests removed.
+# true - will cancel all challege requests from other players for the two players who entered the duel
+# false - all challenge requests will remain, expiry will still count down as normal
+remove-outstanding-challenge-requests: true

@@ -1,0 +1,261 @@
+# Navigation items for menus.
+# Previous, Next and Page Indicator are used only in paginated menus
+# Back is used in all menus to return to the previous menu.
+# Confirm and Cancel are used only by the "are you sure?" confirmation screen.
+navigation:
+  previous:
+    material: ARROW
+    name: '&aPrevious Page'
+    lore:
+      - '&7Go to the previous page.'
+  next:
+    material: ARROW
+    name: '&aNext Page'
+    lore:
+      - '&7Go to the next page.'
+  back:
+    material: BARRIER
+    name: '&7Back'
+    lore:
+      - '&7Return to the previous menu.'
+  page-indicator:
+    material: PAPER
+    name: '&ePage {current}/{total}'
+  confirm:
+    material: LIME_WOOL
+    name: '&aConfirm'
+    lore:
+      - '&7Click to confirm.'
+  cancel:
+    material: RED_WOOL
+    name: '&cCancel'
+    lore:
+      - '&7Click to cancel.'
+
+# Main menu for admin commands. This is the first menu that opens when a player runs /duels.
+admin-main:
+  title: '&8Duels - Main'
+  rows: 1
+  items:
+    arena:
+      slot: 3
+      material: CHEST
+      name: '&aArena Menu'
+      lore:
+        - '&7Manage arenas'
+    kit:
+      slot: 5
+      material: DIAMOND_SWORD
+      name: '&aKit Menu'
+      lore:
+        - '&7Manage kits'
+
+# Main menu for interacting with arenas.
+arena-main:
+  title: '&8Duels - Arena'
+  rows: 2
+  items:
+    list:
+      slot: 3
+      material: CHEST
+      name: '&aList Arenas'
+      lore:
+        - '&7Click to browse and'
+        - '&7manage arenas'
+    create:
+      slot: 5
+      material: NETHER_STAR
+      name: '&aCreate Arena'
+      lore:
+        - '&7Click and then type name'
+        - '&7in chat to create arena'
+
+# Paginated menu that lists all arenas. Clicking an arena opens the arena-detail menu for that arena.
+arena-list:
+  title: '&8Arenas'
+  rows: 6
+  entry:
+    material: '{material}'
+    name: '&f{arena-name}'
+    lore:
+      - '&7ID: &f{id}'
+      - '&7Spawn 1: {spawn1}'
+      - '&7Spawn 2: {spawn2}'
+      - '&7Ready: {ready}'
+      - '&7Enabled: {enabled}'
+      - '&eClick to manage'
+
+# Menu for managing a specific arena. This menu is opened when an arena is clicked in the arena-list menu.
+arena-detail:
+  title: '&8{arena-name}'
+  rows: 2
+  items:
+    toggle-available:
+      slot: 8
+      material: LIME_DYE
+      name: '&aArena Enabled'
+      lore:
+        - '&7Players can be matched here.'
+        - ''
+        - '&7Click to disable this arena.'
+      alternate-material: GRAY_DYE
+      alternate-name: '&cArena Disabled'
+      alternate-lore:
+        - '&7No new duels will start here.'
+        - ''
+        - '&7Click to re-enable this arena.'
+    rename:
+      slot: 0
+      material: NAME_TAG
+      name: '&aChange Name'
+      lore:
+        - '&7Click, then type the arenas'
+        - '&7new name in chat'
+    spawn1:
+      slot: 2
+      material: EMERALD
+      name: '&aSet Spawn 1'
+      lore:
+        - '&7Left Click to set spawn 1 to'
+        - '&7your current location'
+        - ''
+        - '&7Right click to teleport to'
+        - '&7currently set location'
+    spawn2:
+      slot: 4
+      material: EMERALD
+      name: '&aSet Spawn 2'
+      lore:
+        - '&7Left Click to set spawn 2 to'
+        - '&7your current location'
+        - ''
+        - '&7Right click to teleport to'
+        - '&7currently set location'
+    delete:
+      slot: 6
+      material: BARRIER
+      name: '&cDelete Arena'
+      lore:
+        - '&7Click to permanently delete this arena'
+    kits:
+      slot: 10
+      material: DIAMOND_SWORD
+      name: '&bAllowed Kits'
+      lore:
+        - '&7Click to manage allowed'
+        - '&7kits in this arena'
+
+# Manage what kits are allowed in an arena
+arena-kit:
+  title: '&8{arena-name} Kits'
+  rows: 6
+  entry:
+    material: '{material}'
+    name: '&f{kit-name}'
+    lore:
+      - '&7ID: &f{id}'
+      - '&7Allowed: {allowed}'
+
+# Main menu for interacting with arenas.
+kit-main:
+  title: '&8Duels - Kit'
+  rows: 2
+  items:
+    list:
+      slot: 3
+      material: DIAMOND_SWORD
+      name: '&aList Kits'
+      lore:
+        - '&7Click to browse and'
+        - '&7manage kits'
+    create:
+      slot: 5
+      material: NETHER_STAR
+      name: '&aCreate Kit'
+      lore:
+        - '&7Click and then type name'
+        - '&7in chat to create kit'
+
+# Leaderboard of the top duelists by wins, with the viewer's own win/loss
+# record shown separately (built in code, not from an "entry" template here -
+# each row needs that player's real head texture, which isn't something a
+# config template can express). Clicking an entry shows that player's wins.
+stats-leaderboard:
+  title: '&8Top Duelists'
+  rows: 6
+
+# Paginated menu that lists all kits. Clicking a kit opens the kit-detail menu for that kit.
+kit-list:
+  title: '&8Kits'
+  rows: 6
+  entry:
+    material: '{material}'
+    name: '&f{kit-name}'
+    lore:
+      - '&7ID: &f{id}'
+
+# Menu for managing a specific kit. This menu is opened when a kit is clicked in the kit-list menu.
+kit-detail:
+  title: '&8{kit-name}'
+  rows: 2
+  items:
+    set-icon:
+      slot: 0
+      material: ITEM_FRAME
+      name: '&eSet Icon'
+      lore:
+        - '&7Click while holding an item to'
+        - '&7use it as this kit''s icon in'
+        - '&7the kit list/selector menus.'
+    rename:
+      slot: 2
+      material: NAME_TAG
+      name: '&aChange Name'
+      lore:
+        - '&7Click, then type the kit''s'
+        - '&7new name in chat.'
+    edit:
+      slot: 4
+      material: STICK
+      name: '&bEdit Kit'
+      lore:
+        - '&7Click to edit kit items.'
+    delete:
+      slot: 6
+      material: BARRIER
+      name: '&cDelete Kit'
+      lore:
+        - '&7Click to permanently delete this kit.'
+
+# Paginated menu shown during kit selection. Left click selects a kit and right click previews it.
+kit-selector:
+  title: '&8Choose a Kit'
+  rows: 6
+  entry:
+    material: '{material}'
+    name: '&f{kit-name}'
+    lore:
+      - '&aLeft click to select kit'
+      - '&eRight click to view kit'
+
+# Read-only display of a kit's contents/armor/offhand, shown when a player picks a kit from kit-selector.
+# Slots 0-35 mirror the kit's stored inventory contents, slots 38/39/40/41/43 show
+# helmet/chestplate/leggings/boots/offhand - kept in sync with kit-edit's layout below.
+kit-view:
+  title: '&8{kit-name}'
+  rows: 6
+
+# Menu for editing the items of a specific kit. This menu is opened when the edit option is clicked in the kit-detail menu.
+# Slots 0-35 are free-edit slots mirroring the kit's stored inventory contents 1:1 (slot N here
+# is contents[N]). Row 4 holds a helmet/chestplate/leggings/boots/offhand "paperdoll" (slots
+# 38/39/40/41/43), each restricted to the matching equipment type. Row 5 holds Save/Back.
+kit-edit:
+  title: '&8{kit-name}'
+  rows: 6
+  items:
+    save:
+      slot: 51
+      material: EMERALD
+      name: '&aSave Kit'
+      lore:
+        - '&7Click to save changes to this kit.'

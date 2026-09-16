@@ -1,0 +1,77 @@
+name: Duels
+version: '${project.version}'
+main: me.jackcw.duels.Duels
+api-version: '1.21'
+description: 1v1 duels with configurable kits and arenas
+author: Jack
+
+commands:
+  duels:
+    description: Main admin command
+    usage: /<command>
+    aliases:
+      - ds
+  duel:
+    description: Challenge another player to a duel
+    usage: /<command> <player>
+    aliases:
+      - fight
+
+permissions:
+  duels.duel:
+    description: Challenge, accept, deny, view stats, and manage your own duels
+    default: true
+  duels.admin:
+    description: Full access to every Duels admin command
+    default: op
+    children:
+      duels.admin.help: true
+      duels.admin.arena: true
+      duels.admin.kit: true
+  duels.admin.help:
+    description: Open the Duels admin menu
+    default: op
+  duels.admin.arena:
+    description: Access the arena management menu and its subcommands
+    default: op
+    children:
+      duels.admin.arena.create: true
+      duels.admin.arena.delete: true
+      duels.admin.arena.list: true
+      duels.admin.arena.menu: true
+      duels.admin.arena.setspawn: true
+  duels.admin.arena.create:
+    description: Create arenas
+    default: op
+  duels.admin.arena.delete:
+    description: Delete arenas
+    default: op
+  duels.admin.arena.list:
+    description: List arenas and their spawn/ready status
+    default: op
+  duels.admin.arena.menu:
+    description: Open the arena management menu
+    default: op
+  duels.admin.arena.setspawn:
+    description: Set arena spawn points
+    default: op
+  duels.admin.kit:
+    description: Access the kit management menu and its subcommands
+    default: op
+    children:
+      duels.admin.kit.create: true
+      duels.admin.kit.delete: true
+      duels.admin.kit.list: true
+      duels.admin.kit.menu: true
+  duels.admin.kit.create:
+    description: Create kits
+    default: op
+  duels.admin.kit.delete:
+    description: Delete kits
+    default: op
+  duels.admin.kit.list:
+    description: List kits
+    default: op
+  duels.admin.kit.menu:
+    description: Open the kit management menu
+    default: op

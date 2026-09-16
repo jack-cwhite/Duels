@@ -1,0 +1,29 @@
+# Which database Duels stores its data in. Only used when stats-storage in
+# config.yml is set to SQL - has no effect at all with YAML storage.
+#
+# type: SQLITE, MYSQL, MARIADB, or POSTGRESQL
+type: SQLITE
+
+sqlite:
+  file: database.db
+
+mysql:
+  host: localhost
+  port: 3306
+  database: duels
+  username: root
+  password: ''
+
+mariadb:
+  host: localhost
+  port: 3306
+  database: duels
+  username: root
+  password: ''
+
+postgresql:
+  host: localhost
+  port: 5432
+  database: duels
+  username: postgres
+  password: ''
