@@ -1,6 +1,7 @@
 package me.jackcw.duels;
 
 import me.jackcw.duels.arena.Arena;
+import me.jackcw.duels.arena.ArenaInstance;
 import me.jackcw.duels.challenge.Challenge;
 import me.jackcw.duels.kit.Kit;
 import me.jackcw.duels.match.Match;
@@ -76,17 +77,23 @@ class DuelsIntegrationTest
     @Test
     void matchKeepsIndependentKitSnapshot()
     {
+        WorldMock world = server.addSimpleWorld("kit_snapshot_world");
         Arena arena = new Arena(1, "Test Arena");
+        arena.setSpawn1(new Location(world, 0, 64, 0));
+        arena.setSpawn2(new Location(world, 10, 64, 10));
         Kit kit = new Kit(1, "Sword");
         ItemStack[] contents = new ItemStack[36];
         contents[0] = new ItemStack(Material.IRON_SWORD);
         kit.setContents(contents);
 
-        Match match = new Match(
-                UUID.randomUUID(), UUID.randomUUID(), arena,
-                new Location(null, 0, 0, 0), new Location(null, 1, 0, 0),
-                List.of(kit)
-        );
+        Match match =
+            new Match(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                new ArenaInstance(arena.getId(), arena.getSpawn1(), arena.getSpawn2()),
+                new Location(null, 0, 0, 0),
+                new Location(null, 1, 0, 0),
+                List.of(kit));
 
         kit.getContents()[0] = new ItemStack(Material.WOODEN_SWORD);
 

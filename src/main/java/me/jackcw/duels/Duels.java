@@ -1,8 +1,6 @@
 package me.jackcw.duels;
 
-import me.jackcw.duels.arena.Arena;
-import me.jackcw.duels.arena.ArenaManager;
-import me.jackcw.duels.arena.ArenaSerializer;
+import me.jackcw.duels.arena.*;
 import me.jackcw.duels.challenge.ChallengeExpiryHandler;
 import me.jackcw.duels.challenge.ChallengeManager;
 import me.jackcw.duels.commands.DuelCommand;
@@ -41,6 +39,7 @@ public class Duels extends JavaPlugin
 
     private DuelsSettings settings;
     private ArenaManager arenaManager;
+    private ArenaAllocator arenaAllocator;
     private KitManager kitManager;
     private ChallengeManager challengeManager;
     private MatchManager matchManager;
@@ -103,6 +102,11 @@ public class Duels extends JavaPlugin
     public ArenaManager getArenaManager()
     {
         return arenaManager;
+    }
+
+    public ArenaAllocator getArenaAllocator()
+    {
+        return arenaAllocator;
     }
 
     public KitManager getKitManager()
@@ -232,12 +236,13 @@ public class Duels extends JavaPlugin
     {
         kitManager = new KitManager(kitRepository);
         arenaManager = new ArenaManager(arenaRepository);
+        arenaAllocator = new StaticArenaAllocator(arenaManager);
         challengeManager = new ChallengeManager(jCore.tasks(), settings, new ChallengeExpiryHandler(jCore.messages())::onExpire);
         playerStateManager = new PlayerStateManager(jCore.files().yaml("playerstates.yml", true), jCore.serializers());
         statsManager = new StatsManager(this);
         matchManager = new MatchManager(this);
 
-        arenaManager.setActiveCheck(matchManager::isArenaInUse);
+        arenaManager.setActiveCheck(arenaAllocator::isAllocated);
     }
 
     private void registerEvents()

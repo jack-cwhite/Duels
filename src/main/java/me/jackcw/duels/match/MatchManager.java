@@ -2,9 +2,7 @@ package me.jackcw.duels.match;
 
 import me.jackcw.duels.Duels;
 import me.jackcw.duels.DuelsSettings;
-import me.jackcw.duels.arena.Arena;
-import me.jackcw.duels.arena.ArenaKits;
-import me.jackcw.duels.arena.ArenaManager;
+import me.jackcw.duels.arena.*;
 import me.jackcw.duels.kit.Kit;
 import me.jackcw.duels.kit.KitManager;
 import me.jackcw.duels.message.Message;
@@ -27,6 +25,7 @@ import java.util.*;
 public final class MatchManager
 {
     private final ArenaManager arenaManager;
+    private final ArenaAllocator arenaAllocator;
     private final KitManager kitManager;
     private final PlayerStateManager playerStateManager;
     private final MessageManager messageManager;
@@ -38,6 +37,7 @@ public final class MatchManager
     {
         this.plugin = plugin;
         this.arenaManager = plugin.getArenaManager();
+        this.arenaAllocator = plugin.getArenaAllocator();
         this.kitManager = plugin.getKitManager();
         this.playerStateManager = plugin.getPlayerStateManager();
         this.messageManager = plugin.core().messages();
@@ -49,20 +49,21 @@ public final class MatchManager
         if (player1 == null || player2 == null || !player1.isOnline() || !player2.isOnline() || player1.getUniqueId().equals(player2.getUniqueId()) || getMatch(player1.getUniqueId()) != null || getMatch(player2.getUniqueId()) != null)
             return null;
 
-        Arena arena = findFreeArena();
+        Optional<ArenaInstance> allocated = arenaAllocator.allocate();
 
-        if (arena == null)
+        if (allocated.isEmpty())
             return null;
 
-        Match match = createMatch(arena, player1, player2);
+        ArenaInstance arenaInstance = allocated.get();
+        Match match = createMatch(arenaInstance, player1, player2);
 
         matches.put(player1.getUniqueId(), match);
         matches.put(player2.getUniqueId(), match);
 
         initializePlayers(player1, player2);
 
-        player1.teleport(arena.getSpawn1());
-        player2.teleport(arena.getSpawn2());
+        player1.teleport(arenaInstance.getSpawn1());
+        player2.teleport(arenaInstance.getSpawn2());
 
         if (!match.getAvailableKits().isEmpty())
         {
@@ -88,14 +89,15 @@ public final class MatchManager
         prepareForMatch(player2);
     }
 
-    public Match createMatch(Arena arena, Player player1, Player player2)
+    public Match createMatch(ArenaInstance arenaInstance, Player player1, Player player2)
     {
+        Arena arena = arenaManager.getArena(arenaInstance.getArenaId());
         List<Kit> availableKits = ArenaKits.allowedKits(arena, kitManager);
 
         return new Match(
                 player1.getUniqueId(),
                 player2.getUniqueId(),
-                arena,
+                arenaInstance,
                 player1.getLocation(),
                 player2.getLocation(),
                 availableKits
@@ -111,7 +113,7 @@ public final class MatchManager
             match.getCountdown().cancel();
 
         MatchResult result = new MatchResult(
-                match.getArena().getId(),
+                match.getArenaInstance().getArenaId(),
                 match.getPlayer1Id(),
                 match.getPlayer2Id(),
                 winnerId,
@@ -124,6 +126,8 @@ public final class MatchManager
 
         endParticipant(match, match.getPlayer1Id(), winnerId);
         endParticipant(match, match.getPlayer2Id(), winnerId);
+
+        arenaAllocator.release(match.getArenaInstance());
     }
 
     public Match getMatch(UUID uuid)
@@ -179,6 +183,8 @@ public final class MatchManager
             restoreParticipant(match, match.getPlayer1Id(), null, false);
             restoreParticipant(match, match.getPlayer2Id(), null, false);
         }
+
+        arenaAllocator.release(match.getArenaInstance());
     }
 
     private void endParticipant(Match match, UUID playerId, UUID winnerId)
@@ -212,24 +218,6 @@ public final class MatchManager
     private void forgetParticipant(UUID playerId)
     {
         matches.remove(playerId);
-    }
-
-    private Arena findFreeArena()
-    {
-        for (Arena arena : arenaManager.getArenas())
-            if (arena.isReady() && arena.isEnabled() && !isArenaInUse(arena.getId()))
-                return arena;
-
-        return null;
-    }
-
-    public boolean isArenaInUse(int arenaId)
-    {
-        for (Match match : matches.values())
-            if (match.getArena().getId() == arenaId)
-                return true;
-
-        return false;
     }
 
     private void prepareForMatch(Player player)
@@ -342,7 +330,7 @@ public final class MatchManager
     {
         match.setState(MatchState.GRACE);
 
-        String actionBarFormat = "&cGrace period ends in%d...";
+        String actionBarFormat = "&cGrace period ends in %d...";
 
         Countdown countdown = Countdown.builder(plugin.core().tasks(), settings.gracePeriodSeconds())
                 .actionBar(List.of(player1, player2), remaining -> String.format(actionBarFormat, remaining))

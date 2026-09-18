@@ -1,6 +1,7 @@
 package me.jackcw.duels.match;
 
 import me.jackcw.duels.arena.Arena;
+import me.jackcw.duels.arena.ArenaInstance;
 import me.jackcw.duels.kit.Kit;
 import me.jackcw.jcore.countdown.Countdown;
 import me.jackcw.jcore.state.StateMachine;
@@ -15,7 +16,7 @@ public final class Match
 {
     private final UUID player1Id;
     private final UUID player2Id;
-    private final Arena arena;
+    private final ArenaInstance arenaInstance;
     private final Location player1Location;
     private final Location player2Location;
     private final List<Kit> availableKits;
@@ -24,11 +25,11 @@ public final class Match
     private final Map<UUID, Integer> appliedKits = new HashMap<>();
     private Countdown countdown;
 
-    public Match(UUID player1Id, UUID player2Id, Arena arena, Location player1Location, Location player2Location, List<Kit> availableKits)
+    public Match(UUID player1Id, UUID player2Id, ArenaInstance arenaInstance, Location player1Location, Location player2Location, List<Kit> availableKits)
     {
         this.player1Id = player1Id;
         this.player2Id = player2Id;
-        this.arena = arena;
+        this.arenaInstance = arenaInstance;
         this.player1Location = player1Location;
         this.player2Location = player2Location;
         this.availableKits = availableKits.stream().map(Kit::copy).toList();
@@ -78,9 +79,9 @@ public final class Match
         return player2Id;
     }
 
-    public Arena getArena()
+    public ArenaInstance getArenaInstance()
     {
-        return arena;
+        return arenaInstance;
     }
 
     public List<Kit> getAvailableKits()
