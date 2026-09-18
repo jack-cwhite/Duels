@@ -90,7 +90,7 @@ public class Duels extends JavaPlugin
             jCore.shutdown();
     }
 
-    public JCore getJCore()
+    public JCore core()
     {
         return jCore;
     }

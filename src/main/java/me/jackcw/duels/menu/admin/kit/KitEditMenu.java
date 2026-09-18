@@ -34,8 +34,8 @@ public final class KitEditMenu
 
     public KitEditMenu(Duels plugin)
     {
-        this.menus = plugin.getJCore().menus();
-        this.messageManager = plugin.getJCore().messages();
+        this.menus = plugin.core().menus();
+        this.messageManager = plugin.core().messages();
         this.kitManager = plugin.getKitManager();
     }
 

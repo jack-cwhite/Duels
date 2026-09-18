@@ -18,7 +18,7 @@ public class KitListMenu
 
     public KitListMenu(Duels plugin, KitDetailMenu kitDetailMenu)
     {
-        this.menus = plugin.getJCore().menus();
+        this.menus = plugin.core().menus();
         this.kitManager = plugin.getKitManager();
         this.kitDetailMenu = kitDetailMenu;
     }

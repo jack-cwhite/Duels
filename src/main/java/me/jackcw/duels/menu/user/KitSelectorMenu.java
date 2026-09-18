@@ -24,8 +24,8 @@ public class KitSelectorMenu
 
     public KitSelectorMenu(Duels plugin, KitViewMenu kitViewMenu)
     {
-        this.menus = plugin.getJCore().menus();
-        this.messageManager = plugin.getJCore().messages();
+        this.menus = plugin.core().menus();
+        this.messageManager = plugin.core().messages();
         this.matchManager = plugin.getMatchManager();
         this.kitViewMenu = kitViewMenu;
     }

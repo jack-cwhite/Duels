@@ -43,8 +43,8 @@ public final class DuelsCommand
     {
         this.arenaManager = plugin.getArenaManager();
         this.kitManager = plugin.getKitManager();
-        this.messageManager = plugin.getJCore().messages();
-        this.menus = plugin.getJCore().menus();
+        this.messageManager = plugin.core().messages();
+        this.menus = plugin.core().menus();
         this.adminMenu = plugin.getAdminMainMenu();
         this.arenaMenu = plugin.getArenaMainMenu();
         this.arenaListMenu = plugin.getArenaListMenu();

@@ -15,7 +15,7 @@ public final class AdminMainMenu
 
     public AdminMainMenu(Duels plugin, ArenaMainMenu arenaMainMenu, KitMainMenu kitMainMenu)
     {
-        this.menus = plugin.getJCore().menus();
+        this.menus = plugin.core().menus();
         this.arenaMainMenu = arenaMainMenu;
         this.kitMainMenu = kitMainMenu;
     }

@@ -19,8 +19,8 @@ public final class YamlStatsRepository implements StatsRepository
     public YamlStatsRepository(Duels plugin)
     {
         this.repository = new YamlRepository<>(
-                plugin.getJCore().files().yaml("stats.yml"),
-                plugin.getJCore().serializers(),
+                plugin.core().files().yaml("stats.yml"),
+                plugin.core().serializers(),
                 "matches",
                 MatchRecord.class,
                 MatchRecord::getId

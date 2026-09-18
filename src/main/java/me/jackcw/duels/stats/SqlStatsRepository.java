@@ -29,9 +29,9 @@ public final class SqlStatsRepository implements StatsRepository
     {
         this.plugin = plugin;
 
-        DatabaseType type = plugin.getJCore().databaseConfiguration().getType();
+        DatabaseType type = plugin.core().databaseConfiguration().getType();
 
-        plugin.getJCore().migrations().add(new Migration(1, connection ->
+        plugin.core().migrations().add(new Migration(1, connection ->
         {
             try (Statement statement = connection.createStatement())
             {
@@ -95,7 +95,7 @@ public final class SqlStatsRepository implements StatsRepository
     @Override
     public void recordMatch(int arenaId, UUID player1Id, UUID player2Id, UUID winnerId, Integer kitId1, Integer kitId2, long endedAt)
     {
-        plugin.getJCore().tasks().runAsync(() ->
+        plugin.core().tasks().runAsync(() ->
         {
             try
             {
@@ -147,7 +147,7 @@ public final class SqlStatsRepository implements StatsRepository
     @Override
     public CompletableFuture<List<LeaderboardEntry>> getTopPlayers(int limit)
     {
-        return plugin.getJCore().tasks().submitAsync(() ->
+        return plugin.core().tasks().submitAsync(() ->
         {
             List<LeaderboardEntry> entries = new ArrayList<>();
 
@@ -169,7 +169,7 @@ public final class SqlStatsRepository implements StatsRepository
     @Override
     public CompletableFuture<HeadToHead> getHeadToHead(UUID playerA, UUID playerB, Integer kitIdA, Integer kitIdB, Integer arenaId)
     {
-        return plugin.getJCore().tasks().submitAsync(() ->
+        return plugin.core().tasks().submitAsync(() ->
         {
             StringBuilder sql = new StringBuilder(
                     "SELECT pa.won AS a_won FROM duels_match_participants pa " +
@@ -217,7 +217,7 @@ public final class SqlStatsRepository implements StatsRepository
 
     private CompletableFuture<Integer> countWhereAsync(String condition, Object... parameters)
     {
-        return plugin.getJCore().tasks().submitAsync(() ->
+        return plugin.core().tasks().submitAsync(() ->
         {
             int[] total = new int[1];
 
@@ -255,6 +255,6 @@ public final class SqlStatsRepository implements StatsRepository
 
     private Database database()
     {
-        return plugin.getJCore().database();
+        return plugin.core().database();
     }
 }

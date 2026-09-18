@@ -15,7 +15,7 @@ public final class ArenaListMenu
 
     public ArenaListMenu(Duels plugin, ArenaDetailMenu arenaDetailMenu)
     {
-        this.menus = plugin.getJCore().menus();
+        this.menus = plugin.core().menus();
         this.arenaManager = plugin.getArenaManager();
         this.arenaDetailMenu = arenaDetailMenu;
     }

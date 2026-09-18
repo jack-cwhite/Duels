@@ -37,9 +37,9 @@ public final class LeaderboardMenu
     public LeaderboardMenu(Duels plugin)
     {
         this.plugin = plugin;
-        this.menus = plugin.getJCore().menus();
+        this.menus = plugin.core().menus();
         this.statsManager = plugin.getStatsManager();
-        this.messageManager = plugin.getJCore().messages();
+        this.messageManager = plugin.core().messages();
     }
 
     public void open(Player player)
@@ -51,7 +51,7 @@ public final class LeaderboardMenu
         CompletableFuture<Integer> lossesFuture = statsManager.getLosses(playerId);
 
         CompletableFuture.allOf(topFuture, winsFuture, lossesFuture)
-                .thenRun(() -> plugin.getJCore().tasks().runSync(() ->
+                .thenRun(() -> plugin.core().tasks().runSync(() ->
                 {
                     if (!player.isOnline())
                         return;
@@ -64,7 +64,7 @@ public final class LeaderboardMenu
 
                     if (plugin.isEnabled())
                     {
-                        plugin.getJCore().tasks().runSync(() ->
+                        plugin.core().tasks().runSync(() ->
                         {
                             if (player.isOnline())
                                 messageManager.send(player, Message.STATS_LOAD_FAILED);

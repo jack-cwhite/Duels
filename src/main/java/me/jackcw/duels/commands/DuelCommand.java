@@ -37,9 +37,9 @@ public final class DuelCommand
         this.matchManager = plugin.getMatchManager();
         this.kitSelectorMenu = plugin.getKitSelectorMenu();
         this.leaderboardMenu = plugin.getLeaderboardMenu();
-        this.messageManager = plugin.getJCore().messages();
+        this.messageManager = plugin.core().messages();
         this.settings = plugin.getSettings();
-        this.menus = plugin.getJCore().menus();
+        this.menus = plugin.core().menus();
     }
 
     public CommandNode build()
