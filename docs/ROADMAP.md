@@ -29,8 +29,36 @@ systems they touch, so they're cheapest to fix now while the blast radius is sma
       thrown exception during `PlayerState.apply` would surface as an unhandled exception
       in a join event; the snapshot is left in place either way (fail-forward), but the
       failure should be caught and logged instead of leaking into Bukkit's event handling.
+- [x] Fixed a death-screen glitch: `MatchManager.restoreParticipant` was teleporting and
+      restoring the player who just died synchronously inside `PlayerDeathEvent`, before
+      the client had actually respawned - moving/mutating a dead-but-not-yet-respawned
+      player produces exactly the "Respawn button just closes the screen" bug found during
+      manual testing. Restoration for the dying player is now deferred: `MatchListener`
+      forwards `PlayerRespawnEvent` to `MatchManager.handleRespawn`, which sets the landing
+      spot via `event.setRespawnLocation(...)` and applies the rest of the saved state one
+      tick later once the player is actually alive again.
+- [x] Suppressed vanilla advancement toasts/chat broadcasts triggered by kit items being
+      placed directly into a player's inventory during a match (`kit.apply(...)` mutating
+      inventory contents still runs vanilla's normal advancement-trigger checks).
+      `MatchListener.onAdvancementDone` revokes any criteria awarded to a player currently
+      in a match.
 
-## Phase 1 - Arena Configuration vs Arena Runtime Instance
+## Phase 1 - Arena Configuration vs Arena Runtime Instance `[x]` (core done)
+
+**Status:** The core of this phase is implemented and manually tested. `ArenaInstance`
+(Duels, `arena/ArenaInstance.java`) is a runtime snapshot (id + cloned spawn locations)
+built at allocation time, decoupled from the live, mutable `Arena`. `Match` now holds an
+`ArenaInstance` instead of an `Arena` reference. Rather than the pre-built "instance
+registry" originally sketched below, occupancy is managed through a new `ArenaAllocator`
+interface (`allocate()` / `release()` / `isAllocated()`) with a `StaticArenaAllocator`
+implementation that reproduces the old scan-for-a-free-arena behaviour but owns its own
+`Set<Integer>` of claimed arena IDs instead of deriving "in use" from scanning the live
+match table. `ArenaManager`'s `activeCheck` now asks `arenaAllocator::isAllocated` instead
+of `matchManager::isArenaInUse`, preserving the existing edit-while-in-use protection.
+This satisfies the phase's Definition of Done (`Match`/`MatchManager` no longer reference
+`Arena` directly for occupancy) and gives Phase 3 (instancing) a clean seam: a future
+allocator implementation that manages multiple physical copies per template is a new
+`ArenaAllocator` implementation, not a rework of `Match` or `MatchManager`.
 
 **This is the single most important structural change in the roadmap.** Phases 2
 (bounds), 3 (instancing) and 4 (spectators) all depend on it, and matchmaking (Phase 7)
