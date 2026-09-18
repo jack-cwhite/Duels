@@ -2,6 +2,7 @@ package me.jackcw.duels.menu.admin.arena;
 
 import me.jackcw.duels.Duels;
 import me.jackcw.duels.arena.Arena;
+import me.jackcw.duels.arena.ArenaEditManager;
 import me.jackcw.duels.arena.ArenaManager;
 import me.jackcw.duels.arena.ArenaMutationResult;
 import me.jackcw.duels.message.Message;
@@ -20,6 +21,7 @@ public final class ArenaDetailMenu
 {
     private final MenuManager menus;
     private final ArenaManager arenaManager;
+    private final ArenaEditManager arenaEditManager;
     private final MessageManager messageManager;
     private final ArenaKitMenu arenaKitMenu;
 
@@ -27,6 +29,7 @@ public final class ArenaDetailMenu
     {
         this.menus = plugin.core().menus();
         this.arenaManager = plugin.getArenaManager();
+        this.arenaEditManager = plugin.getArenaEditManager();
         this.messageManager = plugin.core().messages();
         this.arenaKitMenu = arenaKitMenu;
     }
@@ -146,6 +149,19 @@ public final class ArenaDetailMenu
                             .open(player));
                 })
                 .item("kits", context -> context.openChild(() -> arenaKitMenu.open(player, arenaId)))
+                .item("edit-mode", context ->
+                {
+                    Arena current = requireArena(player, arenaId, context);
+
+                    if (current == null)
+                        return;
+
+                    if (isInUse(player, arenaId, context))
+                        return;
+
+                    arenaEditManager.start(player, current);
+                    player.closeInventory();
+                })
                 .back()
                 .open(player);
     }

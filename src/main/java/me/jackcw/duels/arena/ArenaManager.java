@@ -116,6 +116,29 @@ public final class ArenaManager
         return ArenaMutationResult.success(arena);
     }
 
+    public ArenaMutationResult setBoundsCorner(int id, int corner, Location location)
+    {
+        if (corner != 1 && corner != 2)
+            throw new IllegalArgumentException("Bounds corner must be 1 or 2");
+
+        Arena arena = arenas.get(id);
+
+        if (arena == null)
+            return ArenaMutationResult.notFound();
+
+        if (activeCheck.test(id))
+            return ArenaMutationResult.inUse();
+
+        if (corner == 1)
+            arena.setBoundsCorner1(location);
+        else
+            arena.setBoundsCorner2(location);
+
+        save(arena);
+
+        return ArenaMutationResult.success(arena);
+    }
+
     public ArenaMutationResult toggleKitAllowed(int arenaId, int kitId)
     {
         Arena arena = arenas.get(arenaId);

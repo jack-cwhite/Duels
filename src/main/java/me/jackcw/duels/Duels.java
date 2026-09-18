@@ -8,6 +8,7 @@ import me.jackcw.duels.commands.DuelsCommand;
 import me.jackcw.duels.kit.Kit;
 import me.jackcw.duels.kit.KitManager;
 import me.jackcw.duels.kit.KitSerializer;
+import me.jackcw.duels.listener.ArenaEditListener;
 import me.jackcw.duels.listener.MatchListener;
 import me.jackcw.duels.listener.PlayerStateListener;
 import me.jackcw.duels.match.MatchManager;
@@ -40,6 +41,7 @@ public class Duels extends JavaPlugin
     private DuelsSettings settings;
     private ArenaManager arenaManager;
     private ArenaAllocator arenaAllocator;
+    private ArenaEditManager arenaEditManager;
     private KitManager kitManager;
     private ChallengeManager challengeManager;
     private MatchManager matchManager;
@@ -107,6 +109,11 @@ public class Duels extends JavaPlugin
     public ArenaAllocator getArenaAllocator()
     {
         return arenaAllocator;
+    }
+
+    public ArenaEditManager getArenaEditManager()
+    {
+        return arenaEditManager;
     }
 
     public KitManager getKitManager()
@@ -237,6 +244,7 @@ public class Duels extends JavaPlugin
         kitManager = new KitManager(kitRepository);
         arenaManager = new ArenaManager(arenaRepository);
         arenaAllocator = new StaticArenaAllocator(arenaManager);
+        arenaEditManager = new ArenaEditManager(this);
         challengeManager = new ChallengeManager(jCore.tasks(), settings, new ChallengeExpiryHandler(jCore.messages())::onExpire);
         playerStateManager = new PlayerStateManager(jCore.files().yaml("playerstates.yml", true), jCore.serializers());
         statsManager = new StatsManager(this);
@@ -249,6 +257,7 @@ public class Duels extends JavaPlugin
     {
         getServer().getPluginManager().registerEvents(new PlayerStateListener(this), this);
         getServer().getPluginManager().registerEvents(new MatchListener(this), this);
+        getServer().getPluginManager().registerEvents(new ArenaEditListener(this), this);
     }
 
     private void registerCommands()

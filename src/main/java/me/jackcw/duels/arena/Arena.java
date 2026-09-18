@@ -12,6 +12,8 @@ public final class Arena
     private String name;
     private Location spawn1;
     private Location spawn2;
+    private Location boundsCorner1;
+    private Location boundsCorner2;
     private final Set<Integer> disallowedKitIds = new TreeSet<>();
     private boolean enabled;
 
@@ -55,6 +57,31 @@ public final class Arena
     public void setSpawn2(Location spawn2)
     {
         this.spawn2 = spawn2;
+    }
+
+    public Location getBoundsCorner1()
+    {
+        return boundsCorner1;
+    }
+
+    public void setBoundsCorner1(Location boundsCorner1)
+    {
+        this.boundsCorner1 = boundsCorner1;
+    }
+
+    public Location getBoundsCorner2()
+    {
+        return boundsCorner2;
+    }
+
+    public void setBoundsCorner2(Location boundsCorner2)
+    {
+        this.boundsCorner2 = boundsCorner2;
+    }
+
+    public boolean hasBounds()
+    {
+        return boundsCorner1 != null && boundsCorner2 != null;
     }
 
     public void setEnabled(boolean enabled)

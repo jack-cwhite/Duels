@@ -144,6 +144,14 @@ arena-detail:
       lore:
         - '&7Click to manage allowed'
         - '&7kits in this arena'
+    edit-mode:
+      slot: 12
+      material: BLAZE_ROD
+      name: '&eEnter Edit Mode'
+      lore:
+        - '&7Click to enter edit mode - gives'
+        - '&7hotbar tools for setting spawns'
+        - '&7and bounds in-world'
 
 # Manage what kits are allowed in an arena
 arena-kit:

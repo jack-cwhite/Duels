@@ -12,7 +12,7 @@ import java.util.Set;
 
 public final class ArenaSerializer implements RepositorySerializer<Arena>
 {
-    private static final Set<String> FIELDS = Set.of("name", "spawn1", "spawn2", "disallowedKits", "enabled");
+    private static final Set<String> FIELDS = Set.of("name", "spawn1", "spawn2", "boundsCorner1", "boundsCorner2", "disallowedKits", "enabled");
     private final SerializerManager serializerManager;
 
     public ArenaSerializer(SerializerManager serializerManager)
@@ -31,6 +31,8 @@ public final class ArenaSerializer implements RepositorySerializer<Arena>
         data.put("name", arena.getName());
         data.put("spawn1", serializerManager.serialize(arena.getSpawn1()));
         data.put("spawn2", serializerManager.serialize(arena.getSpawn2()));
+        data.put("boundsCorner1", serializerManager.serialize(arena.getBoundsCorner1()));
+        data.put("boundsCorner2", serializerManager.serialize(arena.getBoundsCorner2()));
         data.put("disallowedKits", new ArrayList<>(arena.getDisallowedKitIds()));
         data.put("enabled", arena.isEnabled());
 
@@ -54,6 +56,8 @@ public final class ArenaSerializer implements RepositorySerializer<Arena>
 
         arena.setSpawn1(serializerManager.deserialize(map.get("spawn1"), Location.class));
         arena.setSpawn2(serializerManager.deserialize(map.get("spawn2"), Location.class));
+        arena.setBoundsCorner1(serializerManager.deserialize(map.get("boundsCorner1"), Location.class));
+        arena.setBoundsCorner2(serializerManager.deserialize(map.get("boundsCorner2"), Location.class));
 
         if (map.get("enabled") instanceof Boolean enabled)
             arena.setEnabled(enabled);

@@ -169,7 +169,60 @@ requested back-to-back with only one arena configured must still correctly repor
 all existing arena-editing/deletion protections still function against the same manual
 test matrix; no persisted format changes.
 
-## Phase 2 - Arena Bounds
+## Phase 2 - Arena Bounds `[~]` (in progress)
+
+**Status:** Bounds storage and an admin "edit mode" wand system are implemented and
+compile clean; boundary *enforcement* during live matches (the `PlayerMoveEvent` check
+described below) has not been started yet.
+
+Implemented so far:
+
+- `Arena` (Duels, `arena/Arena.java`) now has `boundsCorner1`/`boundsCorner2` (`Location`)
+  fields, plus `hasBounds()`. `ArenaSerializer` reads/writes both, and the `FIELDS`
+  allowlist used by its defensive deserialization check was updated to include them
+  (this allowlist rejects any unrecognized YAML key, so it must be kept in sync with
+  whatever `serialize()`/`deserialize()` actually touch).
+- `ArenaManager.setBoundsCorner(id, corner, location)` mirrors the existing `setSpawn`
+  method - same `NOT_FOUND`/`IN_USE`/`SUCCESS` result pattern, so bounds get the same
+  "can't edit while in use" protection spawns already had.
+- A new admin "edit mode" QoL feature was added alongside bounds, motivated by the same
+  problem spawns already had: repeatedly reopening the admin GUI just to walk somewhere
+  and click "set spawn" again is annoying. This is a hotbar-wand pattern (similar to
+  WorldEdit), scoped deliberately to spatial actions only (spawns and bounds) - actions
+  like rename or the kit-allowed list stay GUI-only since they aren't spatial and the
+  existing menu already serves them fine.
+  - `ArenaEditTool` (enum): `SPAWN_1`, `SPAWN_2`, `BOUNDS_CORNER_1`, `BOUNDS_CORNER_2`,
+    `EXIT` - each carries a `Material` and display name used to build its hotbar item.
+  - `ArenaEditSession`: a small per-player record (player UUID, arena ID, saved 9-slot
+    hotbar) - deliberately *not* built on `PlayerStateManager`, since that system's full
+    match-lifecycle inventory/health capture is a much heavier concern than "remember 9
+    hotbar slots for the duration of an edit session."
+  - `ArenaEditManager`: owns `Map<UUID, ArenaEditSession>` as the source of truth for who
+    is currently editing what (same self-tracking-map pattern as `StaticArenaAllocator`
+    from Phase 1). `start()` snapshots the player's hotbar and replaces it with tagged
+    tool items; `end()` restores the snapshot and drops the session. Tool items are
+    identified via a `PersistentDataContainer` tag under a plugin-scoped `NamespacedKey`
+    (`arena-edit-tool`) - this is the first use of PDC tagging anywhere in Duels.
+  - `ArenaEditListener` (Duels, `listener/`): handles `PlayerInteractEvent` (left-click a
+    tool sets the corresponding spawn/bounds corner to the player's current location,
+    right-click teleports to it if set, matching `ArenaDetailMenu.handleSpawnClick`'s
+    existing left/right convention; `EXIT` ends the session either click) and
+    `PlayerQuitEvent` (ends the session on disconnect so it can't leak forever - without
+    this, a disconnecting admin would permanently occupy a phantom edit session).
+  - `ArenaDetailMenu` gained an "Enter Edit Mode" button that calls
+    `arenaEditManager.start(player, arena)` and closes the menu.
+- New messages: `ARENA_BOUNDS_SET`, `ARENA_BOUNDS_NOT_SET`, `ARENA_EDIT_MODE_EXITED`.
+
+Not yet done for this phase:
+
+- Boundary *enforcement* - nothing currently stops a player leaving `boundsCorner1`/
+  `boundsCorner2` during a live match. This is the `PlayerMoveEvent` work described
+  below and is still fully unstarted.
+- The out-of-bounds response (soft return vs. forfeit vs. warning) is still an open
+  product decision, deferred per the original plan below.
+- Manual testing of the edit-mode wand itself (clicking tools before a value is set,
+  quitting mid-session, deleting an arena while someone has it open in edit mode) has not
+  been performed yet - only `mvn compile` has been verified clean.
 
 ### Problem / Opportunity
 
