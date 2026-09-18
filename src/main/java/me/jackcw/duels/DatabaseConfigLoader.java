@@ -36,14 +36,28 @@ final class DatabaseConfigLoader
         FileConfiguration config = YamlConfiguration.loadConfiguration(file);
 
         DatabaseType type = parseType(config.getString("type"));
+        int poolSize = parsePoolSize(config);
 
         return switch (type)
         {
-            case SQLITE -> new DatabaseConfiguration(DatabaseType.SQLITE, sqlite(config));
-            case MYSQL -> new DatabaseConfiguration(DatabaseType.MYSQL, mysql(config, "mysql"));
-            case MARIADB -> new DatabaseConfiguration(DatabaseType.MARIADB, mysql(config, "mariadb"));
-            case POSTGRESQL -> new DatabaseConfiguration(DatabaseType.POSTGRESQL, postgresql(config));
+            case SQLITE -> new DatabaseConfiguration(DatabaseType.SQLITE, sqlite(config), poolSize);
+            case MYSQL -> new DatabaseConfiguration(DatabaseType.MYSQL, mysql(config, "mysql"), poolSize);
+            case MARIADB -> new DatabaseConfiguration(DatabaseType.MARIADB, mysql(config, "mariadb"), poolSize);
+            case POSTGRESQL -> new DatabaseConfiguration(DatabaseType.POSTGRESQL, postgresql(config), poolSize);
         };
+    }
+
+    private static int parsePoolSize(FileConfiguration config)
+    {
+        int poolSize = config.getInt("pool-size", 5);
+
+        if (poolSize < 1)
+        {
+            LOGGER.warning("database.yml 'pool-size' must be at least 1; got '" + poolSize + "', defaulting to 5");
+            return 5;
+        }
+
+        return poolSize;
     }
 
     private static void mergeDefaults(JavaPlugin plugin, File file)

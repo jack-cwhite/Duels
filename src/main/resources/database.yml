@@ -4,6 +4,11 @@
 # type: SQLITE, MYSQL, MARIADB, or POSTGRESQL
 type: SQLITE
 
+# Maximum number of concurrent connections in the connection pool. Only
+# relevant for MYSQL, MARIADB and POSTGRESQL - SQLite only ever uses a
+# single connection regardless of this setting. Must be at least 1.
+pool-size: 5
+
 sqlite:
   file: database.db
 
