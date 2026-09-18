@@ -3,6 +3,7 @@ package me.jackcw.duels.player;
 import me.jackcw.jcore.serialization.PlayerState;
 import me.jackcw.jcore.serialization.SerializerManager;
 import me.jackcw.jcore.storage.YamlFile;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 
@@ -68,6 +69,17 @@ public final class PlayerStateManager
 
         if (state == null)
             return false;
+
+        if (!Bukkit.getWorlds().contains(state.getLocation().getWorld()))
+        {
+            LOGGER.warning("Discarding saved player state for '" + player.getUniqueId() + "': its world is no longer loaded");
+
+            file.set(ROOT + "." + player.getUniqueId(), null);
+            file.save();
+            cache.remove(player.getUniqueId());
+
+            return false;
+        }
 
         state.apply(player);
 
