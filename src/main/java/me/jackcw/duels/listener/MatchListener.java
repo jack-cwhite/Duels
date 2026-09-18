@@ -24,7 +24,9 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.AreaEffectCloudApplyEvent;
 import org.bukkit.event.entity.PotionSplashEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerAdvancementDoneEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
 
 import java.util.List;
 import java.util.UUID;
@@ -153,6 +155,26 @@ public final class MatchListener implements Listener
 
         UUID winnerId = match.getOpponent(player.getUniqueId());
         matchManager.endMatch(match, winnerId);
+    }
+
+    @EventHandler
+    public void onAdvancementDone(PlayerAdvancementDoneEvent event)
+    {
+        Player player = event.getPlayer();
+
+        if (matchManager.getMatch(player.getUniqueId()) == null)
+            return;
+
+        var progress = player.getAdvancementProgress(event.getAdvancement());
+
+        for (String criteria : List.copyOf(progress.getAwardedCriteria()))
+            progress.revokeCriteria(criteria);
+    }
+
+    @EventHandler
+    public void onPlayerRespawn(PlayerRespawnEvent event)
+    {
+        matchManager.handleRespawn(event.getPlayer(), event);
     }
 
     @EventHandler

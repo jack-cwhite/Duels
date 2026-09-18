@@ -11,11 +11,13 @@ import me.jackcw.jcore.countdown.Countdown;
 import me.jackcw.jcore.message.MessageManager;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Registry;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Player;
+import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.util.Vector;
@@ -32,6 +34,7 @@ public final class MatchManager
     private final DuelsSettings settings;
     private final Duels plugin;
     private final Map<UUID, Match> matches = new HashMap<>();
+    private final Map<UUID, Location> pendingRespawnRestores = new HashMap<>();
 
     public MatchManager(Duels plugin)
     {
@@ -204,7 +207,9 @@ public final class MatchManager
         player.closeInventory();
         player.getInventory().clear();
 
-        if (!playerStateManager.restore(player))
+        if (player.isDead())
+            pendingRespawnRestores.put(playerId, match.getLocation(playerId));
+        else if (!playerStateManager.restore(player))
             player.teleport(match.getLocation(playerId));
 
         if (!sendResult)
@@ -213,6 +218,23 @@ public final class MatchManager
         Message result = playerId.equals(winnerId) ? Message.MATCH_WIN : Message.MATCH_LOSE;
 
         messageManager.send(player, result, "player", nameOf(match.getOpponent(playerId)));
+    }
+
+    public void handleRespawn(Player player, PlayerRespawnEvent event)
+    {
+        Location fallback = pendingRespawnRestores.remove(player.getUniqueId());
+
+        if (fallback == null)
+            return;
+
+        Location target = playerStateManager.has(player) ? playerStateManager.get(player).getLocation() : fallback;
+        event.setRespawnLocation(target);
+
+        plugin.core().tasks().runSyncLater(() ->
+        {
+            if (!playerStateManager.restore(player))
+                player.teleport(fallback);
+        }, 1L);
     }
 
     private void forgetParticipant(UUID playerId)
