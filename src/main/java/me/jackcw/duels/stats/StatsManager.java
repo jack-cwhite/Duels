@@ -1,7 +1,7 @@
 package me.jackcw.duels.stats;
 
 import me.jackcw.duels.Duels;
-import me.jackcw.duels.match.Match;
+import me.jackcw.duels.match.MatchResult;
 
 import java.util.List;
 import java.util.UUID;
@@ -20,17 +20,16 @@ public final class StatsManager
         };
     }
 
-    public void recordMatch(Match match, UUID winnerId, Integer kitId1, Integer kitId2)
+    public void recordMatch(MatchResult result)
     {
         repository.recordMatch(
-                match.getArena().getId(),
-                match.getPlayer1Id(),
-                match.getPlayer2Id(),
-                winnerId,
-                kitId1,
-                kitId2,
-                System.currentTimeMillis()
-        );
+            result.arenaId(),
+            result.player1Id(),
+            result.player2Id(),
+            result.winnerId(),
+            result.kitId1(),
+            result.kitId2(),
+            result.endedAt());
     }
 
     public CompletableFuture<Integer> getWins(UUID playerId)

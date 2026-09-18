@@ -2,9 +2,8 @@ package me.jackcw.duels.match;
 
 public enum MatchState
 {
-    STARTING,
-    KIT_SELECTION,
-    COUNTDOWN,
+    PREGAME,
+    GRACE,
     IN_PROGRESS,
     ENDED
 }

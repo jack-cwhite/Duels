@@ -1,9 +1,14 @@
 package me.jackcw.duels.listener;
 
 import me.jackcw.duels.Duels;
+import me.jackcw.duels.challenge.Challenge;
+import me.jackcw.duels.challenge.ChallengeManager;
 import me.jackcw.duels.match.Match;
 import me.jackcw.duels.match.MatchManager;
 import me.jackcw.duels.match.MatchState;
+import me.jackcw.duels.message.Message;
+import me.jackcw.jcore.message.MessageManager;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.AreaEffectCloud;
 import org.bukkit.entity.EvokerFangs;
@@ -21,17 +26,22 @@ import org.bukkit.event.entity.PotionSplashEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
+import java.util.List;
 import java.util.UUID;
 
 public final class MatchListener implements Listener
 {
     private final Duels plugin;
+    private final MessageManager messageManager;
     private final MatchManager matchManager;
+    private final ChallengeManager challengeManager;
 
     public MatchListener(Duels plugin)
     {
         this.plugin = plugin;
+        this.messageManager = plugin.core().messages();
         this.matchManager = plugin.getMatchManager();
+        this.challengeManager = plugin.getChallengeManager();
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -146,7 +156,7 @@ public final class MatchListener implements Listener
     }
 
     @EventHandler
-    public void onPlayerQuit(PlayerQuitEvent event)
+    public void onPlayerQuitWhileInMatch(PlayerQuitEvent event)
     {
         Player player = event.getPlayer();
         Match match = matchManager.getMatch(player.getUniqueId());
@@ -163,4 +173,27 @@ public final class MatchListener implements Listener
         UUID winnerId = match.getOpponent(player.getUniqueId());
         matchManager.endMatch(match, winnerId);
     }
+
+    @EventHandler
+    public void onPlayerQuitWithActiveChallenges(PlayerQuitEvent event)
+    {
+        UUID uuid = event.getPlayer().getUniqueId();
+        List<Challenge> challenges = challengeManager.getChallenges(uuid);
+
+        if (challenges.isEmpty())
+            return;
+
+        for (Challenge challenge : challenges)
+        {
+            challengeManager.remove(challenge);
+
+            boolean leaverWasChallenger = challenge.getChallenger().equals(uuid);
+            UUID otherId = leaverWasChallenger ? challenge.getChallenged() : challenge.getChallenger();
+            Player other = Bukkit.getPlayer(otherId);
+
+            if (other != null)
+                messageManager.send(other, Message.CHALLENGE_CANCELLED_DISCONNECT, "player", event.getPlayer().getName());
+        }
+    }
 }
+

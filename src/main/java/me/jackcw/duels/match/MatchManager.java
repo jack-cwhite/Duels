@@ -22,11 +22,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.util.Vector;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 public final class MatchManager
 {
@@ -44,19 +40,13 @@ public final class MatchManager
         this.arenaManager = plugin.getArenaManager();
         this.kitManager = plugin.getKitManager();
         this.playerStateManager = plugin.getPlayerStateManager();
-        this.messageManager = plugin.getJCore().messages();
+        this.messageManager = plugin.core().messages();
         this.settings = plugin.getSettings();
     }
 
     public Match startMatch(Player player1, Player player2)
     {
-        if (player1 == null
-                || player2 == null
-                || !player1.isOnline()
-                || !player2.isOnline()
-                || player1.getUniqueId().equals(player2.getUniqueId())
-                || getMatch(player1.getUniqueId()) != null
-                || getMatch(player2.getUniqueId()) != null)
+        if (player1 == null || player2 == null || !player1.isOnline() || !player2.isOnline() || player1.getUniqueId().equals(player2.getUniqueId()) || getMatch(player1.getUniqueId()) != null || getMatch(player2.getUniqueId()) != null)
             return null;
 
         Arena arena = findFreeArena();
@@ -64,40 +54,20 @@ public final class MatchManager
         if (arena == null)
             return null;
 
-        player1.closeInventory();
-        player2.closeInventory();
-
-        playerStateManager.save(player1);
-        playerStateManager.save(player2);
-
-        List<Kit> availableKits = ArenaKits.allowedKits(arena, kitManager);
-
-        Match match = new Match(
-                player1.getUniqueId(),
-                player2.getUniqueId(),
-                arena,
-                player1.getLocation(),
-                player2.getLocation(),
-                availableKits
-        );
+        Match match = createMatch(arena, player1, player2);
 
         matches.put(player1.getUniqueId(), match);
         matches.put(player2.getUniqueId(), match);
 
-        boolean kitSelectionEnabled = !availableKits.isEmpty();
-
-        match.setState(kitSelectionEnabled ? MatchState.KIT_SELECTION : MatchState.COUNTDOWN);
-
-        prepareForMatch(player1);
-        prepareForMatch(player2);
+        initializePlayers(player1, player2);
 
         player1.teleport(arena.getSpawn1());
         player2.teleport(arena.getSpawn2());
 
-        if (kitSelectionEnabled)
+        if (!match.getAvailableKits().isEmpty())
         {
-            plugin.getJCore().menus().open(player1, () -> plugin.getKitSelectorMenu().open(player1));
-            plugin.getJCore().menus().open(player2, () -> plugin.getKitSelectorMenu().open(player2));
+            plugin.core().menus().open(player1, () -> plugin.getKitSelectorMenu().open(player1));
+            plugin.core().menus().open(player2, () -> plugin.getKitSelectorMenu().open(player2));
         }
         else
         {
@@ -105,9 +75,31 @@ public final class MatchManager
             messageManager.send(player2, Message.NO_KITS_ALLOWED);
         }
 
-        startCountdown(match, player1, player2, kitSelectionEnabled);
+        startPregameCountdown(match, player1, player2, !match.getAvailableKits().isEmpty());
 
         return match;
+    }
+
+    private void initializePlayers(Player player1, Player player2)
+    {
+        storePlayerState(player1, player2);
+
+        prepareForMatch(player1);
+        prepareForMatch(player2);
+    }
+
+    public Match createMatch(Arena arena, Player player1, Player player2)
+    {
+        List<Kit> availableKits = ArenaKits.allowedKits(arena, kitManager);
+
+        return new Match(
+                player1.getUniqueId(),
+                player2.getUniqueId(),
+                arena,
+                player1.getLocation(),
+                player2.getLocation(),
+                availableKits
+        );
     }
 
     public void endMatch(Match match, UUID winnerId)
@@ -115,20 +107,20 @@ public final class MatchManager
         if (match == null || match.getState() == MatchState.ENDED)
             return;
 
-        boolean recordStats = match.getState() == MatchState.IN_PROGRESS;
-        match.setState(MatchState.ENDED);
-
         if (match.getCountdown() != null)
             match.getCountdown().cancel();
 
-        if (recordStats)
-        {
-            plugin.getStatsManager().recordMatch(
-                    match, winnerId,
-                    match.getAppliedKit(match.getPlayer1Id()),
-                    match.getAppliedKit(match.getPlayer2Id())
-            );
-        }
+        MatchResult result = new MatchResult(
+                match.getArena().getId(),
+                match.getPlayer1Id(),
+                match.getPlayer2Id(),
+                winnerId,
+                match.getAppliedKit(match.getPlayer1Id()),
+                match.getAppliedKit(match.getPlayer2Id()),
+                System.currentTimeMillis()
+        );
+
+        plugin.getStatsManager().recordMatch(result);
 
         endParticipant(match, match.getPlayer1Id(), winnerId);
         endParticipant(match, match.getPlayer2Id(), winnerId);
@@ -143,7 +135,7 @@ public final class MatchManager
     {
         Match match = getMatch(playerId);
 
-        if (match == null || match.getState() != MatchState.KIT_SELECTION || kit == null)
+        if (match == null || match.getState() != MatchState.PREGAME || kit == null)
             return false;
 
         for (Kit available : match.getAvailableKits())
@@ -242,6 +234,8 @@ public final class MatchManager
 
     private void prepareForMatch(Player player)
     {
+        player.closeInventory();
+
         player.setGameMode(GameMode.SURVIVAL);
         player.setAllowFlight(false);
         player.setFlying(false);
@@ -310,33 +304,66 @@ public final class MatchManager
         return availableKits.isEmpty() ? null : availableKits.getFirst();
     }
 
-    private void startCountdown(Match match, Player player1, Player player2, boolean kitSelectionEnabled)
+    private void startPregameCountdown(Match match, Player player1, Player player2, boolean kitSelectionEnabled)
     {
         String actionBarFormat = kitSelectionEnabled
-                ? "&eSelect a kit! Fight starts in %d..."
-                : "&eFight starts in %d...";
+                ? "&eSelect a kit! Selection ends in %d..."
+                : "&eGrace period starts in %d...";
 
-        Countdown countdown = Countdown.builder(plugin.getJCore().tasks(), settings.kitSelectionSeconds())
+        Countdown countdown =
+            Countdown.builder(plugin.core().tasks(), settings.kitSelectionSeconds())
                 .actionBar(List.of(player1, player2), remaining -> String.format(actionBarFormat, remaining))
-                .onComplete(() ->
-                {
-                    player1.closeInventory();
-                    player2.closeInventory();
+                .onComplete(
+                    () ->
+                    {
+                      player1.closeInventory();
+                      player2.closeInventory();
 
-                    prepareForMatch(player1);
-                    prepareForMatch(player2);
+                      prepareForMatch(player1);
+                      prepareForMatch(player2);
 
-                    applyKit(match, player1);
-                    applyKit(match, player2);
+                      if (kitSelectionEnabled) {
+                        applyKit(match, player1);
+                        applyKit(match, player2);
+                      }
 
-                    match.setState(MatchState.IN_PROGRESS);
-                    messageManager.send(player1, Message.MATCH_START, "player", player2.getName());
-                    messageManager.send(player2, Message.MATCH_START, "player", player1.getName());
-                })
+                      if (settings.enableGracePeriod())
+                          startGracePeriodCountdown(match, player1, player2);
+                      else
+                          startCombat(match, player1, player2);
+                    })
                 .build();
 
         match.setCountdown(countdown);
         countdown.start();
+    }
+
+    private void startGracePeriodCountdown(Match match, Player player1, Player player2)
+    {
+        match.setState(MatchState.GRACE);
+
+        String actionBarFormat = "&cGrace period ends in%d...";
+
+        Countdown countdown = Countdown.builder(plugin.core().tasks(), settings.gracePeriodSeconds())
+                .actionBar(List.of(player1, player2), remaining -> String.format(actionBarFormat, remaining))
+                .onComplete(() -> startCombat(match, player1, player2))
+                .build();
+
+        match.setCountdown(countdown);
+        countdown.start();
+    }
+
+    private void startCombat(Match match, Player player1, Player player2)
+    {
+        match.setState(MatchState.IN_PROGRESS);
+        messageManager.send(player1, Message.MATCH_START, "player", player2.getName());
+        messageManager.send(player2, Message.MATCH_START, "player", player1.getName());
+    }
+
+    private void storePlayerState(Player... players)
+    {
+        for (Player player : players)
+            playerStateManager.save(player);
     }
 
     private String nameOf(UUID uuid)

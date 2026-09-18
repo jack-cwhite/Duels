@@ -202,3 +202,50 @@ These two items from the original roadmap were skipped because their own stated 
 Also skipped, but only for lack of tooling in this environment, not by design: **Testcontainers integration tests for MySQL, MariaDB, and PostgreSQL** need Docker, which isn't available here. MockBukkit and SQLite tests still can't prove vendor-specific DDL and generated-key behavior - revisit this once a machine with Docker is available.
 
 The safest simplification rule is: remove duplicated decisions, not explicit boundaries. Managers, serializers, repositories, and storage interfaces each currently answer a separate question and should remain separate.
+
+## Concurrency model: the main thread as the mutex
+
+Duels doesn't use `synchronized`, locks, or concurrent collections anywhere in its arena,
+kit, challenge, or match state - and this is correct, not an oversight. `ArenaManager`,
+`KitManager`, `ChallengeManager`, and `MatchManager` are only ever mutated from Bukkit's
+main thread: command execution, menu clicks, and event handlers all run there. Because
+Bukkit guarantees only one thread ever runs game logic at a time, the main thread itself
+acts as the mutex - there is never a moment where two admin actions or two players'
+commands are executing this code concurrently.
+
+The one place genuine concurrency exists is around I/O: `TaskManager`'s bounded async
+executor (used for database work) and JCore's `ThreadLocal<Connection>`-based transaction
+handling. That boundary is deliberately narrow - async code does the slow work (DB
+reads/writes) and hands results back to the main thread via `runSync` before touching any
+manager state. `YamlRepository.reserveId()` is `synchronized` for the same reason it's
+the exception, not the rule: it's occasionally called from contexts where two overlapping
+calls aren't ruled out by the main-thread guarantee alone.
+
+The practical implication for future work: new manager state does not need locking as
+long as it's only ever touched from the main thread. The moment something needs to be
+read or written from an async callback directly (rather than via `runSync`), that's the
+signal a real concurrency boundary has been crossed and needs explicit handling - not a
+default assumption to apply everywhere.
+
+## Arena is not snapshotted; Kit is - a deliberate asymmetry
+
+`Match` deep-copies the kits it will offer (`availableKits = kits.stream().map(Kit::copy).toList()`)
+at construction time, but holds its `Arena` by direct reference. This looks inconsistent
+until you look at *why* each choice was made:
+
+- **Kits are snapshotted** because a kit is just data (items, potion effects) with no
+  physical presence. Copying it is cheap, and once copied, the match is fully isolated
+  from any future edit or deletion of the live kit - `KitManager.deleteKit` has no
+  "in use" check anywhere, because it doesn't need one.
+- **Arenas are not snapshotted** because an arena *is* a physical place - it can't be
+  copied by value the way a kit can. Instead, `ArenaManager` blocks destructive
+  mutation (rename, delete) while `MatchManager.isArenaInUse` reports the arena as
+  occupied, via the `activeCheck: IntPredicate` wired in after construction to avoid a
+  constructor cycle between the two managers.
+
+The general rule this establishes for future configurable objects: if a resource is pure
+data, prefer snapshotting it into the match at creation time - it's simpler than locking
+and avoids ever having to reason about "what if the source gets deleted mid-match." If a
+resource has a real-world/physical identity that can't be meaningfully copied, protect it
+with an in-use check instead. Phase 1 of `ROADMAP.md` (arena configuration vs. arena
+runtime instance) extends this same reasoning rather than replacing it.

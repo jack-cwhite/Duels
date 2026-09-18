@@ -37,7 +37,7 @@ public class KitSelectorMenu
         if (match == null)
             return;
 
-        if (match.getState() != MatchState.KIT_SELECTION)
+        if (match.getState() != MatchState.PREGAME)
             return;
 
         List<Kit> allowedKits = match.getAvailableKits();
@@ -53,7 +53,7 @@ public class KitSelectorMenu
                 {
                     Match current = matchManager.getMatch(player.getUniqueId());
 
-                    if (current == null || current.getState() != MatchState.KIT_SELECTION)
+                    if (current == null || current.getState() != MatchState.PREGAME)
                     {
                       messageManager.send(player, Message.KIT_SELECTION_CLOSED);
                       player.closeInventory();

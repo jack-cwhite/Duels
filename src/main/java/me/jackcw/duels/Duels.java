@@ -11,7 +11,7 @@ import me.jackcw.duels.kit.Kit;
 import me.jackcw.duels.kit.KitManager;
 import me.jackcw.duels.kit.KitSerializer;
 import me.jackcw.duels.listener.MatchListener;
-import me.jackcw.duels.listener.PlayerJoinLeaveListener;
+import me.jackcw.duels.listener.PlayerStateListener;
 import me.jackcw.duels.match.MatchManager;
 import me.jackcw.duels.menu.admin.*;
 import me.jackcw.duels.menu.admin.arena.ArenaDetailMenu;
@@ -183,8 +183,6 @@ public class Duels extends JavaPlugin
         }
         catch (RuntimeException ignored)
         {
-            // Some lightweight server test doubles do not expose shutdown
-            // state. A normal plugin disable is the safe fallback there.
             return false;
         }
     }
@@ -239,15 +237,12 @@ public class Duels extends JavaPlugin
         statsManager = new StatsManager(this);
         matchManager = new MatchManager(this);
 
-        // Wired after construction rather than taken as an ArenaManager
-        // constructor dependency, since MatchManager itself depends on
-        // ArenaManager - a constructor cycle isn't possible here.
         arenaManager.setActiveCheck(matchManager::isArenaInUse);
     }
 
     private void registerEvents()
     {
-        getServer().getPluginManager().registerEvents(new PlayerJoinLeaveListener(this), this);
+        getServer().getPluginManager().registerEvents(new PlayerStateListener(this), this);
         getServer().getPluginManager().registerEvents(new MatchListener(this), this);
     }
 

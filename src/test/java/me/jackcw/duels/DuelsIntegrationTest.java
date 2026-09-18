@@ -4,6 +4,7 @@ import me.jackcw.duels.arena.Arena;
 import me.jackcw.duels.challenge.Challenge;
 import me.jackcw.duels.kit.Kit;
 import me.jackcw.duels.match.Match;
+import me.jackcw.duels.match.MatchState;
 import me.jackcw.duels.stats.LeaderboardEntry;
 import me.jackcw.jcore.database.Database;
 import org.bukkit.Location;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.mockbukkit.mockbukkit.MockBukkit;
 import org.mockbukkit.mockbukkit.ServerMock;
 import org.mockbukkit.mockbukkit.entity.PlayerMock;
+import org.mockbukkit.mockbukkit.world.WorldMock;
 
 import java.util.List;
 import java.util.UUID;
@@ -115,7 +117,7 @@ class DuelsIntegrationTest
     {
         UUID winner = UUID.randomUUID();
         UUID loser = UUID.randomUUID();
-        Database database = plugin.getJCore().database();
+        Database database = plugin.core().database();
 
         database.execute("DELETE FROM duels_match_participants");
         database.execute("DELETE FROM duels_matches");
@@ -140,5 +142,79 @@ class DuelsIntegrationTest
         assertEquals(1, leaderboard.size());
         assertEquals(winner, leaderboard.getFirst().playerId());
         assertEquals(1, leaderboard.getFirst().wins());
+    }
+
+    @Test
+    void matchProgressesThroughPregameGraceThenInProgress()
+    {
+        WorldMock world = server.addSimpleWorld("duel_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        arena.setSpawn1(new Location(world, 0, 64, 0));
+        arena.setSpawn2(new Location(world, 10, 64, 10));
+
+        plugin.getKitManager().createKit("Warrior");
+
+        PlayerMock alice = server.addPlayer("Alice");
+        PlayerMock bob = server.addPlayer("Bob");
+
+        Match match = plugin.getMatchManager().startMatch(alice, bob);
+        assertNotNull(match);
+        assertEquals(MatchState.PREGAME, match.getState());
+
+        server.getScheduler().performTicks((plugin.getSettings().kitSelectionSeconds() + 1) * 20L);
+        assertEquals(MatchState.GRACE, match.getState());
+        assertNotNull(match.getAppliedKit(alice.getUniqueId()));
+        assertNotNull(match.getAppliedKit(bob.getUniqueId()));
+
+        server.getScheduler().performTicks((plugin.getSettings().gracePeriodSeconds() + 1) * 20L);
+        assertEquals(MatchState.IN_PROGRESS, match.getState());
+    }
+
+    @Test
+    void opponentDisconnectDuringPregameCountsAsForfeit()
+    {
+        WorldMock world = server.addSimpleWorld("duel_world_pregame");
+        Arena arena = plugin.getArenaManager().createArena("Pit");
+        arena.setSpawn1(new Location(world, 0, 64, 0));
+        arena.setSpawn2(new Location(world, 10, 64, 10));
+
+        PlayerMock alice = server.addPlayer("Alice");
+        PlayerMock bob = server.addPlayer("Bob");
+
+        Match match = plugin.getMatchManager().startMatch(alice, bob);
+        assertEquals(MatchState.PREGAME, match.getState());
+
+        alice.disconnect();
+
+        assertEquals(1, plugin.getStatsManager().getWins(bob.getUniqueId()).join());
+        assertEquals(1, plugin.getStatsManager().getLosses(alice.getUniqueId()).join());
+        assertNull(plugin.getMatchManager().getMatch(bob.getUniqueId()));
+
+        // the pregame countdown must be cancelled on early match end, not left running
+        // to fire its onComplete (re-applying a kit, resetting gear) against a match
+        // that has already ended and restored the opponent's original state.
+        server.getScheduler().performTicks((plugin.getSettings().kitSelectionSeconds() + 5) * 20L);
+        assertEquals(1, plugin.getStatsManager().getWins(bob.getUniqueId()).join());
+    }
+
+    @Test
+    void opponentDisconnectDuringGraceCountsAsForfeit()
+    {
+        WorldMock world = server.addSimpleWorld("duel_world_grace");
+        Arena arena = plugin.getArenaManager().createArena("Dome");
+        arena.setSpawn1(new Location(world, 0, 64, 0));
+        arena.setSpawn2(new Location(world, 10, 64, 10));
+
+        PlayerMock alice = server.addPlayer("Alice");
+        PlayerMock bob = server.addPlayer("Bob");
+
+        Match match = plugin.getMatchManager().startMatch(alice, bob);
+        server.getScheduler().performTicks((plugin.getSettings().kitSelectionSeconds() + 1) * 20L);
+        assertEquals(MatchState.GRACE, match.getState());
+
+        bob.disconnect();
+
+        assertEquals(1, plugin.getStatsManager().getWins(alice.getUniqueId()).join());
+        assertEquals(1, plugin.getStatsManager().getLosses(bob.getUniqueId()).join());
     }
 }

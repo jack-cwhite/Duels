@@ -12,6 +12,8 @@ public final class DuelsSettings
     private final int challengeExpirySeconds;
     private final int kitSelectionSeconds;
     private final boolean removeOutstandingChallenges;
+    private final boolean enableGracePeriod;
+    private final int gracePeriodSeconds;
 
     public DuelsSettings(YamlFile config, Logger logger)
     {
@@ -30,6 +32,16 @@ public final class DuelsSettings
         this.removeOutstandingChallenges = readValidBoolean(
                 config, logger, "remove-outstanding-challenge-requests", true,
                 "must be a valid boolean: true or false"
+        );
+
+        this.enableGracePeriod = readValidBoolean(
+                config, logger, "enable-grace-period", true,
+                "must be a valid boolean: true or false"
+        );
+
+        this.gracePeriodSeconds = readPositiveInt(
+                config, logger, "grace-period-seconds", 5,
+                "must be a valid number of at least 1 "
         );
     }
 
@@ -51,6 +63,16 @@ public final class DuelsSettings
     public boolean removeOutstandingChallenges()
     {
         return removeOutstandingChallenges;
+    }
+
+    public boolean enableGracePeriod()
+    {
+        return enableGracePeriod;
+    }
+
+    public int gracePeriodSeconds()
+    {
+        return gracePeriodSeconds;
     }
 
     private static StatsStorageType readStatsStorage(YamlFile config, Logger logger)

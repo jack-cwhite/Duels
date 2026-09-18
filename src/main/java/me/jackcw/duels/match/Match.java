@@ -37,14 +37,12 @@ public final class Match
 
     private static StateMachine<MatchState> buildStateMachine()
     {
-        return StateMachine.create(MatchState.STARTING)
-                .allowTransition(MatchState.STARTING, MatchState.KIT_SELECTION)
-                .allowTransition(MatchState.STARTING, MatchState.COUNTDOWN)
-                .allowTransition(MatchState.STARTING, MatchState.ENDED)
-                .allowTransition(MatchState.KIT_SELECTION, MatchState.IN_PROGRESS)
-                .allowTransition(MatchState.KIT_SELECTION, MatchState.ENDED)
-                .allowTransition(MatchState.COUNTDOWN, MatchState.IN_PROGRESS)
-                .allowTransition(MatchState.COUNTDOWN, MatchState.ENDED)
+        return StateMachine.create(MatchState.PREGAME)
+                .allowTransition(MatchState.PREGAME, MatchState.GRACE)
+                .allowTransition(MatchState.PREGAME, MatchState.IN_PROGRESS)
+                .allowTransition(MatchState.PREGAME, MatchState.ENDED)
+                .allowTransition(MatchState.GRACE, MatchState.IN_PROGRESS)
+                .allowTransition(MatchState.GRACE, MatchState.ENDED)
                 .allowTransition(MatchState.IN_PROGRESS, MatchState.ENDED);
     }
 

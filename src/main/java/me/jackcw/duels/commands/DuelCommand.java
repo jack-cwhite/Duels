@@ -179,9 +179,6 @@ public final class DuelCommand
             return;
         }
 
-        messageManager.send(sender, Message.CHALLENGE_ACCEPTED, "player", challenger.getName());
-        messageManager.send(challenger, Message.CHALLENGE_ACCEPTED_OPPONENT, "player", sender.getName());
-
         Match match = matchManager.startMatch(challenger, sender);
 
         if (match == null)
@@ -190,8 +187,13 @@ public final class DuelCommand
             messageManager.send(challenger, Message.NO_ARENA_AVAILABLE);
         }
         else
+        {
+            messageManager.send(sender, Message.CHALLENGE_ACCEPTED, "player", challenger.getName());
+            messageManager.send(challenger, Message.CHALLENGE_ACCEPTED_OPPONENT, "player", sender.getName());
+
             if (settings.removeOutstandingChallenges())
                 challengeManager.removeAll(sender.getUniqueId(), challenger.getUniqueId());
+        }
     }
 
     private void openKitSelector(CommandContext context)
@@ -205,7 +207,7 @@ public final class DuelCommand
             return;
         }
 
-        if (match.getState() != MatchState.KIT_SELECTION)
+        if (match.getState() != MatchState.PREGAME)
         {
             messageManager.send(sender, Message.KIT_SELECTION_CLOSED);
             return;
