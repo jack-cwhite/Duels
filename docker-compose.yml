@@ -1,0 +1,42 @@
+services:
+  mysql:
+    image: mysql:8
+    container_name: duels-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: duels
+    volumes:
+      - duels-mysql-data:/var/lib/mysql
+
+  mariadb:
+    image: mariadb:11
+    container_name: duels-mariadb
+    ports:
+      - "3307:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD: password
+      MARIADB_DATABASE: duels
+    volumes:
+      - duels-mariadb-data:/var/lib/mysql
+
+  postgres:
+    image: postgres:16
+    container_name: duels-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: duels
+    volumes:
+      - duels-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  duels-mysql-data:
+    external: true
+  duels-mariadb-data:
+    external: true
+  duels-postgres-data:
+    external: true
