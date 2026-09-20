@@ -113,7 +113,7 @@ public final class DuelCommand
 
         if (existing != null && existing.getChallenged().equals(sender.getUniqueId()))
         {
-            Challenge accepted = challengeManager.acceptChallenge(sender.getUniqueId(), target.getUniqueId());
+            Challenge accepted = challengeManager.findIncoming(sender.getUniqueId(), target.getUniqueId());
             finishAccept(sender, accepted);
             return;
         }
@@ -143,10 +143,10 @@ public final class DuelCommand
         if (context.has("player"))
         {
             Player target = context.get("player");
-            challenge = challengeManager.acceptChallenge(sender.getUniqueId(), target.getUniqueId());
+            challenge = challengeManager.findIncoming(sender.getUniqueId(), target.getUniqueId());
         }
         else
-            challenge = challengeManager.acceptChallenge(sender.getUniqueId());
+            challenge = challengeManager.findIncoming(sender.getUniqueId());
 
         finishAccept(sender, challenge);
     }
@@ -181,19 +181,24 @@ public final class DuelCommand
 
         Match match = matchManager.startMatch(challenger, sender);
 
+        // The challenge is consumed only once a match genuinely exists. Removing
+        // it up front meant a failed arena allocation destroyed the challenge as
+        // well, so both players were told "no arena available" and then had to
+        // start the whole challenge over for something that was nobody's fault.
         if (match == null)
         {
             messageManager.send(sender, Message.NO_ARENA_AVAILABLE);
             messageManager.send(challenger, Message.NO_ARENA_AVAILABLE);
+            return;
         }
-        else
-        {
-            messageManager.send(sender, Message.CHALLENGE_ACCEPTED, "player", challenger.getName());
-            messageManager.send(challenger, Message.CHALLENGE_ACCEPTED_OPPONENT, "player", sender.getName());
 
-            if (settings.removeOutstandingChallenges())
-                challengeManager.removeAll(sender.getUniqueId(), challenger.getUniqueId());
-        }
+        challengeManager.remove(challenge);
+
+        messageManager.send(sender, Message.CHALLENGE_ACCEPTED, "player", challenger.getName());
+        messageManager.send(challenger, Message.CHALLENGE_ACCEPTED_OPPONENT, "player", sender.getName());
+
+        if (settings.removeOutstandingChallenges())
+            challengeManager.removeAll(sender.getUniqueId(), challenger.getUniqueId());
     }
 
     private void openKitSelector(CommandContext context)

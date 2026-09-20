@@ -49,26 +49,24 @@ public final class ChallengeManager
         return true;
     }
 
-    public Challenge acceptChallenge(UUID challenged)
+    /**
+     * Resolves the challenge an accept would consume <em>without</em> removing
+     * it, so the caller can confirm a match will actually start before spending
+     * it. Accepting is not a single atomic step here - arena allocation can
+     * still fail after the challenge is resolved - so consumption is left to
+     * the caller via {@link #remove(Challenge)}.
+     */
+    public Challenge findIncoming(UUID challenged)
     {
-        Challenge challenge = getLatestIncoming(challenged);
-
-        if (challenge == null)
-            return null;
-
-        challenges.remove(challenge);
-
-        return challenge;
+        return getLatestIncoming(challenged);
     }
 
-    public Challenge acceptChallenge(UUID challenged, UUID challenger)
+    public Challenge findIncoming(UUID challenged, UUID challenger)
     {
         Challenge challenge = getChallengeBetween(challenged, challenger);
 
         if (challenge == null || !challenge.getChallenged().equals(challenged))
             return null;
-
-        challenges.remove(challenge);
 
         return challenge;
     }

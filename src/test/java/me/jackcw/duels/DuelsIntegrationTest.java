@@ -69,8 +69,14 @@ class DuelsIntegrationTest
         assertTrue(plugin.getChallengeManager().createChallenge(charlie, bob));
         assertFalse(plugin.getChallengeManager().createChallenge(alice, bob));
 
-        Challenge accepted = plugin.getChallengeManager().acceptChallenge(bob.getUniqueId(), alice.getUniqueId());
+        Challenge accepted = plugin.getChallengeManager().findIncoming(bob.getUniqueId(), alice.getUniqueId());
         assertNotNull(accepted);
+
+        // Resolving a challenge deliberately does not consume it - the pair is
+        // still occupied until the caller confirms a match actually started.
+        assertFalse(plugin.getChallengeManager().createChallenge(alice, bob));
+
+        plugin.getChallengeManager().remove(accepted);
         assertTrue(plugin.getChallengeManager().createChallenge(alice, bob));
     }
 

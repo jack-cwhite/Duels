@@ -112,6 +112,12 @@ public final class MatchManager
         if (match == null || match.getState() == MatchState.ENDED)
             return;
 
+        // Transition before any restoration work so that anything observing the
+        // match while it unwinds sees ENDED. Without this only abortMatch ever
+        // set the state, which left the guard above dead on this path and made
+        // getState() unreliable for a match that had already finished.
+        match.setState(MatchState.ENDED);
+
         if (match.getCountdown() != null)
             match.getCountdown().cancel();
 

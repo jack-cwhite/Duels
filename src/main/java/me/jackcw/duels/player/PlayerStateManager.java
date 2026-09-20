@@ -71,7 +71,7 @@ public final class PlayerStateManager
         if (state == null)
             return false;
 
-        if (!Bukkit.getWorlds().contains(state.getLocation().getWorld()))
+        if (state.getLocation() == null || !Bukkit.getWorlds().contains(state.getLocation().getWorld()))
         {
             LOGGER.warning("Discarding saved player state for '" + player.getUniqueId() + "': its world is no longer loaded");
 
@@ -82,7 +82,21 @@ public final class PlayerStateManager
             return false;
         }
 
-        state.apply(player);
+        // Restoration runs inside a join event, so anything thrown here would
+        // leak into Bukkit's event handling rather than being reported against
+        // this plugin. The snapshot is deliberately left in place on failure
+        // (fail-forward) so a later attempt can still retry it, rather than
+        // silently discarding a player's inventory because one item failed to
+        // deserialize.
+        try
+        {
+            state.apply(player);
+        }
+        catch (RuntimeException e)
+        {
+            LOGGER.warning("Could not restore saved player state for '" + player.getUniqueId() + "', leaving it saved for a later attempt: " + e.getMessage());
+            return false;
+        }
 
         file.set(ROOT + "." + player.getUniqueId(), null);
         file.save();
