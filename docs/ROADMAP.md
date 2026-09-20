@@ -21,14 +21,31 @@ systems they touch, so they're cheapest to fix now while the blast radius is sma
 - [ ] Add a durable "pending outcome" record (or at minimum a structured log) for the
       moment a match ends, before stats/rewards are written - see Phase 6's failure
       handling section for why this matters more once Vault is involved.
-- [ ] Reorder `DuelCommand` challenge-acceptance messaging so "accepted" is only sent
-      once `MatchManager.startMatch` has actually produced a match, not before. Purely a
-      QoL/ordering fix, no architectural change.
-- [ ] Wrap `PlayerStateManager` restoration in defensive handling for the case where the
-      snapshot references a world that no longer exists (renamed/removed world). Today a
-      thrown exception during `PlayerState.apply` would surface as an unhandled exception
-      in a join event; the snapshot is left in place either way (fail-forward), but the
-      failure should be caught and logged instead of leaking into Bukkit's event handling.
+- [x] `DuelCommand` challenge-acceptance ordering. The *messaging* half of this was
+      already correct - "accepted" was only sent after a non-null `startMatch`. The real
+      remaining defect was that `ChallengeManager.acceptChallenge` **consumed** the
+      challenge before the match was confirmed, so a failed arena allocation destroyed the
+      challenge too: both players got "no arena available" and had to start over for
+      something that was nobody's fault. Resolution and consumption are now separate -
+      `findIncoming` resolves without removing, and `DuelCommand.finishAccept` calls
+      `remove` only once a match genuinely exists. The two `acceptChallenge` overloads
+      were deleted rather than left as dead API.
+- [x] `PlayerStateManager` restoration hardening. The missing-world check was already
+      present; what remained was that `PlayerState.apply` itself could throw for any other
+      reason (a malformed `ItemStack`, a bad attribute) and leak out of a join event. It is
+      now wrapped, logged, and fails forward - the snapshot is deliberately *kept* on
+      failure so a later attempt can retry rather than silently discarding a player's
+      inventory. Also guarded a null saved location, which would previously have NPE'd
+      inside the world check.
+- [x] `MatchManager.endMatch` never called `setState(MatchState.ENDED)` - only
+      `abortMatch` did. The `getState() == ENDED` guard at the top of `endMatch` was
+      therefore dead on its own path, which relied entirely on `forgetParticipant`
+      removing the map entry, and `Match.getState()` was unreliable for a match that had
+      already finished. `endMatch` now transitions before any restoration work, so
+      anything observing a match while it unwinds sees `ENDED`. Both call sites guard
+      against a repeat transition, which `StateMachine` would otherwise reject since
+      `ENDED -> ENDED` is not an allowed edge. Fixed ahead of Phase 4 because spectator
+      cleanup is exactly the kind of code that would reasonably trust `getState()`.
 - [x] Fixed a death-screen glitch: `MatchManager.restoreParticipant` was teleporting and
       restoring the player who just died synchronously inside `PlayerDeathEvent`, before
       the client had actually respawned - moving/mutating a dead-but-not-yet-respawned
@@ -42,6 +59,38 @@ systems they touch, so they're cheapest to fix now while the blast radius is sma
       inventory contents still runs vanilla's normal advancement-trigger checks).
       `MatchListener.onAdvancementDone` revokes any criteria awarded to a player currently
       in a match.
+- [x] **JCore: consuming plugins never received new `messages.yml` keys on update.**
+      `JCore.ensureMessages()` called `mergeDefaults(CORE_MESSAGE_DEFAULTS)`, which only
+      merges JCore's own hardcoded `core:` block - the consuming plugin's *bundled*
+      `messages.yml` was only ever written on first install, because `YamlFile`'s
+      `copyResource` flag copies the resource only when the file does not already exist.
+      Any key added to Duels' `messages.yml` in a later version was therefore silently
+      missing on every existing server. `ensureMessages()` now also calls
+      `updateDefaults()`, matching what `ensureConfig()` already did correctly for
+      `config.yml`. Fixed at the root in JCore rather than worked around in Duels.
+- [x] **JCore: `YamlDefaultsMerger` reformatted untouched lines.** Because the merger
+      rewrites the whole file through SnakeYAML, the dumper's defaults hard-wrapped long
+      message strings at 80 columns and reduced list-item indentation - producing a large
+      cosmetic diff over a file a server owner has been hand-editing. `DumperOptions` now
+      sets an unlimited width and explicit indicator indentation, so a merge is
+      additions-only. Verified against a real server `messages.yml`: comment header
+      preserved, hand-edited values untouched, only genuinely new keys added.
+- [x] **JCore: `YamlDefaultsMerger` does not merge into existing YAML *lists* - resolved
+      as intended behaviour.** `mergeMappings` recurses into `MappingNode`s but treats a
+      `SequenceNode` as an already-set value, so list-valued keys never gain new entries.
+      In practice `admin.help`/`duel.help` on an existing server keep their old contents
+      and newly added help lines never appear. **Decision: help lists are treated as
+      user-owned and this is documented rather than worked around.** A server owner who
+      has reworded their help list should not have our entries injected back into it, and
+      there is no way to distinguish "they edited this" from "this is stale" without
+      version metadata. The header comment in `messages.yml` now tells owners to delete
+      the `help:` block to regenerate it in full.
+
+      The rejected alternative was a config-version key letting JCore selectively replace
+      flagged lists on upgrade. That is the mechanism that genuinely solves "ship new
+      content into an existing config", and is worth building **when a second case for it
+      appears** - designing it for help text alone would be inventing a versioning system
+      to solve one cosmetic problem.
 
 ## Phase 1 - Arena Configuration vs Arena Runtime Instance `[x]` (core done)
 
@@ -169,11 +218,11 @@ requested back-to-back with only one arena configured must still correctly repor
 all existing arena-editing/deletion protections still function against the same manual
 test matrix; no persisted format changes.
 
-## Phase 2 - Arena Bounds `[~]` (in progress)
+## Phase 2 - Arena Bounds `[x]`
 
-**Status:** Bounds storage and an admin "edit mode" wand system are implemented and
-compile clean; boundary *enforcement* during live matches (the `PlayerMoveEvent` check
-described below) has not been started yet.
+**Status:** Complete and verified in game. Bounds storage, the admin "edit mode" wand
+system, live boundary enforcement, and a particle visualisation of the bounds are all
+implemented and manually tested.
 
 Implemented so far:
 
@@ -212,17 +261,22 @@ Implemented so far:
   - `ArenaDetailMenu` gained an "Enter Edit Mode" button that calls
     `arenaEditManager.start(player, arena)` and closes the menu.
 - New messages: `ARENA_BOUNDS_SET`, `ARENA_BOUNDS_NOT_SET`, `ARENA_EDIT_MODE_EXITED`.
-
-Not yet done for this phase:
-
-- Boundary *enforcement* - nothing currently stops a player leaving `boundsCorner1`/
-  `boundsCorner2` during a live match. This is the `PlayerMoveEvent` work described
-  below and is still fully unstarted.
-- The out-of-bounds response (soft return vs. forfeit vs. warning) is still an open
-  product decision, deferred per the original plan below.
-- Manual testing of the edit-mode wand itself (clicking tools before a value is set,
-  quitting mid-session, deleting an arena while someone has it open in edit mode) has not
-  been performed yet - only `mvn compile` has been verified clean.
+- **Out-of-bounds response resolved (product decision).** Rather than picking one global
+  behaviour, it is configured *per arena* via a `BoundaryMode` enum (`WARNING`,
+  `SOFT_RETURN`, `FORFEIT`) plus an `Arena.graceSeconds` value. A parkour-style arena and
+  a no-escape PvP arena want different answers, so this belongs on the arena, not in
+  `config.yml`.
+- **Bounds particle visualisation.** While an admin is in an edit session,
+  `ArenaEditManager` runs a per-session repeating task that draws the twelve edges of the
+  bounds cube using `Particle.DUST` via `player.spawnParticle(...)`. This is rendered
+  client-side for that admin only, so there is no real world state to clean up (the
+  alternative - placing literal barrier blocks - would need reverting and would be visible
+  to everyone). The bounds are re-read every tick so moving a corner updates the box live.
+  The task handle is stored on `ArenaEditSession` and cancelled in `ArenaEditManager.end`,
+  which `Duels.onDisable` already calls for every open session.
+- **`BoundaryEnforcer`** (`arena/BoundaryEnforcer.java`) owns all enforcement state and
+  logic; `MatchListener.onPlayerMove` is a single delegating call. See the architecture
+  note below for why enforcement is not purely event-driven.
 
 ### Problem / Opportunity
 
@@ -288,22 +342,62 @@ future ranked-match rules.
 
 ### Implementation Plan
 
-1. Add bounds (two `Location` corners) to `Arena` and its serializer.
-2. Add capture UI in the arena admin menu, mirroring the existing spawn-capture flow.
-3. Add a bounded `PlayerMoveEvent` check in `MatchListener`, scoped to in-match players.
-4. Decide and implement the out-of-bounds response (this is a product decision, not an
-   architecture one - flag it for discussion when this phase starts).
+1. Add bounds (two `Location` corners) to `Arena` and its serializer. `[x]`
+2. Add capture UI in the arena admin menu, mirroring the existing spawn-capture flow. `[x]`
+3. Add a bounded `PlayerMoveEvent` check scoped to in-match players. `[x]`
+4. Decide and implement the out-of-bounds response. `[x]` - resolved as per-arena
+   `BoundaryMode` + `graceSeconds` rather than a single global behaviour.
+
+### Architecture Note - Why Enforcement Is Not Purely Event-Driven
+
+The obvious implementation is to do everything inside `PlayerMoveEvent`: detect the
+crossing, start a grace timer, and check the deadline on subsequent moves. That was the
+first implementation and it had a hole worth recording.
+
+`PlayerMoveEvent` reports a **transition**. A grace period is a condition on the
+**passage of time**, and no event fires for "three seconds have elapsed". A player who
+walked outside the bounds and then stood perfectly still generated no further move events,
+so their deadline was never re-evaluated and they were never punished - the code actively
+rewarded camping outside the arena, which is the exact behaviour bounds exist to prevent.
+
+`BoundaryEnforcer` therefore splits the two responsibilities:
+
+- **Detection** stays on the move event, which is the only thing that knows a crossing
+  happened.
+- **Deadline evaluation** lives in a repeating sync task (10 ticks) that reads
+  `player.getLocation()` directly. The task starts on demand when somebody first leaves
+  the bounds and cancels itself the tick it finds nobody out of bounds, so there is no
+  idle polling on a server where nobody is currently misbehaving.
+
+Two related Paper details this phase surfaced:
+
+- **Cancelling a `PlayerMoveEvent` and calling `player.teleport(...)` in the same handler
+  fight each other.** Cancelling means "reject this move, put the player back at
+  `getFrom()`" - which, for a player already outside the bounds, is itself outside the
+  bounds. The supported way to redirect a movement is `event.setTo(safeLocation)`, which
+  replaces the destination within the same movement packet instead of competing with it.
+- **Clearing the out-of-bounds timestamp before acting on it is unsafe.** If the return
+  fails, the next move event sees the player as having only just left and hands them a
+  whole new grace period - producing an endless warn/reset cycle rather than enforcement.
+  The timestamp is now cleared only after the correction is confirmed.
+
+Because a zero-second grace period is the default, that case is still handled inline on
+the move event via `setTo` so it feels like a solid wall rather than a yank-back up to
+half a second later. Every other configuration defers to the scheduled check.
 
 ### Testing Plan
 
 Verify no performance regression from the move-event handler under normal (non-match)
 play; verify in-match boundary detection triggers correctly at all four edges and both
-Y extremes if applicable.
+Y extremes. Per mode: `SOFT_RETURN` grace 0 behaves as a wall; `SOFT_RETURN` with grace
+warns once then returns once at the deadline; `FORFEIT` fires for a player standing
+**still** outside past the deadline; re-entering before the deadline grants a full fresh
+grace period; `WARNING` warns once per exit without repeating.
 
 ### Definition of Done
 
 Arenas can store and edit bounds through the admin menu; a player leaving those bounds
-during a live match is detected and handled per the agreed response.
+during a live match is detected and handled per the arena's configured response. `[x]`
 
 ## Phase 3 - Arena Instancing
 
@@ -579,6 +673,157 @@ preserve" item, not a "build" item.
 Placeholder for ideas that come up during development that don't have an immediate
 architectural dependency and aren't urgent - to be triaged as they arise rather than
 speculatively designed now.
+
+## Phase 11 - Admin Command/GUI Parity `[x]`
+
+**Status:** Complete and verified in game. Nine new subcommands (arena `rename`, `toggle`,
+`bounds`, `boundary`, `editmode`, `allowkit`; kit `rename`, `icon`, `edit`), nine matching
+permission nodes in `plugin.yml`, and nine new `admin.help` lines.
+
+This phase has no architectural dependency on anything above it and could be worked on
+at any point - it's numbered last only because the roadmap's ordering reflects
+architectural dependency, not urgency (per the note at the top of this document). Jack
+asked for this directly, so it's fine to pull forward and interleave with other phases
+whenever convenient.
+
+### Problem / Opportunity
+
+Every admin action in Duels today is reachable through the GUI (`/duels`, `/duels arena`,
+`/duels kit`), but only a subset also has a direct command equivalent. A server owner who
+prefers commands (for speed, for use in command blocks/console-driven setup scripts, or
+because they're more comfortable with them) is currently forced into the GUI for some
+actions and not others, with no consistent rule for which is which. Jack's stated goal:
+"everything should be doable via GUI or command, player's choice," including deep-links
+straight into a specific admin screen (his example: `/duels kit 1 edit` should jump
+straight into that kit's item-editor GUI rather than requiring `/duels kit 1` then a
+menu click).
+
+### Current Behaviour
+
+`DuelsCommand` (Duels, `commands/DuelsCommand.java`) already has some deep-linking: `/duels
+arena <id>` and `/duels kit <id>` open straight into `ArenaDetailMenu`/`KitDetailMenu`
+via `menus.openPath(...)`, skipping the main menu and list menu. Pure command equivalents
+exist for arena/kit `create`, `delete`, `list`, and arena `setspawn`.
+
+Actions that are currently GUI-only, with no command equivalent at all:
+
+- Arena: rename, toggle enabled/disabled, set bounds corner 1/2 (`ArenaManager` already
+  has `setBoundsCorner`, only `ArenaDetailMenu`'s edit-mode wand calls it), set
+  `boundaryMode`/`graceSeconds` (added this session, no admin surface at all yet -
+  editing these currently requires hand-editing the arena's YAML), toggle a kit
+  allowed/disallowed for that arena (`ArenaKitMenu`), enter the edit-mode wand session.
+- Kit: rename, set icon (from the item currently held), open the item-editor GUI
+  (`KitEditMenu`) directly by ID rather than navigating through `/duels kit <id>` first.
+
+### Desired Behaviour
+
+Two genuinely different things are being asked for here, and they need different
+solutions:
+
+1. **Pure data mutations** (rename, toggle enabled, set bounds corner to a given
+   coordinate or the sender's current location, set boundary mode/grace seconds, toggle a
+   kit's allowed status, set a kit's icon from the held item) have no inherent reason to
+   require a GUI at all. These should get a real command that performs the mutation
+   directly, exactly like `setspawn` already does, with the same `ArenaMutationResult`/
+   `NOT_FOUND`/`IN_USE` response pattern already established.
+2. **Inherently visual/spatial actions** - `KitEditMenu`'s 36-slot inventory item editor,
+   and anything that requires physically standing somewhere (the edit-mode wand's spawn/
+   bounds capture) - can't be meaningfully replaced by command arguments; nobody wants to
+   type coordinates for 40 inventory slots. For these, "command parity" means a command
+   that jumps straight to the right screen/session (`/duels kit <id> edit` opens
+   `KitEditMenu` directly; `/duels arena <id> editmode` calls
+   `arenaEditManager.start(player, arena)` directly), not a command that avoids the GUI
+   entirely.
+
+### Why This Point In The Roadmap
+
+No dependency on any other phase - it's pure additive admin UX over commands/menus that
+already exist. Placed last because every other phase in this document is here because an
+earlier phase makes it structurally cheaper or necessary; this phase has no such
+relationship to anything else, so its position is arbitrary rather than load-bearing.
+
+### Proposed Architecture
+
+No new abstraction is needed. `DuelsCommand` already has the right shape - a
+`CommandBuilder` tree with `optionalArgument("id")` for the deep-link case and dedicated
+`child(...)` subcommands for named actions - so this phase extends the existing tree
+rather than introducing a new command framework. Each new subcommand calls straight into
+the same manager methods the corresponding menu button already calls
+(`ArenaManager.rename`, `ArenaManager.toggleEnabled`, `ArenaManager.setBoundsCorner`, a
+new `ArenaManager` method for boundary mode/grace seconds, `ArenaKitMenu`'s underlying
+toggle, `KitManager.save` for rename/icon), so the command and the menu button for the
+same action are two callers of one method, not two implementations of the same behaviour.
+For the deep-link commands (`edit`, `editmode`), the command handler is a one-line call
+into the same menu-opening/session-starting method the GUI's own button already calls
+(`kitEditMenu.open(player, id)`, `arenaEditManager.start(player, arena)`).
+
+Console/command-block usage needs explicit handling per action: bounds-corner-from-
+current-location and the edit-mode wand are inherently player-only (there's no location
+concept for the console), and should reject non-player senders with `CoreMessage.PLAYER_ONLY`
+exactly as `setspawn` already does. Rename, toggle-enabled, boundary mode/grace seconds,
+and kit-allowed-toggle have no location dependency and should work from console too, since
+that's part of the stated motivation (command-block/console-driven setup).
+
+### JCore vs Duels
+
+Entirely Duels - this is Duels' own command surface calling Duels' own managers. If a
+second JCore-based plugin later wants a generic "every menu action needs a matching
+command" convention or helper, that could become a JCore pattern, but one consumer isn't
+enough to design a generalization around (same reasoning already applied to the
+`PlayerState` serializer split and the Vault reward mechanism above) - not something to
+build now.
+
+### Java / Paper Concepts
+
+Nothing new - this reuses `CommandBuilder`/`CommandContext`/`ArgumentTypes` (JCore command
+system) exactly as `DuelsCommand` already does today.
+
+### Existing Duels Example
+
+`DuelsCommand.setSpawn` is the template for every new pure-mutation command in this
+phase: parse arguments, call the manager method, switch on `ArenaMutationResult.status()`
+to send the right message. `openArenaMenuOrDetail`/`openKitMenuOrDetail` are the template
+for the new deep-link commands.
+
+### Real Scenario
+
+An admin is setting up a new arena via a setup script/command block rather than walking
+through menus by hand (e.g. provisioning several arenas identically at server start).
+Today they can create the arena and set its spawns via commands, but must open the GUI to
+rename it, enable it, or set its boundary mode - breaking the "fully scriptable setup"
+goal for no structural reason, since none of those actions need a GUI's interactivity.
+
+### Implementation Plan
+
+All five steps below are done. `[x]`
+
+1. Add `ArenaManager` methods needed for the new mutations that don't already have one
+   (boundary mode/grace seconds setter, following the existing `NOT_FOUND`/`IN_USE`/
+   `SUCCESS` result pattern).
+2. Add arena subcommands: `rename`, `toggle`, `bounds <id> <1|2>` (mirrors `setspawn`),
+   `boundary <id> <mode> [graceSeconds]`, `editmode <id>` (player-only), and a kit-allow
+   toggle command under the existing arena tree.
+3. Add kit subcommands: `rename`, `icon` (uses held item, player-only), `edit <id>`
+   (deep-link, player-only).
+4. Add matching permission nodes to `plugin.yml` for every new subcommand, following the
+   existing `duels.admin.arena.<action>`/`duels.admin.kit.<action>` convention, and wire
+   each into the relevant parent permission's `children` map.
+5. Update the `admin.help`/`duel.help` message lists in `messages.yml` to document the
+   new commands.
+
+### Testing Plan
+
+For each new command: verify it produces the same end state as clicking the equivalent
+GUI button (same persisted YAML, same in-use/not-found protection). Verify player-only
+commands reject console senders with the correct message. Verify permission nodes
+actually gate access (a player without the specific child permission, but with the parent,
+should still be blocked - matching how existing arena/kit permissions behave today).
+
+### Definition of Done
+
+Every GUI action identified above either has a direct command equivalent (pure
+mutations) or a command that deep-links straight to it (visual/spatial actions);
+`plugin.yml` and help messages are updated to match.
 
 ---
 
