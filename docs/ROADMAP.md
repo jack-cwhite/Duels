@@ -340,6 +340,21 @@ own spawn locations/offset, sharing the template's kit permissions). `MatchManag
 already claims/releases instances after Phase 1 - this phase is mostly about the admin
 tooling to register multiple instances per template rather than a runtime rearchitecture.
 
+**Flag for later (not yet designed):** setting a physical instance's own spawn
+locations is the same "stand somewhere in the world and click a tool" action as today's
+`Arena` edit-mode wand (`arena/ArenaEditManager.java`, `arena/ArenaEditTool.java`), just
+scoped to one `ArenaInstance` instead of the `Arena` template. `ArenaEditManager`
+currently mixes two responsibilities: generic protected-inventory-session bookkeeping
+(full hotbar/offhand save-clear-restore, blocking drop/click/drag/swap/death while
+editing, config-driven tool slots via JCore's `SlotResolver`) and arena-specific tool
+behaviour (what each of the five tools actually does on click). The session/inventory
+half is already resource-agnostic and worth reusing as-is; the tool-behaviour half is
+not. Splitting those two responsibilities so a second edit-mode consumer (per-instance
+spawn editing) can reuse the session machinery without inheriting `Arena`-specific
+click logic is a real design pass to do when this phase starts, not before - the right
+interface shape depends on what per-instance editing's tool set actually needs, which
+doesn't exist yet.
+
 ### JCore vs Duels
 
 Duels.
@@ -365,6 +380,9 @@ entirely separate configured arena with duplicated kit-permission setup.
 1. Extend arena admin menu to register/list/remove instances of a template.
 2. `MatchManager`'s existing claim logic (Phase 1) already handles multiple instances -
    confirm no assumptions elsewhere in code special-case "one instance per arena."
+3. Design pass on splitting `ArenaEditManager`'s generic session/inventory-safety
+   behaviour from its `Arena`-specific tool actions (see flag above), then build
+   per-instance spawn editing on top of the shared half.
 
 ### Testing Plan
 
