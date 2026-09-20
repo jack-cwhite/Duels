@@ -40,6 +40,12 @@ permissions:
       duels.admin.arena.list: true
       duels.admin.arena.menu: true
       duels.admin.arena.setspawn: true
+      duels.admin.arena.rename: true
+      duels.admin.arena.toggle: true
+      duels.admin.arena.bounds: true
+      duels.admin.arena.boundary: true
+      duels.admin.arena.editmode: true
+      duels.admin.arena.allowkit: true
   duels.admin.arena.create:
     description: Create arenas
     default: op
@@ -55,6 +61,24 @@ permissions:
   duels.admin.arena.setspawn:
     description: Set arena spawn points
     default: op
+  duels.admin.arena.rename:
+    description: Rename arenas
+    default: op
+  duels.admin.arena.toggle:
+    description: Toggle an arena enabled/disabled
+    default: op
+  duels.admin.arena.bounds:
+    description: Set arena bounds corners
+    default: op
+  duels.admin.arena.boundary:
+    description: Set an arena's out-of-bounds behaviour and grace period
+    default: op
+  duels.admin.arena.editmode:
+    description: Enter arena edit mode
+    default: op
+  duels.admin.arena.allowkit:
+    description: Toggle whether a kit is allowed in an arena
+    default: op
   duels.admin.kit:
     description: Access the kit management menu and its subcommands
     default: op
@@ -63,6 +87,9 @@ permissions:
       duels.admin.kit.delete: true
       duels.admin.kit.list: true
       duels.admin.kit.menu: true
+      duels.admin.kit.rename: true
+      duels.admin.kit.icon: true
+      duels.admin.kit.edit: true
   duels.admin.kit.create:
     description: Create kits
     default: op
@@ -74,4 +101,13 @@ permissions:
     default: op
   duels.admin.kit.menu:
     description: Open the kit management menu
+    default: op
+  duels.admin.kit.rename:
+    description: Rename kits
+    default: op
+  duels.admin.kit.icon:
+    description: Set a kit's icon from the held item
+    default: op
+  duels.admin.kit.edit:
+    description: Open a kit's item editor directly
     default: op

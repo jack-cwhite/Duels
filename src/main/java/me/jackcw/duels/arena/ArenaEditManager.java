@@ -5,14 +5,19 @@ import me.jackcw.jcore.item.ItemStackParser;
 import me.jackcw.jcore.menu.SlotResolver;
 import me.jackcw.jcore.storage.YamlFile;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import org.bukkit.Color;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Particle;
+import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -25,6 +30,9 @@ import java.util.logging.Logger;
 public final class ArenaEditManager
 {
     private static final int HOTBAR_SIZE = 9;
+    private static final long PARTICLE_PERIOD_TICKS = 10L;
+    private static final double PARTICLE_STEP = 0.5;
+    private static final Particle.DustOptions BOUNDS_DUST = new Particle.DustOptions(Color.AQUA, 1.0f);
 
     private final Duels plugin;
 
@@ -60,6 +68,68 @@ public final class ArenaEditManager
         sessions.put(player.getUniqueId(), session);
 
         giveTools(player);
+        startBoundsParticles(session);
+    }
+
+    private void startBoundsParticles(ArenaEditSession session)
+    {
+        BukkitTask task = plugin.core().tasks().runSyncTimer(
+                () -> tickBoundsParticles(session), 0L, PARTICLE_PERIOD_TICKS
+        );
+
+        session.setBoundsParticleTask(task);
+    }
+
+    private void tickBoundsParticles(ArenaEditSession session)
+    {
+        Player player = getPlayer(session.getPlayerUuid());
+        Arena arena = plugin.getArenaManager().getArena(session.getArenaId());
+
+        if (player == null || !player.isOnline() || arena == null || !arena.hasBounds())
+            return;
+
+        Location corner1 = arena.getBoundsCorner1();
+        Location corner2 = arena.getBoundsCorner2();
+        World world = corner1.getWorld();
+
+        if (!world.equals(player.getWorld()))
+            return;
+
+        double minX = Math.min(corner1.getX(), corner2.getX());
+        double maxX = Math.max(corner1.getX(), corner2.getX());
+        double minY = Math.min(corner1.getY(), corner2.getY());
+        double maxY = Math.max(corner1.getY(), corner2.getY());
+        double minZ = Math.min(corner1.getZ(), corner2.getZ());
+        double maxZ = Math.max(corner1.getZ(), corner2.getZ());
+
+        for (double x = minX; x <= maxX; x += PARTICLE_STEP)
+        {
+            spawnBoundsParticle(player, world, x, minY, minZ);
+            spawnBoundsParticle(player, world, x, minY, maxZ);
+            spawnBoundsParticle(player, world, x, maxY, minZ);
+            spawnBoundsParticle(player, world, x, maxY, maxZ);
+        }
+
+        for (double y = minY; y <= maxY; y += PARTICLE_STEP)
+        {
+            spawnBoundsParticle(player, world, minX, y, minZ);
+            spawnBoundsParticle(player, world, minX, y, maxZ);
+            spawnBoundsParticle(player, world, maxX, y, minZ);
+            spawnBoundsParticle(player, world, maxX, y, maxZ);
+        }
+
+        for (double z = minZ; z <= maxZ; z += PARTICLE_STEP)
+        {
+            spawnBoundsParticle(player, world, minX, minY, z);
+            spawnBoundsParticle(player, world, minX, maxY, z);
+            spawnBoundsParticle(player, world, maxX, minY, z);
+            spawnBoundsParticle(player, world, maxX, maxY, z);
+        }
+    }
+
+    private void spawnBoundsParticle(Player player, World world, double x, double y, double z)
+    {
+        player.spawnParticle(Particle.DUST, x, y, z, 1, 0, 0, 0, 0, BOUNDS_DUST);
     }
 
     public void giveTools(Player player)
@@ -94,6 +164,9 @@ public final class ArenaEditManager
 
         if (session == null)
             return;
+
+        if (session.getBoundsParticleTask() != null)
+            session.getBoundsParticleTask().cancel();
 
         ItemStack[] savedHotbar = session.getSavedHotbar();
         ItemStack savedOffhand = session.getSavedOffhand();

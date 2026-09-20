@@ -1,6 +1,7 @@
 package me.jackcw.duels.listener;
 
 import me.jackcw.duels.Duels;
+import me.jackcw.duels.arena.BoundaryEnforcer;
 import me.jackcw.duels.challenge.Challenge;
 import me.jackcw.duels.challenge.ChallengeManager;
 import me.jackcw.duels.match.Match;
@@ -25,6 +26,7 @@ import org.bukkit.event.entity.AreaEffectCloudApplyEvent;
 import org.bukkit.event.entity.PotionSplashEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerAdvancementDoneEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 
@@ -37,6 +39,7 @@ public final class MatchListener implements Listener
     private final MessageManager messageManager;
     private final MatchManager matchManager;
     private final ChallengeManager challengeManager;
+    private final BoundaryEnforcer boundaryEnforcer;
 
     public MatchListener(Duels plugin)
     {
@@ -44,6 +47,7 @@ public final class MatchListener implements Listener
         this.messageManager = plugin.core().messages();
         this.matchManager = plugin.getMatchManager();
         this.challengeManager = plugin.getChallengeManager();
+        this.boundaryEnforcer = plugin.getBoundaryEnforcer();
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -157,6 +161,12 @@ public final class MatchListener implements Listener
         matchManager.endMatch(match, winnerId);
     }
 
+    @EventHandler(ignoreCancelled = true)
+    public void onPlayerMove(PlayerMoveEvent event)
+    {
+        boundaryEnforcer.handleMove(event);
+    }
+
     @EventHandler
     public void onAdvancementDone(PlayerAdvancementDoneEvent event)
     {
@@ -182,6 +192,8 @@ public final class MatchListener implements Listener
     {
         Player player = event.getPlayer();
         Match match = matchManager.getMatch(player.getUniqueId());
+
+        boundaryEnforcer.forget(player.getUniqueId());
 
         if (match == null)
             return;

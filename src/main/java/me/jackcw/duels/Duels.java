@@ -45,6 +45,7 @@ public class Duels extends JavaPlugin
     private ArenaManager arenaManager;
     private ArenaAllocator arenaAllocator;
     private ArenaEditManager arenaEditManager;
+    private BoundaryEnforcer boundaryEnforcer;
     private KitManager kitManager;
     private ChallengeManager challengeManager;
     private MatchManager matchManager;
@@ -90,6 +91,9 @@ public class Duels extends JavaPlugin
         if (matchManager != null)
             matchManager.shutdown(isServerStopping());
 
+        if (boundaryEnforcer != null)
+            boundaryEnforcer.shutdown();
+
         if (arenaEditManager != null)
             for (UUID uuid : new ArrayList<>(arenaEditManager.getSessions().keySet()))
                 arenaEditManager.end(uuid);
@@ -121,6 +125,11 @@ public class Duels extends JavaPlugin
     public ArenaEditManager getArenaEditManager()
     {
         return arenaEditManager;
+    }
+
+    public BoundaryEnforcer getBoundaryEnforcer()
+    {
+        return boundaryEnforcer;
     }
 
     public KitManager getKitManager()
@@ -181,6 +190,11 @@ public class Duels extends JavaPlugin
     public KitDetailMenu getKitDetailMenu()
     {
         return kitDetailMenu;
+    }
+
+    public KitEditMenu getKitEditMenu()
+    {
+        return kitEditMenu;
     }
 
     public KitSelectorMenu getKitSelectorMenu()
@@ -256,6 +270,7 @@ public class Duels extends JavaPlugin
         playerStateManager = new PlayerStateManager(jCore.files().yaml("playerstates.yml", true), jCore.serializers());
         statsManager = new StatsManager(this);
         matchManager = new MatchManager(this);
+        boundaryEnforcer = new BoundaryEnforcer(this);
 
         arenaManager.setActiveCheck(arenaAllocator::isAllocated);
     }

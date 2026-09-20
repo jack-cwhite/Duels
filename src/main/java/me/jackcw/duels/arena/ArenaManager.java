@@ -139,6 +139,23 @@ public final class ArenaManager
         return ArenaMutationResult.success(arena);
     }
 
+    public ArenaMutationResult setBoundaryMode(int id, BoundaryMode mode, int graceSeconds)
+    {
+        Arena arena = arenas.get(id);
+
+        if (arena == null)
+            return ArenaMutationResult.notFound();
+
+        if (activeCheck.test(id))
+            return ArenaMutationResult.inUse();
+
+        arena.setBoundaryMode(mode);
+        arena.setGraceSeconds(graceSeconds);
+        save(arena);
+
+        return ArenaMutationResult.success(arena);
+    }
+
     public ArenaMutationResult toggleKitAllowed(int arenaId, int kitId)
     {
         Arena arena = arenas.get(arenaId);

@@ -2,14 +2,17 @@ package me.jackcw.duels.commands;
 
 import me.jackcw.duels.Duels;
 import me.jackcw.duels.arena.Arena;
+import me.jackcw.duels.arena.ArenaEditManager;
 import me.jackcw.duels.arena.ArenaManager;
 import me.jackcw.duels.arena.ArenaMutationResult;
+import me.jackcw.duels.arena.BoundaryMode;
 import me.jackcw.duels.kit.Kit;
 import me.jackcw.duels.kit.KitManager;
 import me.jackcw.duels.menu.admin.AdminMainMenu;
 import me.jackcw.duels.menu.admin.arena.ArenaMainMenu;
 import me.jackcw.duels.menu.admin.arena.ArenaListMenu;
 import me.jackcw.duels.menu.admin.arena.ArenaDetailMenu;
+import me.jackcw.duels.menu.admin.kit.KitEditMenu;
 import me.jackcw.duels.menu.admin.kit.KitMainMenu;
 import me.jackcw.duels.menu.admin.kit.KitListMenu;
 import me.jackcw.duels.menu.admin.kit.KitDetailMenu;
@@ -21,13 +24,16 @@ import me.jackcw.jcore.command.CommandNode;
 import me.jackcw.jcore.menu.MenuManager;
 import me.jackcw.jcore.message.MessageManager;
 import me.jackcw.jcore.message.CoreMessage;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 
 import java.util.List;
 
 public final class DuelsCommand
 {
     private final ArenaManager arenaManager;
+    private final ArenaEditManager arenaEditManager;
     private final KitManager kitManager;
     private final MessageManager messageManager;
     private final MenuManager menus;
@@ -38,10 +44,12 @@ public final class DuelsCommand
     private final KitMainMenu kitMenu;
     private final KitListMenu kitListMenu;
     private final KitDetailMenu kitDetailMenu;
+    private final KitEditMenu kitEditMenu;
 
     public DuelsCommand(Duels plugin)
     {
         this.arenaManager = plugin.getArenaManager();
+        this.arenaEditManager = plugin.getArenaEditManager();
         this.kitManager = plugin.getKitManager();
         this.messageManager = plugin.core().messages();
         this.menus = plugin.core().menus();
@@ -52,6 +60,7 @@ public final class DuelsCommand
         this.kitMenu = plugin.getKitMainMenu();
         this.kitListMenu = plugin.getKitListMenu();
         this.kitDetailMenu = plugin.getKitDetailMenu();
+        this.kitEditMenu = plugin.getKitEditMenu();
     }
 
     public CommandNode build()
@@ -110,7 +119,56 @@ public final class DuelsCommand
                                                 .playerOnly()
                                                 .argument("id", ArgumentTypes.integer())
                                                 .argument("spawn", ArgumentTypes.integer())
-                                                .executes(this::setSpawn)))
+                                                .executes(this::setSpawn))
+                                .child(
+                                        CommandBuilder.command("rename")
+                                                .description("Rename an arena")
+                                                .usage("/duels arena rename <id> <name>")
+                                                .permission("duels.admin.arena.rename")
+                                                .argument("id", ArgumentTypes.integer())
+                                                .argument("name", ArgumentTypes.string())
+                                                .executes(this::renameArena))
+                                .child(
+                                        CommandBuilder.command("toggle")
+                                                .description("Toggle an arena enabled/disabled")
+                                                .usage("/duels arena toggle <id>")
+                                                .permission("duels.admin.arena.toggle")
+                                                .argument("id", ArgumentTypes.integer())
+                                                .executes(this::toggleArena))
+                                .child(
+                                        CommandBuilder.command("bounds")
+                                                .description("Set a bounds corner for an arena")
+                                                .usage("/duels arena bounds <id> <1|2>")
+                                                .permission("duels.admin.arena.bounds")
+                                                .playerOnly()
+                                                .argument("id", ArgumentTypes.integer())
+                                                .argument("corner", ArgumentTypes.integer())
+                                                .executes(this::setBoundsCorner))
+                                .child(
+                                        CommandBuilder.command("boundary")
+                                                .description("Set the out-of-bounds behaviour for an arena")
+                                                .usage("/duels arena boundary <id> <mode> [graceSeconds]")
+                                                .permission("duels.admin.arena.boundary")
+                                                .argument("id", ArgumentTypes.integer())
+                                                .argument("mode", ArgumentTypes.enumType(BoundaryMode.class))
+                                                .optionalArgument("graceSeconds", ArgumentTypes.integer())
+                                                .executes(this::setBoundaryMode))
+                                .child(
+                                        CommandBuilder.command("editmode")
+                                                .description("Enter arena edit mode for an arena")
+                                                .usage("/duels arena editmode <id>")
+                                                .permission("duels.admin.arena.editmode")
+                                                .playerOnly()
+                                                .argument("id", ArgumentTypes.integer())
+                                                .executes(this::enterEditMode))
+                                .child(
+                                        CommandBuilder.command("allowkit")
+                                                .description("Toggle whether a kit is allowed in an arena")
+                                                .usage("/duels arena allowkit <id> <kitId>")
+                                                .permission("duels.admin.arena.allowkit")
+                                                .argument("id", ArgumentTypes.integer())
+                                                .argument("kitId", ArgumentTypes.integer())
+                                                .executes(this::toggleArenaKit)))
                 .child(
                         CommandBuilder.command("kit")
                                 .description("Manage kits")
@@ -146,7 +204,31 @@ public final class DuelsCommand
                                                 .description("List all kits")
                                                 .usage("/duels kit list")
                                                 .permission("duels.admin.kit.list")
-                                                .executes(this::listKits)))
+                                                .executes(this::listKits))
+                                .child(
+                                        CommandBuilder.command("rename")
+                                                .description("Rename a kit")
+                                                .usage("/duels kit rename <id> <name>")
+                                                .permission("duels.admin.kit.rename")
+                                                .argument("id", ArgumentTypes.integer())
+                                                .argument("name", ArgumentTypes.string())
+                                                .executes(this::renameKit))
+                                .child(
+                                        CommandBuilder.command("icon")
+                                                .description("Set a kit's icon to the item in your hand")
+                                                .usage("/duels kit icon <id>")
+                                                .permission("duels.admin.kit.icon")
+                                                .playerOnly()
+                                                .argument("id", ArgumentTypes.integer())
+                                                .executes(this::setKitIcon))
+                                .child(
+                                        CommandBuilder.command("edit")
+                                                .description("Open a kit's item editor directly")
+                                                .usage("/duels kit edit <id>")
+                                                .permission("duels.admin.kit.edit")
+                                                .playerOnly()
+                                                .argument("id", ArgumentTypes.integer())
+                                                .executes(this::editKit)))
                 .build();
     }
 
@@ -311,6 +393,123 @@ public final class DuelsCommand
         }
     }
 
+    private void renameArena(CommandContext context)
+    {
+        int id = context.get("id");
+        String name = context.get("name");
+
+        ArenaMutationResult result = arenaManager.rename(id, name);
+
+        switch (result.status())
+        {
+            case NOT_FOUND -> messageManager.send(context.getSender(), Message.ARENA_NOT_FOUND, "id", id);
+            case IN_USE -> messageManager.send(context.getSender(), Message.ARENA_IN_USE, "id", id);
+            case SUCCESS -> messageManager.send(context.getSender(), Message.ARENA_RENAMED, "id", id, "name", name);
+        }
+    }
+
+    private void toggleArena(CommandContext context)
+    {
+        int id = context.get("id");
+        ArenaMutationResult result = arenaManager.toggleEnabled(id);
+
+        switch (result.status())
+        {
+            case NOT_FOUND -> messageManager.send(context.getSender(), Message.ARENA_NOT_FOUND, "id", id);
+            case IN_USE -> messageManager.send(context.getSender(), Message.ARENA_IN_USE, "id", id);
+            case SUCCESS -> messageManager.send(
+                    context.getSender(),
+                    result.arena().isEnabled() ? Message.ARENA_ENABLED : Message.ARENA_DISABLED,
+                    "id", id
+            );
+        }
+    }
+
+    private void setBoundsCorner(CommandContext context)
+    {
+        int id = context.get("id");
+        int corner = context.get("corner");
+
+        if (corner != 1 && corner != 2)
+        {
+            messageManager.send(context.getSender(), Message.ARENA_INVALID_BOUNDS_CORNER, "corner", corner);
+            return;
+        }
+
+        Player player = context.getPlayer();
+        ArenaMutationResult result = arenaManager.setBoundsCorner(id, corner, player.getLocation());
+
+        switch (result.status())
+        {
+            case NOT_FOUND -> messageManager.send(context.getSender(), Message.ARENA_NOT_FOUND, "id", id);
+            case IN_USE -> messageManager.send(context.getSender(), Message.ARENA_IN_USE, "id", id);
+            case SUCCESS -> messageManager.send(context.getSender(), Message.ARENA_BOUNDS_SET, "corner", corner, "id", id);
+        }
+    }
+
+    private void setBoundaryMode(CommandContext context)
+    {
+        int id = context.get("id");
+        BoundaryMode mode = context.get("mode");
+        int graceSeconds = context.has("graceSeconds") ? (int) context.get("graceSeconds") : 0;
+
+        ArenaMutationResult result = arenaManager.setBoundaryMode(id, mode, graceSeconds);
+
+        switch (result.status())
+        {
+            case NOT_FOUND -> messageManager.send(context.getSender(), Message.ARENA_NOT_FOUND, "id", id);
+            case IN_USE -> messageManager.send(context.getSender(), Message.ARENA_IN_USE, "id", id);
+            case SUCCESS -> messageManager.send(
+                    context.getSender(),
+                    Message.ARENA_BOUNDARY_SET,
+                    "id", id,
+                    "mode", mode.name(),
+                    "grace", graceSeconds
+            );
+        }
+    }
+
+    private void enterEditMode(CommandContext context)
+    {
+        int id = context.get("id");
+        Arena arena = arenaManager.getArena(id);
+
+        if (arena == null)
+        {
+            messageManager.send(context.getSender(), Message.ARENA_NOT_FOUND, "id", id);
+            return;
+        }
+
+        arenaEditManager.start(context.getPlayer(), arena);
+    }
+
+    private void toggleArenaKit(CommandContext context)
+    {
+        int id = context.get("id");
+        int kitId = context.get("kitId");
+
+        if (kitManager.getKit(kitId) == null)
+        {
+            messageManager.send(context.getSender(), Message.KIT_NOT_FOUND, "id", kitId);
+            return;
+        }
+
+        ArenaMutationResult result = arenaManager.toggleKitAllowed(id, kitId);
+
+        switch (result.status())
+        {
+            case NOT_FOUND -> messageManager.send(context.getSender(), Message.ARENA_NOT_FOUND, "id", id);
+            case IN_USE -> messageManager.send(context.getSender(), Message.ARENA_IN_USE, "id", id);
+            case SUCCESS -> messageManager.send(
+                    context.getSender(),
+                    Message.ARENA_KIT_TOGGLED,
+                    "kitId", kitId,
+                    "id", id,
+                    "status", result.arena().isKitAllowed(kitId) ? "allowed" : "disallowed"
+            );
+        }
+    }
+
     private void createKit(CommandContext context)
     {
         String name = context.get("name");
@@ -347,5 +546,62 @@ public final class DuelsCommand
 
         for (Kit kit : kits)
             messageManager.send(context.getSender(), Message.KIT_LIST_ENTRY, "id", kit.getId(), "name", kit.getName());
+    }
+
+    private void renameKit(CommandContext context)
+    {
+        int id = context.get("id");
+        String name = context.get("name");
+        Kit kit = kitManager.getKit(id);
+
+        if (kit == null)
+        {
+            messageManager.send(context.getSender(), Message.KIT_NOT_FOUND, "id", id);
+            return;
+        }
+
+        kit.setName(name);
+        kitManager.save(kit);
+
+        messageManager.send(context.getSender(), Message.KIT_RENAMED, "id", id, "name", name);
+    }
+
+    private void setKitIcon(CommandContext context)
+    {
+        int id = context.get("id");
+        Kit kit = kitManager.getKit(id);
+
+        if (kit == null)
+        {
+            messageManager.send(context.getSender(), Message.KIT_NOT_FOUND, "id", id);
+            return;
+        }
+
+        Player player = context.getPlayer();
+        ItemStack held = player.getInventory().getItemInMainHand();
+
+        if (held.getType() == Material.AIR)
+        {
+            messageManager.send(context.getSender(), Message.KIT_ICON_EMPTY_HAND);
+            return;
+        }
+
+        kit.setIcon(held.clone());
+        kitManager.save(kit);
+
+        messageManager.send(context.getSender(), Message.KIT_ICON_SET, "name", kit.getName());
+    }
+
+    private void editKit(CommandContext context)
+    {
+        int id = context.get("id");
+
+        if (kitManager.getKit(id) == null)
+        {
+            messageManager.send(context.getSender(), Message.KIT_NOT_FOUND, "id", id);
+            return;
+        }
+
+        kitEditMenu.open(context.getPlayer(), id);
     }
 }

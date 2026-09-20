@@ -14,6 +14,8 @@ public final class Arena
     private Location spawn2;
     private Location boundsCorner1;
     private Location boundsCorner2;
+    private BoundaryMode boundaryMode = BoundaryMode.SOFT_RETURN;
+    private int graceSeconds;
     private final Set<Integer> disallowedKitIds = new TreeSet<>();
     private boolean enabled;
 
@@ -82,6 +84,26 @@ public final class Arena
     public boolean hasBounds()
     {
         return boundsCorner1 != null && boundsCorner2 != null;
+    }
+
+    public BoundaryMode getBoundaryMode()
+    {
+        return boundaryMode;
+    }
+
+    public void setBoundaryMode(BoundaryMode boundaryMode)
+    {
+        this.boundaryMode = boundaryMode != null ? boundaryMode : BoundaryMode.SOFT_RETURN;
+    }
+
+    public int getGraceSeconds()
+    {
+        return graceSeconds;
+    }
+
+    public void setGraceSeconds(int graceSeconds)
+    {
+        this.graceSeconds = Math.max(0, graceSeconds);
     }
 
     public void setEnabled(boolean enabled)

@@ -2,6 +2,7 @@ package me.jackcw.duels.arena;
 
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.util.UUID;
 
@@ -11,6 +12,7 @@ public final class ArenaEditSession
     private final int arenaId;
     private final ItemStack[] savedHotbar;
     private final ItemStack savedOffhand;
+    private BukkitTask boundsParticleTask;
 
     public ArenaEditSession(Player player, Arena arena)
     {
@@ -22,6 +24,16 @@ public final class ArenaEditSession
             savedHotbar[i] = player.getInventory().getItem(i);
 
         savedOffhand = player.getInventory().getItemInOffHand();
+    }
+
+    public BukkitTask getBoundsParticleTask()
+    {
+        return boundsParticleTask;
+    }
+
+    public void setBoundsParticleTask(BukkitTask boundsParticleTask)
+    {
+        this.boundsParticleTask = boundsParticleTask;
     }
 
     public UUID getPlayerUuid()

@@ -2,6 +2,17 @@
 # the placeholders available for each message are named after what they show
 # (e.g. {player}, {id}, {name}); core.prefix is prepended to single-line
 # messages automatically. Help lists are sent as written so they stay tidy.
+#
+# On update, any message key that is new in this version is added to your file
+# automatically; keys you have already edited are never overwritten, and your
+# comments and layout are preserved.
+#
+# Lists are the one exception. The 'help' lists below are treated as yours, so
+# once they exist they are left completely alone - which means help lines for
+# commands added in a later version will NOT appear on their own. To pick up the
+# current help text, delete the whole 'help:' block (under 'admin:' and/or
+# 'duel:') and restart; it will be regenerated in full. Do this only if you
+# haven't reworded those lines yourself, since regenerating replaces them.
 core:
   prefix: '&8&l[&c&lDuels&8&l]'
   no-permission: '&cYou do not have permission to use this command!'
@@ -24,6 +35,9 @@ admin:
   arena-in-use: '&cArena with ID: &e{id} &cis currently hosting a match and cannot be edited or deleted'
   arena-bounds-set: '&7Bounds corner &e{corner} &7set for arena &e{id}'
   arena-bounds-not-set: '&cBounds corner &e{corner} &chas not been set for arena &e{id}'
+  arena-invalid-bounds-corner: '&cBounds corner must be &e1 &cor &e2&c, got: &e{corner}'
+  arena-boundary-set: '&7Boundary mode for arena &e{id} &7set to &e{mode} &7with a &e{grace}s &7grace period'
+  arena-kit-toggled: '&7Kit &e{kitId} &7is now &e{status} &7for arena &e{id}'
   arena-edit-mode-exited: '&7You have exited arena edit mode'
   cannot-open-inventory-while-in-edit-mode: '&cYou can not open an inventory while in arena edit mode. Use the exit tool to exit edit mode.'
   kit-created: '&7Kit &acreated &7with name: &e{name} &7and ID: &e{id}'
@@ -41,10 +55,19 @@ admin:
     - '&e/duels arena delete <id> &7- delete the arena with the specified id'
     - '&e/duels arena list &7- list all arenas'
     - '&e/duels arena setspawn <id> <1|2> &7- set a spawn point for an arena'
+    - '&e/duels arena rename <id> <name> &7- rename an arena'
+    - '&e/duels arena toggle <id> &7- enable or disable an arena'
+    - '&e/duels arena bounds <id> <1|2> &7- set a bounds corner for an arena'
+    - '&e/duels arena boundary <id> <mode> [graceSeconds] &7- set an arena''s out-of-bounds behaviour'
+    - '&e/duels arena editmode <id> &7- enter arena edit mode'
+    - '&e/duels arena allowkit <id> <kitId> &7- toggle whether a kit is allowed in an arena'
     - '&e/duels kit create <name> &7- create a kit with the specified name'
     - '&e/duels kit [id] &7- open kit management or a specific kit'
     - '&e/duels kit delete <id> &7- delete the kit with the specified id'
     - '&e/duels kit list &7- list all kits'
+    - '&e/duels kit rename <id> <name> &7- rename a kit'
+    - '&e/duels kit icon <id> &7- set a kit''s icon to the item in your hand'
+    - '&e/duels kit edit <id> &7- open a kit''s item editor directly'
 
 duel:
   help:
@@ -74,6 +97,8 @@ duel:
   already-in-match: '&cYou are already in a duel!'
   target-in-match: '&e{player} &cis already in a duel!'
   match-start: '&7Fight! Defeat &e{player} &7to win the duel!'
+  out-of-bounds-warning: '&cYou are leaving the arena bounds!'
+  out-of-bounds-returned: '&cYou were returned to the arena.'
   match-win: '&aYou won the duel against &e{player}'
   match-lose: '&cYou lost the duel against &e{player}'
 
