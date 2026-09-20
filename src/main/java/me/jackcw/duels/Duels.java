@@ -34,6 +34,9 @@ import me.jackcw.jcore.storage.YamlRepository;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.Bukkit;
 
+import java.util.ArrayList;
+import java.util.UUID;
+
 public class Duels extends JavaPlugin
 {
     private JCore jCore;
@@ -86,6 +89,10 @@ public class Duels extends JavaPlugin
     {
         if (matchManager != null)
             matchManager.shutdown(isServerStopping());
+
+        if (arenaEditManager != null)
+            for (UUID uuid : new ArrayList<>(arenaEditManager.getSessions().keySet()))
+                arenaEditManager.end(uuid);
 
         if (jCore != null)
             jCore.shutdown();

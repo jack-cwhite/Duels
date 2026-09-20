@@ -10,6 +10,7 @@ public final class ArenaEditSession
     private final UUID playerUuid;
     private final int arenaId;
     private final ItemStack[] savedHotbar;
+    private final ItemStack savedOffhand;
 
     public ArenaEditSession(Player player, Arena arena)
     {
@@ -19,6 +20,8 @@ public final class ArenaEditSession
 
         for (int i = 0; i < 9; i++)
             savedHotbar[i] = player.getInventory().getItem(i);
+
+        savedOffhand = player.getInventory().getItemInOffHand();
     }
 
     public UUID getPlayerUuid()
@@ -34,5 +37,10 @@ public final class ArenaEditSession
     public ItemStack[] getSavedHotbar()
     {
         return savedHotbar;
+    }
+
+    public ItemStack getSavedOffhand()
+    {
+         return savedOffhand;
     }
 }

@@ -14,21 +14,101 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.inventory.InventoryOpenEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.EquipmentSlot;
 
 public final class ArenaEditListener implements Listener
 {
+    private final Duels plugin;
     private final ArenaEditManager arenaEditManager;
     private final ArenaManager arenaManager;
     private final MessageManager messageManager;
 
     public ArenaEditListener(Duels plugin)
     {
+        this.plugin = plugin;
         this.arenaEditManager = plugin.getArenaEditManager();
         this.arenaManager = plugin.getArenaManager();
         this.messageManager = plugin.core().messages();
+    }
+
+    @EventHandler
+    public void onInventoryOpen(InventoryOpenEvent event)
+    {
+        if (event.getPlayer() instanceof Player player && arenaEditManager.isEditing(player))
+        {
+            messageManager.send(player, Message.CANNOT_OPEN_INVENTORY_WHILE_IN_EDIT_MODE);
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onPlayerDropItem(PlayerDropItemEvent event)
+    {
+        if (!arenaEditManager.isEditing(event.getPlayer().getUniqueId()))
+            return;
+
+        ArenaEditTool tool = arenaEditManager.getTool(event.getItemDrop().getItemStack());
+
+        if (tool == null)
+            return;
+
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent event)
+    {
+        if (event.getWhoClicked() instanceof Player player && arenaEditManager.isEditing(player))
+            event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onInventoryDrag(InventoryDragEvent event)
+    {
+        if (event.getWhoClicked() instanceof Player player && arenaEditManager.isEditing(player))
+            event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onSwapHandItems(PlayerSwapHandItemsEvent event)
+    {
+        if (arenaEditManager.isEditing(event.getPlayer()))
+            event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onPlayerDeath(PlayerDeathEvent event)
+    {
+        Player player = event.getPlayer();
+
+        if (!arenaEditManager.isEditing(player))
+            return;
+
+        event.getDrops().removeIf(arenaEditManager::isTool);
+    }
+
+    @EventHandler
+    public void onPlayerRespawn(PlayerRespawnEvent event)
+    {
+        Player player = event.getPlayer();
+
+        if (!arenaEditManager.isEditing(player))
+            return;
+
+        plugin.core().tasks().runSyncLater(() ->
+        {
+            if (player.isOnline() && arenaEditManager.isEditing(player))
+                arenaEditManager.giveTools(player);
+        }, 1L);
     }
 
     @EventHandler

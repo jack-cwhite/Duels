@@ -38,6 +38,7 @@ public enum Message implements MessageKey
     ARENA_BOUNDS_SET("admin.arena-bounds-set"),
     ARENA_BOUNDS_NOT_SET("admin.arena-bounds-not-set"),
     ARENA_EDIT_MODE_EXITED("admin.arena-edit-mode-exited"),
+    CANNOT_OPEN_INVENTORY_WHILE_IN_EDIT_MODE("admin.cannot-open-inventory-while-in-edit-mode"),
     KIT_CREATED("admin.kit-created"),
     KIT_DELETED("admin.kit-deleted"),
     KIT_NOT_FOUND("admin.kit-not-found"),

@@ -12,11 +12,13 @@ public enum ArenaEditTool
 
     private final Material material;
     private final String displayName;
+    private final String configKey;
 
     ArenaEditTool(Material material, String displayName)
     {
         this.material = material;
         this.displayName = displayName;
+        this.configKey = name().toLowerCase().replace('_', '-');
     }
 
     public Material getMaterial()
@@ -27,5 +29,19 @@ public enum ArenaEditTool
     public String getDisplayName()
     {
         return displayName;
+    }
+
+    public String getConfigKey()
+    {
+        return configKey;
+    }
+
+    public static ArenaEditTool byConfigKey(String configKey)
+    {
+        for (ArenaEditTool tool : values())
+            if (tool.configKey.equals(configKey))
+                return tool;
+
+        return null;
     }
 }

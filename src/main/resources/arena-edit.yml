@@ -1,0 +1,55 @@
+# Tools given to an admin while in arena edit mode.
+#
+# Entering edit mode saves your real hotbar, clears all 9 slots and lays out
+# the tools below. Exiting (or disconnecting) restores your hotbar exactly as
+# it was.
+#
+# slot is 0-8, left to right. If a slot is missing, out of range, or already
+# taken by another tool, that tool is placed in the next free slot instead and
+# a warning is logged on startup.
+#
+# The tool keys (spawn-1, spawn-2, bounds-corner-1, bounds-corner-2, exit) are
+# fixed - they are how the plugin knows what each item does. Renaming or
+# deleting a key does not remove the tool; it falls back to a built-in default
+# item in the next free slot. Any key that is not one of the five above is
+# ignored, with a warning naming it, so typos are easy to spot.
+#
+# material, name and lore accept anything the plugin's other item configs
+# accept. If an item fails to parse, that tool falls back to its built-in
+# default rather than disappearing.
+tools:
+  spawn-1:
+    slot: 0
+    material: LIME_DYE
+    name: '&aSpawn 1'
+    lore:
+      - '&7Left click &8- &7set to where you stand'
+      - '&7Right click &8- &7teleport to it'
+  spawn-2:
+    slot: 2
+    material: LIGHT_BLUE_DYE
+    name: '&bSpawn 2'
+    lore:
+      - '&7Left click &8- &7set to where you stand'
+      - '&7Right click &8- &7teleport to it'
+  bounds-corner-1:
+    slot: 4
+    material: LIME_CONCRETE
+    name: '&aBounds Corner 1'
+    lore:
+      - '&7Left click &8- &7set to where you stand'
+      - '&7Right click &8- &7teleport to it'
+  bounds-corner-2:
+    slot: 6
+    material: LIGHT_BLUE_CONCRETE
+    name: '&bBounds Corner 2'
+    lore:
+      - '&7Left click &8- &7set to where you stand'
+      - '&7Right click &8- &7teleport to it'
+  exit:
+    slot: 8
+    material: BARRIER
+    name: '&cExit Edit Mode'
+    lore:
+      - '&7Click to leave edit mode and'
+      - '&7get your hotbar back'
