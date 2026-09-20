@@ -1,5 +1,6 @@
 package me.jackcw.duels.player;
 
+import me.jackcw.duels.arena.ArenaEditSession;
 import me.jackcw.jcore.serialization.PlayerState;
 import me.jackcw.jcore.serialization.SerializerManager;
 import me.jackcw.jcore.storage.YamlFile;
@@ -19,7 +20,7 @@ public final class PlayerStateManager
 
     private final YamlFile file;
     private final SerializerManager serializers;
-    private final Map<UUID, PlayerState> cache = new HashMap<>();
+    private final Map<UUID, PlayerState> stateCache = new HashMap<>();
 
     public PlayerStateManager(YamlFile file, SerializerManager serializers)
     {
@@ -44,7 +45,7 @@ public final class PlayerStateManager
                 PlayerState state = file.get(ROOT + "." + key, PlayerState.class);
 
                 if (state != null)
-                    cache.put(uuid, state);
+                    stateCache.put(uuid, state);
             }
             catch (RuntimeException e)
             {
@@ -57,7 +58,7 @@ public final class PlayerStateManager
     {
         PlayerState state = PlayerState.capture(player);
 
-        cache.put(player.getUniqueId(), state);
+        stateCache.put(player.getUniqueId(), state);
 
         file.set(ROOT + "." + player.getUniqueId(), serializers.serialize(state));
         file.save();
@@ -65,7 +66,7 @@ public final class PlayerStateManager
 
     public boolean restore(Player player)
     {
-        PlayerState state = cache.get(player.getUniqueId());
+        PlayerState state = stateCache.get(player.getUniqueId());
 
         if (state == null)
             return false;
@@ -76,7 +77,7 @@ public final class PlayerStateManager
 
             file.set(ROOT + "." + player.getUniqueId(), null);
             file.save();
-            cache.remove(player.getUniqueId());
+            stateCache.remove(player.getUniqueId());
 
             return false;
         }
@@ -85,19 +86,19 @@ public final class PlayerStateManager
 
         file.set(ROOT + "." + player.getUniqueId(), null);
         file.save();
-        cache.remove(player.getUniqueId());
+        stateCache.remove(player.getUniqueId());
 
         return true;
     }
 
     public boolean has(Player player)
     {
-        return cache.containsKey(player.getUniqueId());
+        return stateCache.containsKey(player.getUniqueId());
     }
 
     public void clear(Player player)
     {
-        cache.remove(player.getUniqueId());
+        stateCache.remove(player.getUniqueId());
 
         file.set(ROOT + "." + player.getUniqueId(), null);
         file.save();
@@ -105,6 +106,6 @@ public final class PlayerStateManager
 
     public PlayerState get(Player player)
     {
-        return cache.get(player.getUniqueId());
+        return stateCache.get(player.getUniqueId());
     }
 }
