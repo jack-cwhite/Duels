@@ -1,0 +1,121 @@
+package me.jackcw.duels.arena;
+
+import me.jackcw.duels.Duels;
+import me.jackcw.jcore.storage.YamlFile;
+
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
+
+/**
+ * Owns dynamic-layout.yml and short-lived slot reservations. Occupancy itself
+ * is reconstructed from persisted provisioned instances, not duplicated here.
+ */
+public final class DynamicArenaSlotManager
+{
+    private final Duels plugin;
+    private final Set<Integer> reservedSlots = new HashSet<>();
+    private final Set<Integer> occupiedSlots = new HashSet<>();
+    private DynamicArenaLayout layout;
+    private YamlFile layoutFile;
+
+    public DynamicArenaSlotManager(Duels plugin) { this.plugin = plugin; }
+
+    public DynamicArenaLayout getOrCreateLayout()
+    {
+        if (layout != null)
+            return layout;
+
+        layoutFile = plugin.core().files().yaml("dynamic-layout.yml");
+        if (!layoutFile.contains("version"))
+        {
+            layout = DynamicArenaLayout.fromSettings(plugin.getSettings().dynamicArenas());
+            saveLayout();
+            return layout;
+        }
+
+        layout = new DynamicArenaLayout(layoutFile.getInt("version"), layoutFile.getString("world-name"),
+                parseWorldId(layoutFile.getString("world-id")), layoutFile.getInt("max-slots"),
+                layoutFile.getInt("slots-per-row"), layoutFile.getInt("slot-width"), layoutFile.getInt("slot-length"),
+                layoutFile.getInt("slot-padding"), layoutFile.getInt("base-y"));
+        return layout;
+    }
+
+    public void setWorldId(UUID worldId)
+    {
+        DynamicArenaLayout current = getOrCreateLayout();
+        if (current.worldId() != null && !current.worldId().equals(worldId))
+            throw new IllegalStateException("Dynamic arena world identity cannot be changed");
+        if (current.worldId() == null)
+        {
+            layout = current.withWorldId(worldId);
+            saveLayout();
+        }
+    }
+
+    public DynamicArenaSlot reserveNext()
+    {
+        DynamicArenaLayout current = getOrCreateLayout();
+        for (int index = 0; index < current.maxSlots(); index++)
+            if (!occupiedSlots.contains(index) && !reservedSlots.contains(index))
+            {
+                reservedSlots.add(index);
+                return current.slot(index);
+            }
+        return null;
+    }
+
+    public void releaseReservation(int slotIndex) { reservedSlots.remove(slotIndex); }
+
+    public void markOccupied(int slotIndex)
+    {
+        getOrCreateLayout().slot(slotIndex);
+        reservedSlots.remove(slotIndex);
+        occupiedSlots.add(slotIndex);
+    }
+
+    public void markVacant(int slotIndex)
+    {
+        occupiedSlots.remove(slotIndex);
+        reservedSlots.remove(slotIndex);
+    }
+
+    public void reconstructOccupiedSlots(Collection<Integer> slotIndexes)
+    {
+        DynamicArenaLayout current = getOrCreateLayout();
+        Set<Integer> reconstructed = new HashSet<>();
+        for (int slotIndex : slotIndexes)
+        {
+            current.slot(slotIndex);
+            if (!reconstructed.add(slotIndex))
+                throw new IllegalStateException("Duplicate persisted dynamic arena slot " + slotIndex);
+        }
+        occupiedSlots.clear();
+        occupiedSlots.addAll(reconstructed);
+    }
+
+    public boolean isOccupied(int slotIndex) { return occupiedSlots.contains(slotIndex); }
+
+    private void saveLayout()
+    {
+        layoutFile.set("version", layout.version());
+        layoutFile.set("world-name", layout.worldName());
+        layoutFile.set("world-id", layout.worldId() == null ? null : layout.worldId().toString());
+        layoutFile.set("max-slots", layout.maxSlots());
+        layoutFile.set("slots-per-row", layout.slotsPerRow());
+        layoutFile.set("slot-width", layout.slotWidth());
+        layoutFile.set("slot-length", layout.slotLength());
+        layoutFile.set("slot-padding", layout.slotPadding());
+        layoutFile.set("base-y", layout.baseY());
+        layoutFile.save();
+    }
+
+    private static UUID parseWorldId(String raw)
+    {
+        if (raw == null || raw.isBlank())
+            return null;
+        try { return UUID.fromString(raw); }
+        catch (IllegalArgumentException exception) { throw new IllegalArgumentException("Invalid dynamic arena world UUID '" + raw + "'", exception); }
+    }
+}

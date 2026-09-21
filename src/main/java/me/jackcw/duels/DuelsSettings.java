@@ -1,6 +1,7 @@
 package me.jackcw.duels;
 
 import me.jackcw.duels.stats.StatsStorageType;
+import me.jackcw.duels.arena.DynamicArenaSettings;
 import me.jackcw.jcore.storage.YamlFile;
 
 import java.util.Arrays;
@@ -16,7 +17,7 @@ public final class DuelsSettings
     private final int gracePeriodSeconds;
     private final int arenaResetMaxTrackedBlockChanges;
     private final int arenaResetBlocksPerTick;
-    private final long dynamicArenaMaxTemplateVolume;
+    private final DynamicArenaSettings dynamicArenas;
 
     public DuelsSettings(YamlFile config, Logger logger)
     {
@@ -57,9 +58,17 @@ public final class DuelsSettings
                 "must be a whole number of at least 1"
         );
 
-        this.dynamicArenaMaxTemplateVolume = readPositiveLong(
-                config, logger, "dynamic-arenas.max-template-volume", 2_000_000L,
-                "must be a whole number of at least 1"
+        this.dynamicArenas = new DynamicArenaSettings(
+                readNonBlankString(config, logger, "dynamic-arenas.world-name", "duels_dynamic_arenas"),
+                readPositiveInt(config, logger, "dynamic-arenas.max-slots", 64, "must be a whole number of at least 1"),
+                readPositiveInt(config, logger, "dynamic-arenas.slots-per-row", 8, "must be a whole number of at least 1"),
+                readPositiveInt(config, logger, "dynamic-arenas.slot-width", 256, "must be a whole number of at least 1"),
+                readPositiveInt(config, logger, "dynamic-arenas.slot-length", 256, "must be a whole number of at least 1"),
+                readNonNegativeInt(config, logger, "dynamic-arenas.slot-padding", 16, "must be a whole number of 0 or greater"),
+                config.getInt("dynamic-arenas.base-y", 64),
+                readPositiveLong(config, logger, "dynamic-arenas.max-template-volume", 2_000_000L, "must be a whole number of at least 1"),
+                readPositiveInt(config, logger, "dynamic-arenas.provision-timeout-seconds", 30, "must be a whole number of at least 1"),
+                readPositiveInt(config, logger, "dynamic-arenas.cleanup-blocks-per-tick", 1024, "must be a whole number of at least 1")
         );
     }
 
@@ -105,7 +114,12 @@ public final class DuelsSettings
 
     public long dynamicArenaMaxTemplateVolume()
     {
-        return dynamicArenaMaxTemplateVolume;
+        return dynamicArenas.maxTemplateVolume();
+    }
+
+    public DynamicArenaSettings dynamicArenas()
+    {
+        return dynamicArenas;
     }
 
     private static StatsStorageType readStatsStorage(YamlFile config, Logger logger)
@@ -158,6 +172,16 @@ public final class DuelsSettings
             return number.longValue();
 
         logger.warning("config.yml '" + path + "' " + rule + "; got '" + raw + "', defaulting to " + fallback);
+        return fallback;
+    }
+
+    private static String readNonBlankString(YamlFile config, Logger logger, String path, String fallback)
+    {
+        Object raw = config.getConfig().get(path);
+        if (raw instanceof String string && !string.isBlank())
+            return string;
+
+        logger.warning("config.yml '" + path + "' must be a non-empty string; got '" + raw + "', defaulting to " + fallback);
         return fallback;
     }
 

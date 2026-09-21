@@ -41,4 +41,16 @@ arena-reset-blocks-per-tick: 64
 # limit keeps an accidental huge capture from causing a lengthy server-thread
 # paste later; it is intentionally generous enough for normal PvP arenas.
 dynamic-arenas:
+  # These layout values are copied into dynamic-layout.yml the first time an
+  # arena is provisioned. Change them before first use; afterwards the saved
+  # layout deliberately wins so existing slot coordinates cannot drift.
+  world-name: duels_dynamic_arenas
+  max-slots: 64
+  slots-per-row: 8
+  slot-width: 256
+  slot-length: 256
+  slot-padding: 16
+  base-y: 64
   max-template-volume: 2000000
+  provision-timeout-seconds: 30
+  cleanup-blocks-per-tick: 1024
