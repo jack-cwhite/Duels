@@ -1378,8 +1378,9 @@ there, computes real spawn/bounds from the offsets, and registers a normal
   `org.bukkit.structure.Structure`) to save and paste the template, not WorldEdit/FAWE.
   This keeps the feature dependency-free for the baseline, consistent with the standing
   rule that Duels must not hard-depend on external plugins; WorldEdit/FAWE remains an
-  optional, later, faster/richer path for admins who have it, mirroring how
-  `SchematicPasteResetStrategy` was already scoped as optional.
+  optional, later, faster/richer path for admins who have it, including import of
+  existing `.schem` arena files, mirroring how `SchematicPasteResetStrategy` was already
+  scoped as optional.
 - On match end, a slot is cleared (or simply overwritten by the next paste) and returned
   to the free pool.
 
@@ -1391,8 +1392,10 @@ there, computes real spawn/bounds from the offsets, and registers a normal
    corresponding `startMatch(player1, player2, arenaId)` overload. An explicit
    selection never silently falls back to another template when the requested
    arena has no capacity.
-2. `[ ]` Define and persist each template's provisioning mode and dynamic-template
-   metadata without affecting static templates.
+2. `[~]` Define and persist each template's provisioning mode and dynamic-template
+   metadata without affecting static templates. `ArenaProvisioningMode` is now
+   persisted with a backwards-compatible `STATIC` default; capture metadata is
+   still to be designed and added.
 3. `[ ]` Add the admin capture/save flow for a structure and relative spawn/bounds
    metadata.
 4. `[ ]` Add the dedicated arena world and bounded slot allocator.

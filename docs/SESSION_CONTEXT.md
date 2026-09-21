@@ -14,7 +14,7 @@ documentation changes from the V1 build-out.
 
 Verification at the last handoff:
 
-- `mvn -o test`: 23 tests passed, 0 failures, 0 errors, 0 skipped.
+- `mvn -o test`: 25 tests passed, 0 failures, 0 errors, 0 skipped.
 - `mvn -o clean package`: succeeded and produced the shaded plugin jar.
 - `git diff --check`: passed; only line-ending warnings were reported.
 - Manual in-game testing passed for arena management, matches, kits, bounds,
@@ -87,6 +87,11 @@ Phase 4B is now in progress. Its first completed slice adds template-aware
 allocation: existing callers may still request any available instance, while a
 future selection flow can request one arena template and will never silently
 fall back to another template when that choice is full.
+
+The second slice has started: each `Arena` now persists an
+`ArenaProvisioningMode` with a backwards-compatible `STATIC` default. `DYNAMIC`
+will mean "reuse a free registered instance first, otherwise provision one on
+demand"; capture metadata and actual provisioning are not implemented yet.
 
 ## Recommended V2 order
 

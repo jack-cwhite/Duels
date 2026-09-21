@@ -11,7 +11,8 @@ import java.util.Set;
 
 public final class ArenaSerializer implements RepositorySerializer<Arena>
 {
-    private static final Set<String> FIELDS = Set.of("name", "boundaryMode", "graceSeconds", "disallowedKits", "enabled");
+    private static final Set<String> FIELDS = Set.of(
+            "name", "provisioningMode", "boundaryMode", "graceSeconds", "disallowedKits", "enabled");
     private final SerializerManager serializerManager;
 
     public ArenaSerializer(SerializerManager serializerManager)
@@ -28,6 +29,7 @@ public final class ArenaSerializer implements RepositorySerializer<Arena>
         Map<String, Object> data = new LinkedHashMap<>();
 
         data.put("name", arena.getName());
+        data.put("provisioningMode", arena.getProvisioningMode().name());
         data.put("boundaryMode", arena.getBoundaryMode().name());
         data.put("graceSeconds", arena.getGraceSeconds());
         data.put("disallowedKits", new ArrayList<>(arena.getDisallowedKitIds()));
@@ -50,6 +52,19 @@ public final class ArenaSerializer implements RepositorySerializer<Arena>
             throw new IllegalArgumentException("Expected a non-empty arena name");
 
         Arena arena = new Arena(id, name);
+
+        if (map.get("provisioningMode") instanceof String provisioningMode)
+        {
+            try
+            {
+                arena.setProvisioningMode(ArenaProvisioningMode.valueOf(provisioningMode));
+            }
+            catch (IllegalArgumentException ignored)
+            {
+                // The safe fallback is STATIC: an invalid value must never
+                // cause Duels to start creating arena copies unexpectedly.
+            }
+        }
 
         if (map.get("boundaryMode") instanceof String boundaryMode)
         {

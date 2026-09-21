@@ -16,6 +16,7 @@ public final class Arena
 {
     private final int id;
     private String name;
+    private ArenaProvisioningMode provisioningMode = ArenaProvisioningMode.STATIC;
     private BoundaryMode boundaryMode = BoundaryMode.SOFT_RETURN;
     private int graceSeconds;
     private final Set<Integer> disallowedKitIds = new TreeSet<>();
@@ -41,6 +42,18 @@ public final class Arena
     public void setName(String name)
     {
         this.name = name;
+    }
+
+    public ArenaProvisioningMode getProvisioningMode()
+    {
+        return provisioningMode;
+    }
+
+    public void setProvisioningMode(ArenaProvisioningMode provisioningMode)
+    {
+        this.provisioningMode = provisioningMode != null
+                ? provisioningMode
+                : ArenaProvisioningMode.STATIC;
     }
 
     public BoundaryMode getBoundaryMode()
