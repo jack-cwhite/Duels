@@ -12,6 +12,11 @@ Follow the sections from top to bottom. Review each GUI when the corresponding
 feature first appears; there is no separate "open every menu" detour. Keep the
 server running between sections unless a step specifically says to restart.
 
+The dynamic setup steps below describe the current build. A proposed simpler
+static/dynamic creation flow is under discussion; those steps will be rewritten
+after that architecture is agreed and implemented. You can retest capture now,
+but do not treat this document as final Phase 4B sign-off yet.
+
 `docs/V1_TEST_PLAN.md` remains the historical V1 sign-off. You do not need to
 run it separately when you run this document.
 
@@ -112,6 +117,9 @@ Review each menu at normal GUI scale and at one smaller/larger client GUI scale.
 - [ ] Item lore is accurate, readable, and does not claim an unimplemented action.
 - [ ] Back, Previous, Next, Confirm, and Cancel work and return to the expected
   parent menu.
+- [ ] In the bundled layouts, the Back button has its own bottom row in arena
+  detail, instance detail, and kit editor; no action shares that row. Existing
+  untouched default layouts upgrade automatically without changing custom slots.
 - [ ] Create enough arenas/kits to force admin-list pagination; page controls,
   page indicator, and entry clicks remain correct on every page.
 - [ ] Shift-click, number keys, offhand swap, drag, double-click, and Q/drop do
@@ -227,6 +235,9 @@ contains decorative walls.
   as the command, and shows the captured revision/size in arena detail.
 - [ ] Oversized capture is refused according to `max-template-volume`.
 - [ ] Successful capture reports revision and dimensions.
+- [ ] The captured NBT dimensions include both selected corner blocks. For a
+  box spanning 32, 33, and 48 blocks, the saved size reports 32x33x48 (not
+  31x32x47); a generated copy includes the far corner's blocks.
 - [ ] `plugins/Duels/structures/arena-<id>-r<revision>.nbt` exists.
 - [ ] `/duels arena template info` reports the same revision/size.
 - [ ] Dynamic mode is refused before a valid template exists and succeeds after capture.

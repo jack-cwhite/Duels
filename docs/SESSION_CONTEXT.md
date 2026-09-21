@@ -116,6 +116,24 @@ The latest GUI/setup change from Jack's in-game review:
 - The acceptance suite was reordered into in-game flow. Existing checked boxes
   from Jack's prior pass were preserved; changed behaviour requires rechecking.
 
+Current follow-up from Jack's next real-Paper test (architecture decision pending):
+
+- Capturing arena #2 from instance #3 exposed Paper's two-corner `Structure.fill`
+  saving one fewer block on every axis than our inclusive metadata. Capture now
+  calls the explicit origin-and-size overload; the regression test checks a
+  reversed inclusive 3x4x5 selection. Recheck on the target Paper server.
+- Bundled arena detail reserves a third Back row; instance detail spreads
+  controls across three content rows and a fourth Back row; the kit editor
+  moves Save above its Back row. Untouched legacy layouts are migrated on
+  startup; custom slot layouts remain intact.
+- Jack proposes choosing STATIC or DYNAMIC at arena creation and treating them
+  as mutually exclusive *per arena*: static has any number of hand-built playable
+  copies and no structure tools; dynamic has one non-playable source build and
+  only generated playable copies. The current existing-instance-first hybrid
+  allocator and GUI are not yet changed. Agree the migration flow for existing
+  arena/source data before implementing this redesign, then update the in-game
+  suite and Phase 4B design/roadmap accordingly.
+
 ## Recommended V2 order
 
 1. Phase 4B: arena selection and dynamic provisioning, while preserving static
