@@ -14,7 +14,7 @@ documentation changes from the V1 build-out.
 
 Verification at the last handoff:
 
-- `mvn -o test`: 22 tests passed, 0 failures, 0 errors, 0 skipped.
+- `mvn -o test`: 23 tests passed, 0 failures, 0 errors, 0 skipped.
 - `mvn -o clean package`: succeeded and produced the shaded plugin jar.
 - `git diff --check`: passed; only line-ending warnings were reported.
 - Manual in-game testing passed for arena management, matches, kits, bounds,
@@ -83,6 +83,11 @@ world-per-match generation is not the baseline because of blocking world I/O,
 memory cost, and the fact that it does not remove the capacity limit of one
 server.
 
+Phase 4B is now in progress. Its first completed slice adds template-aware
+allocation: existing callers may still request any available instance, while a
+future selection flow can request one arena template and will never silently
+fall back to another template when that choice is full.
+
 ## Recommended V2 order
 
 1. Phase 4B: arena selection and dynamic provisioning, while preserving static
@@ -113,7 +118,8 @@ Duels until a second real plugin creates a proven reusable need.
 
 ## Working status and process
 
-- No Git commit has been requested or made.
+- The completed V1 worktree was committed as `9939dd8` (`Complete Duels V1
+  baseline`), followed by the deployment-mode architecture note in `e84988f`.
 - **Git habit:** keep commits small and frequent. After each logically complete
   and tested slice (for example, one design/documentation update or one
   implementation step), check the diff and make a focused commit before

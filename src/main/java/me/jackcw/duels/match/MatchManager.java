@@ -54,10 +54,30 @@ public final class MatchManager
 
     public Match startMatch(Player player1, Player player2)
     {
+        return startMatch(player1, player2, null);
+    }
+
+    /**
+     * Starts a match in a physical instance of one selected arena template.
+     *
+     * <p>This does not fall back to another template when the requested one is
+     * unavailable. A player selecting Castle should either receive Castle or
+     * be told that Castle has no capacity; silently choosing a different arena
+     * would make the selection meaningless.
+     */
+    public Match startMatch(Player player1, Player player2, int arenaId)
+    {
+        return startMatch(player1, player2, Integer.valueOf(arenaId));
+    }
+
+    private Match startMatch(Player player1, Player player2, Integer requestedArenaId)
+    {
         if (player1 == null || player2 == null || !player1.isOnline() || !player2.isOnline() || player1.getUniqueId().equals(player2.getUniqueId()) || getMatch(player1.getUniqueId()) != null || getMatch(player2.getUniqueId()) != null)
             return null;
 
-        Optional<ArenaInstance> allocated = arenaAllocator.allocate();
+        Optional<ArenaInstance> allocated = requestedArenaId == null
+                ? arenaAllocator.allocate()
+                : arenaAllocator.allocate(requestedArenaId);
 
         if (allocated.isEmpty())
             return null;

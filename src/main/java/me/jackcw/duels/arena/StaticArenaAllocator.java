@@ -25,8 +25,22 @@ public final class StaticArenaAllocator implements ArenaAllocator
     @Override
     public Optional<ArenaInstance> allocate()
     {
+        return allocateMatching(null);
+    }
+
+    @Override
+    public Optional<ArenaInstance> allocate(int arenaId)
+    {
+        return allocateMatching(arenaId);
+    }
+
+    private Optional<ArenaInstance> allocateMatching(Integer requestedArenaId)
+    {
         for (ArenaInstance instance : arenaInstanceManager.getInstances())
         {
+            if (requestedArenaId != null && instance.getArenaId() != requestedArenaId)
+                continue;
+
             if (allocated.contains(instance.getId()) || !instance.isReady())
                 continue;
 

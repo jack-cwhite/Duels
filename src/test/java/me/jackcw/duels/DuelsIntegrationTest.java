@@ -349,6 +349,34 @@ class DuelsIntegrationTest
         assertEquals(first.getArenaInstance().getId(), fourth.getArenaInstance().getId());
     }
 
+    @Test
+    void selectedArenaAllocationDoesNotFallBackToAnotherTemplate()
+    {
+        WorldMock world = server.addSimpleWorld("selected_arena_world");
+        Arena desert = plugin.getArenaManager().createArena("Desert");
+        Arena castle = plugin.getArenaManager().createArena("Castle");
+        createReadyInstance(desert, world);
+        createReadyInstance(castle, world);
+
+        Match castleMatch = plugin.getMatchManager().startMatch(
+                addPlayer("Alice"), addPlayer("Bob"), castle.getId());
+
+        assertNotNull(castleMatch);
+        assertEquals(castle.getId(), castleMatch.getArenaInstance().getArenaId());
+
+        // Castle is occupied. Desert is still free, but an explicit Castle
+        // request must not silently allocate a different arena.
+        Match secondCastleMatch = plugin.getMatchManager().startMatch(
+                addPlayer("Charlie"), addPlayer("Dave"), castle.getId());
+        assertNull(secondCastleMatch);
+
+        Match desertMatch = plugin.getMatchManager().startMatch(
+                addPlayer("Erin"), addPlayer("Frank"), desert.getId());
+
+        assertNotNull(desertMatch);
+        assertEquals(desert.getId(), desertMatch.getArenaInstance().getArenaId());
+    }
+
     /**
      * Phase 3B: a block broken inside the arena's bounds while a match is
      * IN_PROGRESS is tracked, then reverted once the match ends and before the

@@ -1332,10 +1332,10 @@ competitive complaint. At that point the requirement would be better informed, a
 likely be "hide spectators' identities" or "delay the view" rather than a simple refusal
 flag.
 
-## Phase 4B - Dynamic Arena Provisioning `[ ]` (v2)
+## Phase 4B - Dynamic Arena Provisioning `[~]` (v2)
 
-**Status:** `[ ]` Not started. Design-level only, agreed in discussion, not yet broken
-into an implementation plan.
+**Status:** `[~]` In progress. The first implementation slice adds explicit
+template-aware allocation while preserving the existing automatic allocation path.
 
 **Note on numbering:** like 3B, this sits here because of when it was scoped (after
 Phase 4/Spectator Mode had already been implemented and numbered), not because the file
@@ -1382,6 +1382,26 @@ there, computes real spawn/bounds from the offsets, and registers a normal
   `SchematicPasteResetStrategy` was already scoped as optional.
 - On match end, a slot is cleared (or simply overwritten by the next paste) and returned
   to the free pool.
+
+### Implementation progress
+
+1. `[x]` Add template-aware allocation. `ArenaAllocator` now supports both
+   `allocate()` (any eligible arena, preserving V1 behaviour) and
+   `allocate(arenaId)` (only the selected template). `MatchManager` exposes the
+   corresponding `startMatch(player1, player2, arenaId)` overload. An explicit
+   selection never silently falls back to another template when the requested
+   arena has no capacity.
+2. `[ ]` Define and persist each template's provisioning mode and dynamic-template
+   metadata without affecting static templates.
+3. `[ ]` Add the admin capture/save flow for a structure and relative spawn/bounds
+   metadata.
+4. `[ ]` Add the dedicated arena world and bounded slot allocator.
+5. `[ ]` Provision a dynamic `ArenaInstance` through the existing allocation boundary,
+   including failure handling and restart recovery.
+6. `[ ]` Add player/admin arena-selection surfaces on top of template-aware match
+   start.
+7. `[ ]` Verify reset, release, spectator, shutdown, and migration behaviour in both
+   static and dynamic modes.
 
 ### Open questions for the implementation plan (not yet resolved)
 
