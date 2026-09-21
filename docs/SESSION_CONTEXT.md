@@ -126,8 +126,11 @@ Duels until a second real plugin creates a proven reusable need.
   starting unrelated work. If work has accumulated without a checkpoint,
   remind Jack to commit rather than silently adding more changes. Do not bundle
   unrelated fixes or phases into one commit.
-- The next session should start with a Phase 4B design review, not by rewriting
-  V1 or re-running already-completed phases.
+- End development updates with a compact, simplified roadmap/progress footer so
+  Jack can always see the current position. Keep it to one short line or small
+  checklist rather than repeating the detailed roadmap.
+- Continue Phase 4B from its incremental implementation plan; do not rewrite V1
+  or re-run already-completed phases.
 - For substantial work: inspect current code and call sites, explain the
   problem and trade-offs, agree the design, implement incrementally, test, and
   update this file plus `docs/ROADMAP.md`.
