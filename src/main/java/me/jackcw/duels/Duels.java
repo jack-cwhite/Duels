@@ -332,7 +332,7 @@ public class Duels extends JavaPlugin
         arenaInstanceListMenu = new ArenaInstanceListMenu(this, arenaInstanceDetailMenu);
         arenaDetailMenu = new ArenaDetailMenu(this, arenaKitMenu, arenaInstanceListMenu, arenaInstanceDetailMenu);
         arenaListMenu = new ArenaListMenu(this, arenaDetailMenu);
-        arenaMainMenu = new ArenaMainMenu(this, arenaListMenu);
+        arenaMainMenu = new ArenaMainMenu(this, arenaListMenu, arenaDetailMenu);
 
         kitEditMenu = new KitEditMenu(this);
         kitDetailMenu = new KitDetailMenu(this, kitEditMenu);
@@ -350,8 +350,8 @@ public class Duels extends JavaPlugin
     void migrateDefaultMenuLayout(YamlFile file)
     {
         boolean changed = false;
-        changed |= moveBackToOwnRow(file, "arena-detail", new int[] {0, 2, 4, 6, 8, 10, 12, 14, 16},
-                new String[] {"rename", "instances", "create-instance", "delete", "toggle-available", "kits", "boundary", "provisioning", "template"});
+        changed |= moveBackToOwnRow(file, "arena-detail", new int[] {0, 2, 4, 6, 8, 10, 12},
+                new String[] {"rename", "instances", "create-instance", "delete", "toggle-available", "kits", "boundary"});
         changed |= migrateInstanceDetailLayout(file);
 
         if (file.getConfig().getInt("kit-edit.items.save.slot", -1) == 51)
@@ -384,9 +384,9 @@ public class Duels extends JavaPlugin
     {
         String menu = "arena-instance-detail";
         String[] keys = {"spawn1", "spawn2", "edit-mode", "delete", "bounds1", "bounds2",
-                "structure1", "structure2", "capture", "retry", "setup-status"};
-        int[] oldSlots = {1, 3, 5, 7, 10, 12, 0, 2, 4, 6, 8};
-        int[] newSlots = {1, 3, 19, 25, 5, 7, 10, 12, 14, 23, 21};
+                "structure1", "structure2", "capture", "setup-status"};
+        int[] oldSlots = {1, 3, 5, 7, 10, 12, 0, 2, 4, 8};
+        int[] newSlots = {1, 3, 19, 25, 5, 7, 10, 12, 14, 21};
         if (file.getConfig().getInt(menu + ".rows", -1) != 2)
             return false;
 

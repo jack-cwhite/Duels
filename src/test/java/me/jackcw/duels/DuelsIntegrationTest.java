@@ -82,8 +82,8 @@ class DuelsIntegrationTest
     void captureDraftWorksAcrossMenuAndEditModeButClearsOnQuit()
     {
         PlayerMock admin = addPlayer("Builder");
-        Arena arena = plugin.getArenaManager().createArena("Castle");
-        ArenaInstance instance = plugin.getArenaInstanceManager().createInstance(arena.getId());
+        Arena arena = plugin.getArenaManager().createArena("Castle", ArenaProvisioningMode.DYNAMIC);
+        ArenaInstance instance = plugin.getArenaInstanceManager().createSource(arena.getId());
         Location corner = admin.getLocation();
 
         plugin.getArenaEditManager().setStructureCorner(admin, instance.getId(), 1, corner);
@@ -157,6 +157,38 @@ class DuelsIntegrationTest
     }
 
     @Test
+    void twoCopyStaticArenaCannotConvertOrExposeStructureTools()
+    {
+        PlayerMock admin = addPlayer("Builder");
+        Arena arena = plugin.getArenaManager().createArena("Two copies");
+        ArenaInstance first = plugin.getArenaInstanceManager().createInstance(arena.getId());
+        plugin.getArenaInstanceManager().createInstance(arena.getId());
+
+        assertFalse(plugin.getArenaInstanceManager().convertToDynamicSource(arena.getId(), first.getId()));
+        assertEquals(ArenaProvisioningMode.STATIC, arena.getProvisioningMode());
+        assertFalse(first.isSource());
+        assertFalse(plugin.getArenaManager().setProvisioningMode(arena.getId(), ArenaProvisioningMode.DYNAMIC).isSuccess());
+
+        plugin.getArenaEditManager().start(admin, first);
+        assertNull(admin.getInventory().getItem(3));
+        assertNull(admin.getInventory().getItem(5));
+        plugin.getArenaEditManager().end(admin);
+    }
+
+    @Test
+    void dynamicSourceCannotBeDeletedWhileTemplateOrGeneratedCopiesExist()
+    {
+        Arena arena = plugin.getArenaManager().createArena("Castle", ArenaProvisioningMode.DYNAMIC);
+        ArenaInstance source = plugin.getArenaInstanceManager().createSource(arena.getId());
+        ArenaInstance copy = plugin.getArenaInstanceManager().createProvisionedInstance(
+                arena.getId(), 0, 1, new ArenaStructureSize(8, 8, 8));
+        assertFalse(plugin.getArenaInstanceManager().deleteInstance(source.getId()).isSuccess());
+        plugin.getArenaInstanceManager().setDynamicState(copy, DynamicArenaState.RETIRING);
+        assertTrue(plugin.getArenaInstanceManager().deleteInstance(copy.getId()).isSuccess());
+        assertTrue(plugin.getArenaInstanceManager().deleteInstance(source.getId()).isSuccess());
+    }
+
+    @Test
     void structureCaptureUsesInclusiveSelectionSize() throws IOException
     {
         WorldMock world = server.addSimpleWorld("inclusive_capture_world");
@@ -205,6 +237,37 @@ class DuelsIntegrationTest
         assertEquals(4, config.getInt("arena-instance-detail.rows"));
         assertEquals(14, config.getInt("arena-instance-detail.items.capture.slot"));
         assertEquals(44, config.getInt("kit-edit.items.save.slot"));
+    }
+
+    @Test
+    void staticAndDynamicAdminScreensExposeOnlyTheirRelevantActions()
+    {
+        PlayerMock admin = addPlayer("Admin");
+        Arena staticArena = plugin.getArenaManager().createArena("Built");
+        Arena dynamicArena = plugin.getArenaManager().createArena("Copied", ArenaProvisioningMode.DYNAMIC);
+        ArenaInstance built = plugin.getArenaInstanceManager().createInstance(staticArena.getId());
+        ArenaInstance source = plugin.getArenaInstanceManager().createSource(dynamicArena.getId());
+
+        plugin.getArenaDetailMenu().open(admin, staticArena);
+        var staticMenu = admin.getOpenInventory().getTopInventory();
+        assertEquals(Material.NETHER_STAR, staticMenu.getItem(4).getType());
+        assertEquals(Material.STRUCTURE_BLOCK, staticMenu.getItem(14).getType());
+
+        plugin.getArenaDetailMenu().open(admin, dynamicArena);
+        var dynamicMenu = admin.getOpenInventory().getTopInventory();
+        assertEquals(Material.STRUCTURE_BLOCK, dynamicMenu.getItem(2).getType());
+        assertEquals(Material.EMERALD, dynamicMenu.getItem(4).getType());
+        assertEquals(Material.FILLED_MAP, dynamicMenu.getItem(14).getType());
+
+        plugin.getArenaInstanceDetailMenu().open(admin, built.getId());
+        var staticCopyMenu = admin.getOpenInventory().getTopInventory();
+        assertEquals(27, staticCopyMenu.getSize());
+        assertNotEquals(Material.ORANGE_CONCRETE, staticCopyMenu.getItem(10).getType());
+
+        plugin.getArenaInstanceDetailMenu().open(admin, source.getId());
+        var sourceMenu = admin.getOpenInventory().getTopInventory();
+        assertEquals(Material.ORANGE_CONCRETE, sourceMenu.getItem(10).getType());
+        assertEquals(Material.WRITABLE_BOOK, sourceMenu.getItem(14).getType());
     }
 
     @Test

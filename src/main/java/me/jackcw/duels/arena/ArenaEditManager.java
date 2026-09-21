@@ -112,8 +112,11 @@ public final class ArenaEditManager
             end(player);
 
         ArenaEditSession session = new ArenaEditSession(player, instance);
-        session.setStructureCorner1(getStructureCorner(player, instance.getId(), 1));
-        session.setStructureCorner2(getStructureCorner(player, instance.getId(), 2));
+        if (instance.isSource())
+        {
+            session.setStructureCorner1(getStructureCorner(player, instance.getId(), 1));
+            session.setStructureCorner2(getStructureCorner(player, instance.getId(), 2));
+        }
         sessions.put(player.getUniqueId(), session);
 
         giveTools(player);
@@ -140,7 +143,7 @@ public final class ArenaEditManager
         if (instance.hasBounds() && player.getWorld().equals(instance.getBoundsCorner1().getWorld()))
             tickGameplayBoundsParticles(player, instance.getBoundsCorner1(), instance.getBoundsCorner2());
 
-        if (session.getStructureCorner1() != null && session.getStructureCorner2() != null
+        if (instance.isSource() && session.getStructureCorner1() != null && session.getStructureCorner2() != null
                 && player.getWorld().equals(session.getStructureCorner1().getWorld())
                 && player.getWorld().equals(session.getStructureCorner2().getWorld()))
             tickStructureParticles(player, session.getStructureCorner1(), session.getStructureCorner2());
@@ -235,8 +238,16 @@ public final class ArenaEditManager
 
         inventory.setItemInOffHand(null);
 
+        ArenaEditSession session = getSession(player);
+        ArenaInstance instance = session == null ? null : plugin.getArenaInstanceManager().getInstance(session.getInstanceId());
         for (Map.Entry<ArenaEditTool, Integer> entry : toolSlots.entrySet())
-            inventory.setItem(entry.getValue(), createToolItem(entry.getKey()));
+        {
+            ArenaEditTool tool = entry.getKey();
+            if (instance != null && !instance.isSource()
+                    && (tool == ArenaEditTool.STRUCTURE_CORNER_1 || tool == ArenaEditTool.STRUCTURE_CORNER_2))
+                continue;
+            inventory.setItem(entry.getValue(), createToolItem(tool));
+        }
     }
 
     public boolean isTool(ItemStack item)

@@ -95,7 +95,9 @@ public final class ArenaInstanceManager
 
     public void promoteToSource(ArenaInstance instance)
     {
-        if (instance == null || instance.isProvisioned() || getSource(instance.getArenaId()) != null)
+        if (instance == null || instance.isProvisioned() || getSource(instance.getArenaId()) != null
+                || arenaManager.getArena(instance.getArenaId()) == null
+                || arenaManager.getArena(instance.getArenaId()).getProvisioningMode() != ArenaProvisioningMode.DYNAMIC)
             throw new IllegalStateException("Cannot promote this copy to a source");
         instance.markSource();
         save(instance);

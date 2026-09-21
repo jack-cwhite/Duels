@@ -67,8 +67,29 @@ arena-main:
       material: NETHER_STAR
       name: '&aCreate Arena'
       lore:
-        - '&7Click and then type name'
-        - '&7in chat to create arena'
+        - '&7First choose hand-built or dynamic.'
+        - '&7Then name the arena in chat.'
+
+arena-create-type:
+  title: '&8Choose Arena Type'
+  rows: 2
+  items:
+    static:
+      slot: 2
+      material: BRICKS
+      name: '&aHand-built Arena'
+      lore:
+        - '&7Register one or more playable copies'
+        - '&7in your existing worlds.'
+        - '&7No structure capture needed.'
+    dynamic:
+      slot: 6
+      material: STRUCTURE_BLOCK
+      name: '&6Dynamic Arena'
+      lore:
+        - '&7Build one source, capture it,'
+        - '&7then generate playable copies'
+        - '&7in the dynamic arena world.'
 
 # Paginated menu that lists all arenas. Clicking an arena opens the arena-detail menu for that arena.
 arena-list:
@@ -79,7 +100,8 @@ arena-list:
     name: '&f{arena-name}'
     lore:
       - '&7ID: &f{id}'
-      - '&7Instances: &f{instances}'
+      - '&7Type: &f{mode}'
+      - '&7Playable copies: &f{instances}'
       - '&7Ready: &f{ready}'
       - '&7Free right now: &f{free}'
       - '&7Enabled: {enabled}'
@@ -153,31 +175,71 @@ arena-detail:
         - ''
         - '&7Left click to change mode'
         - '&7Right click to set the grace period'
-    provisioning:
+    convert:
       slot: 14
       material: STRUCTURE_BLOCK
-      name: '&6Arena Mode: &f{mode}'
+      name: '&6Convert to Dynamic'
       lore:
-        - '&7Template: {template}'
-        - ''
-        - '&7STATIC: only hand-built copies.'
-        - '&7DYNAMIC: use free copies first,'
-        - '&7then generate more on demand.'
-        - '&7Different arenas may use different modes.'
-        - ''
-        - '&eClick to switch mode'
+        - '&7Only for an arena with exactly one'
+        - '&7idle hand-built copy.'
+        - '&7That copy becomes its build source.'
+        - '&eClick to review and confirm.'
+
+arena-dynamic-detail:
+  title: '&8{arena-name} - Dynamic'
+  rows: 3
+  items:
+    rename:
+      slot: 0
+      material: NAME_TAG
+      name: '&aChange Name'
+    source:
+      slot: 2
+      material: STRUCTURE_BLOCK
+      name: '&6Build Source'
+      lore:
+        - '&7Create or edit the one source build.'
+        - '&7It never hosts a duel itself.'
+    generated-copies:
+      slot: 4
+      material: EMERALD
+      name: '&aGenerated Copies'
+      lore:
+        - '&7View and manage playable copies.'
+    delete:
+      slot: 6
+      material: BARRIER
+      name: '&cDelete Arena'
+    toggle-available:
+      slot: 8
+      material: LIME_DYE
+      name: '&aArena Enabled'
+      alternate-material: GRAY_DYE
+      alternate-name: '&cArena Disabled'
+    kits:
+      slot: 10
+      material: DIAMOND_SWORD
+      name: '&bAllowed Kits'
+    boundary:
+      slot: 12
+      material: IRON_BARS
+      name: '&bOut Of Bounds'
+      lore:
+        - '&7Mode: &f{mode}'
+        - '&7Grace period: &f{grace}s'
+        - '&7Left click: change mode'
+        - '&7Right click: set grace period'
     template:
-      slot: 16
+      slot: 14
       material: FILLED_MAP
       name: '&6Captured Structure'
       lore:
         - '&7Status: {status}'
         - '&7Size: &f{size}'
         - ''
-        - '&7Capture from a manual instance.'
-        - '&7Only required for DYNAMIC mode.'
+        - '&7Capture from the build source.'
         - '&7Left click for details.'
-        - '&7Right click to clear safely.'
+        - '&7Right click to clear if no copies remain.'
 
 # Paginated menu listing the registered physical instances of one arena template.
 arena-instance-list:
@@ -190,14 +252,23 @@ arena-instance-list:
       - '&7Spawn 1: {spawn1}'
       - '&7Spawn 2: {spawn2}'
       - '&7Ready: {ready}'
-      - '&7Origin: &f{origin}'
-      - '&7Health: &f{health}'
-      - '&7Dynamic slot: &f{slot}'
       - '&eClick to manage'
+
+arena-generated-list:
+  title: '&8{arena-name} Copies'
+  rows: 6
+  entry:
+    material: '{material}'
+    name: '&fCopy #{id}'
+    lore:
+      - '&7State: &f{health}'
+      - '&7Slot: &f{slot}'
+      - '&7Ready: {ready}'
+      - '&eClick for status or retirement'
 
 # Menu for managing a specific arena instance's spawns and bounds.
 arena-instance-detail:
-  title: '&8Instance #{id}'
+  title: '&8Build Source #{id}'
   rows: 4
   items:
     spawn1:
@@ -231,7 +302,7 @@ arena-instance-detail:
     delete:
       slot: 25
       material: BARRIER
-      name: '&cDelete Instance'
+      name: '&cDelete Source'
       lore:
         - '&7Click to permanently delete this instance'
     bounds1:
@@ -284,14 +355,8 @@ arena-instance-detail:
         - '&7Saves the blocks inside both orange corners.'
         - '&7Requires both spawns and gameplay bounds'
         - '&7inside that capture box.'
-        - '&7STATIC-only arenas do not need this.'
-    retry:
-      slot: 23
-      material: RECOVERY_COMPASS
-      name: '&eRetry Failed Copy'
-      lore:
-        - '&7Only for a FAILED provisioned copy.'
-        - '&7Current state: &f{health}'
+        - '&7Generated copies must be retired'
+        - '&7before recapturing.'
     setup-status:
       slot: 21
       material: BOOK
@@ -305,6 +370,84 @@ arena-instance-detail:
         - '&7Structure corners: temporary capture draft'
         - '&7only needed for a dynamic template.'
         - '&eClick for current status'
+
+arena-static-instance-detail:
+  title: '&8Hand-built Copy #{id}'
+  rows: 3
+  items:
+    spawn1:
+      slot: 1
+      material: EMERALD
+      name: '&aSet Spawn 1'
+      lore:
+        - '&7Left click: set to your location'
+        - '&7Right click: teleport there'
+    spawn2:
+      slot: 3
+      material: EMERALD
+      name: '&aSet Spawn 2'
+      lore:
+        - '&7Left click: set to your location'
+        - '&7Right click: teleport there'
+    bounds1:
+      slot: 5
+      material: LAPIS_LAZULI
+      name: '&bGameplay Bounds 1'
+      lore:
+        - '&7Current: &f{bounds1}'
+        - '&7Left click: set to your location'
+        - '&7Right click: teleport there'
+    bounds2:
+      slot: 7
+      material: LAPIS_LAZULI
+      name: '&bGameplay Bounds 2'
+      lore:
+        - '&7Current: &f{bounds2}'
+        - '&7Left click: set to your location'
+        - '&7Right click: teleport there'
+    setup-status:
+      slot: 10
+      material: BOOK
+      name: '&bCopy Setup'
+      lore:
+        - '&7Spawns: required to play.'
+        - '&7Gameplay bounds: spectators,'
+        - '&7boundary rules and rollback.'
+        - '&eClick for status'
+    edit-mode:
+      slot: 12
+      material: BLAZE_ROD
+      name: '&eEdit In World'
+      lore:
+        - '&7Gives spawn and gameplay bounds tools.'
+    delete:
+      slot: 14
+      material: BARRIER
+      name: '&cDelete Copy'
+
+arena-generated-detail:
+  title: '&8Generated Copy #{id}'
+  rows: 2
+  items:
+    setup-status:
+      slot: 2
+      material: BOOK
+      name: '&bCopy Status'
+      lore:
+        - '&7State: &f{health}'
+        - '&eClick for details'
+    retry:
+      slot: 4
+      material: RECOVERY_COMPASS
+      name: '&eRetry Failed Copy'
+      lore:
+        - '&7Only for a FAILED generated copy.'
+    delete:
+      slot: 6
+      material: BARRIER
+      name: '&cRetire Copy'
+      lore:
+        - '&7Clear its slot and remove this copy.'
 
 # Manage what kits are allowed in an arena
 arena-kit:

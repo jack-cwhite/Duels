@@ -153,6 +153,9 @@ public final class ArenaEditListener implements Listener
             return;
         }
 
+        if (!instance.isSource() && (tool == ArenaEditTool.STRUCTURE_CORNER_1 || tool == ArenaEditTool.STRUCTURE_CORNER_2))
+            return;
+
         if (right)
             handleTeleport(player, session, instance, tool);
         else

@@ -39,7 +39,10 @@ public final class ArenaInstanceListMenu
             return;
         }
 
-        menus.paginatedMenu("arena-instance-list", arenaInstanceManager.getInstancesForArena(arenaId))
+        String menuKey = arena.getProvisioningMode() == me.jackcw.duels.arena.ArenaProvisioningMode.STATIC
+                ? "arena-instance-list" : "arena-generated-list";
+        menus.paginatedMenu(menuKey, arenaInstanceManager.getInstancesForArena(arenaId).stream()
+                        .filter(arenaInstanceManager::isPlayable).toList())
                 .placeholders(Map.of("arena-name", arena.getName()))
                 .page(page)
                 .item(instance -> Map.of(

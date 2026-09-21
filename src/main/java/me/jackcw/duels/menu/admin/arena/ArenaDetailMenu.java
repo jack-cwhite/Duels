@@ -12,6 +12,7 @@ import me.jackcw.duels.arena.ArenaTemplateManager;
 import me.jackcw.duels.arena.BoundaryMode;
 import me.jackcw.duels.message.Message;
 import me.jackcw.jcore.menu.MenuContext;
+import me.jackcw.jcore.menu.ConfiguredMenu;
 import me.jackcw.jcore.menu.MenuManager;
 import me.jackcw.jcore.message.MessageManager;
 import net.kyori.adventure.text.Component;
@@ -60,7 +61,8 @@ public final class ArenaDetailMenu
             return;
         }
 
-        menus.menu("arena-detail")
+        ConfiguredMenu menu = menus.menu(arena.getProvisioningMode() == ArenaProvisioningMode.STATIC
+                        ? "arena-detail" : "arena-dynamic-detail")
                 .placeholders(Map.of("arena-name", arena.getName()))
                 .item("toggle-available", !arena.isEnabled(), context ->
                 {
@@ -97,13 +99,6 @@ public final class ArenaDetailMenu
                                 messageManager.send(player, Message.MENU_INPUT_CANCELLED);
                                 context.reopen();
                             });
-                })
-                .item("instances", context -> context.openChild(() -> arenaInstanceListMenu.open(player, arenaId)))
-                .item("create-instance", context ->
-                {
-                    ArenaInstance instance = arenaInstanceManager.createInstance(arenaId);
-                    messageManager.send(player, Message.ARENA_INSTANCE_CREATED, "id", instance.getId(), "arenaId", arenaId);
-                    context.openChild(() -> arenaInstanceDetailMenu.open(player, instance.getId()));
                 })
                 .item("delete", context ->
                 {
@@ -152,17 +147,33 @@ public final class ArenaDetailMenu
                 .item("boundary", Map.of(
                         "mode", arena.getBoundaryMode().name(),
                         "grace", arena.getGraceSeconds()
-                ), context -> handleBoundaryClick(player, arenaId, context))
-                .item("provisioning", Map.of(
-                        "mode", arena.getProvisioningMode().name(),
-                        "template", arena.getTemplateDefinition() == null ? "&cNot captured" : "&aCaptured"
-                ), context -> changeProvisioning(player, arenaId, context))
-                .item("template", Map.of(
-                        "status", arena.getTemplateDefinition() == null ? "&cNot captured" : "&aRevision " + arena.getTemplateDefinition().revision(),
-                        "size", templateSize(arena.getTemplateDefinition())
-                ), context -> showTemplate(player, arenaId, context))
-                .back()
-                .open(player);
+                ), context -> handleBoundaryClick(player, arenaId, context));
+
+        if (arena.getProvisioningMode() == ArenaProvisioningMode.STATIC)
+        {
+            menu.item("instances", context -> context.openChild(() -> arenaInstanceListMenu.open(player, arenaId)))
+                    .item("create-instance", context ->
+                    {
+                        ArenaInstance instance = arenaInstanceManager.createInstance(arenaId);
+                        messageManager.send(player, Message.ARENA_INSTANCE_CREATED, "id", instance.getId(), "arenaId", arenaId);
+                        context.openChild(() -> arenaInstanceDetailMenu.open(player, instance.getId()));
+                    })
+                    .item("convert", context -> convert(player, arenaId, context));
+        }
+        else
+        {
+            ArenaInstance source = arenaInstanceManager.getSource(arenaId);
+            if (source == null)
+                menu.item("source", context -> createSource(player, arenaId, context));
+            else
+                menu.item("source", context -> context.openChild(() -> arenaInstanceDetailMenu.open(player, source.getId())));
+            menu.item("generated-copies", context -> context.openChild(() -> arenaInstanceListMenu.open(player, arenaId)))
+                    .item("template", Map.of(
+                            "status", arena.getTemplateDefinition() == null ? "&cNot captured" : "&aRevision " + arena.getTemplateDefinition().revision(),
+                            "size", templateSize(arena.getTemplateDefinition())
+                    ), context -> showTemplate(player, arenaId, context));
+        }
+        menu.back().open(player);
     }
 
     private String templateSize(ArenaTemplateDefinition template)
@@ -170,30 +181,54 @@ public final class ArenaDetailMenu
         return template == null ? "-" : template.size().x() + "x" + template.size().y() + "x" + template.size().z();
     }
 
-    private void changeProvisioning(Player player, int arenaId, MenuContext context)
+    private void createSource(Player player, int arenaId, MenuContext context)
     {
-        Arena arena = requireArena(player, arenaId, context);
-        if (arena == null)
-            return;
-
-        ArenaProvisioningMode next = arena.getProvisioningMode() == ArenaProvisioningMode.STATIC
-                ? ArenaProvisioningMode.DYNAMIC : ArenaProvisioningMode.STATIC;
-        if (next == ArenaProvisioningMode.DYNAMIC && !templateManager.isUsable(arena))
+        try
         {
-            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "capture a valid template from a manual instance first (or restore its missing file)");
+            ArenaInstance source = arenaInstanceManager.createSource(arenaId);
+            messageManager.send(player, Message.ARENA_INSTANCE_CREATED, "id", source.getId(), "arenaId", arenaId);
+            context.openChild(() -> arenaInstanceDetailMenu.open(player, source.getId()));
+        }
+        catch (IllegalStateException e)
+        {
+            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", e.getMessage());
+            context.reopen();
+        }
+    }
+
+    private void convert(Player player, int arenaId, MenuContext context)
+    {
+        List<ArenaInstance> copies = arenaInstanceManager.getInstancesForArena(arenaId);
+        if (copies.size() != 1 || copies.getFirst().isProvisioned())
+        {
+            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+                    "reason", "conversion needs exactly one idle hand-built copy; other static arenas should be recreated as DYNAMIC");
             context.reopen();
             return;
         }
-        if (next == ArenaProvisioningMode.STATIC && arenaInstanceManager.hasProvisionedInstances(arenaId))
-        {
-            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "retire every provisioned copy before switching to STATIC");
-            context.reopen();
-            return;
-        }
-
-        arenaManager.setProvisioningMode(arenaId, next);
-        messageManager.send(player, Message.ARENA_PROVISIONING_SET, "id", arenaId, "mode", next.name());
-        context.reopen();
+        ArenaInstance source = copies.getFirst();
+        context.openChild(() -> menus.confirm()
+                .title("&8Convert to Dynamic?")
+                .description(List.of(
+                        "&eCopy #" + source.getId() + " becomes the build source.",
+                        "&eIt will stop hosting matches.",
+                        "&7Spawns, bounds and blocks are preserved.",
+                        "&7Capture it before dynamic matches can start."
+                ))
+                .onConfirm(confirmContext ->
+                {
+                    if (arenaInstanceManager.convertToDynamicSource(arenaId, source.getId()))
+                    {
+                        messageManager.send(player, Message.ARENA_PROVISIONING_SET, "id", arenaId, "mode", "DYNAMIC (source #" + source.getId() + ")");
+                        confirmContext.back();
+                    }
+                    else
+                    {
+                        messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+                                "reason", "the copy changed or is in use; conversion did not occur");
+                        confirmContext.back();
+                    }
+                }).open(player));
     }
 
     private void showTemplate(Player player, int arenaId, MenuContext context)
@@ -213,13 +248,13 @@ public final class ArenaDetailMenu
             }
             context.openChild(() -> menus.confirm()
                     .title("&8Clear Template?")
-                    .description(List.of("&cDelete arena #" + arenaId + "'s captured template?", "&7Switch to STATIC and retire dynamic copies first."))
+                    .description(List.of("&cDelete arena #" + arenaId + "'s captured template?", "&7Retire generated copies first."))
                     .onConfirm(confirmContext ->
                     {
                         if (templateManager.clear(arenaId))
                             messageManager.send(player, Message.ARENA_TEMPLATE_CLEARED, "id", arenaId);
                         else
-                            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "template is in use or arena is still DYNAMIC");
+                            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "template is in use; retire generated copies first");
                         confirmContext.back();
                     }).open(player));
             return;

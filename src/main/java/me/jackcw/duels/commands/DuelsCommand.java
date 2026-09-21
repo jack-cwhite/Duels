@@ -99,11 +99,33 @@ public final class DuelsCommand
                                 .child(
                                         CommandBuilder.command("create")
                                                 .description("Create an arena")
-                                                .usage("/duels arena create <name>")
+                                                .usage("/duels arena create <name> [STATIC|DYNAMIC]")
                                                 .permission("duels.admin.arena.create")
                                                 .alias("c")
                                                 .argument("name", ArgumentTypes.string())
+                                                .optionalArgument("mode", ArgumentTypes.enumType(ArenaProvisioningMode.class))
                                                 .executes(this::createArena))
+                                .child(
+                                        CommandBuilder.command("convert")
+                                                .description("Convert a one-copy static arena into a dynamic source")
+                                                .usage("/duels arena convert <arenaId> <sourceInstanceId>")
+                                                .permission("duels.admin.arena.provisioning")
+                                                .argument("arenaId", ArgumentTypes.integer())
+                                                .argument("sourceInstanceId", ArgumentTypes.integer())
+                                                .executes(this::convertArena))
+                                .child(
+                                        CommandBuilder.command("source")
+                                                .description("Create the single build source for a dynamic arena")
+                                                .usage("/duels arena source create <arenaId>")
+                                                .permission("duels.admin.arena.instance.create")
+                                                .child(CommandBuilder.command("create")
+                                                        .argument("arenaId", ArgumentTypes.integer())
+                                                        .executes(this::createArenaSource))
+                                                .child(CommandBuilder.command("adopt")
+                                                        .description("Choose a legacy manual copy as the dynamic build source")
+                                                        .permission("duels.admin.arena.provisioning")
+                                                        .argument("instanceId", ArgumentTypes.integer())
+                                                        .executes(this::adoptArenaSource)))
                                 .child(
                                         CommandBuilder.command("delete")
                                                 .description("Delete an arena")
@@ -402,7 +424,8 @@ public final class DuelsCommand
     private void createArena(CommandContext context)
     {
         String name = context.get("name");
-        Arena arena = arenaManager.createArena(name);
+        ArenaProvisioningMode mode = context.has("mode") ? context.get("mode") : ArenaProvisioningMode.STATIC;
+        Arena arena = arenaManager.createArena(name, mode);
 
         messageManager.send(
                 context.getSender(),
@@ -442,7 +465,9 @@ public final class DuelsCommand
                     Message.ARENA_LIST_ENTRY,
                     "id", arena.getId(),
                     "name", arena.getName(),
-                    "instances", arenaInstanceManager.getInstancesForArena(arena.getId()).size(),
+                    "instances", arenaInstanceManager.getInstancesForArena(arena.getId()).stream()
+                            .filter(arenaInstanceManager::isPlayable).count(),
+                    "mode", arena.getProvisioningMode().name(),
                     "ready", arenaInstanceManager.countReady(arena.getId()),
                     "free", arenaInstanceManager.countFree(arena.getId()),
                     "enabled", arena.isEnabled()
@@ -504,6 +529,68 @@ public final class DuelsCommand
         }
     }
 
+    private void createArenaSource(CommandContext context)
+    {
+        int arenaId = context.get("arenaId");
+        Arena arena = arenaManager.getArena(arenaId);
+        if (arena == null)
+        {
+            messageManager.send(context.getSender(), Message.ARENA_NOT_FOUND, "id", arenaId);
+            return;
+        }
+        if (arena.getProvisioningMode() != ArenaProvisioningMode.DYNAMIC || arenaInstanceManager.getSource(arenaId) != null)
+        {
+            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+                    "reason", "only a DYNAMIC arena without a source can create one");
+            return;
+        }
+        try
+        {
+            ArenaInstance source = arenaInstanceManager.createSource(arenaId);
+            messageManager.send(context.getSender(), Message.ARENA_INSTANCE_CREATED, "id", source.getId(), "arenaId", arenaId);
+        }
+        catch (IllegalStateException exception)
+        {
+            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", exception.getMessage());
+        }
+    }
+
+    private void adoptArenaSource(CommandContext context)
+    {
+        int instanceId = context.get("instanceId");
+        ArenaInstance instance = arenaInstanceManager.getInstance(instanceId);
+        if (instance == null)
+        {
+            messageManager.send(context.getSender(), Message.ARENA_INSTANCE_NOT_FOUND, "id", instanceId);
+            return;
+        }
+        Arena arena = arenaManager.getArena(instance.getArenaId());
+        if (arena == null || arena.getProvisioningMode() != ArenaProvisioningMode.DYNAMIC
+                || instance.getOrigin() != me.jackcw.duels.arena.ArenaInstanceOrigin.MANUAL
+                || arenaInstanceManager.getSource(arena.getId()) != null || arenaInstanceManager.isActive(instanceId))
+        {
+            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+                    "reason", "only an idle legacy manual copy of a DYNAMIC arena without a source can be adopted");
+            return;
+        }
+        arenaInstanceManager.promoteToSource(instance);
+        messageManager.send(context.getSender(), Message.ARENA_PROVISIONING_SET,
+                "id", arena.getId(), "mode", "DYNAMIC (source #" + instanceId + ")");
+    }
+
+    private void convertArena(CommandContext context)
+    {
+        int arenaId = context.get("arenaId");
+        int sourceId = context.get("sourceInstanceId");
+        if (!arenaInstanceManager.convertToDynamicSource(arenaId, sourceId))
+        {
+            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+                    "reason", "conversion needs exactly one idle hand-built copy of a STATIC arena; nothing was changed");
+            return;
+        }
+        messageManager.send(context.getSender(), Message.ARENA_PROVISIONING_SET, "id", arenaId, "mode", "DYNAMIC (source #" + sourceId + ")");
+    }
+
     private void setProvisioningMode(CommandContext context)
     {
         int id = context.get("id");
@@ -516,22 +603,12 @@ public final class DuelsCommand
             return;
         }
 
-        if (mode == ArenaProvisioningMode.DYNAMIC && !arenaTemplateManager.isUsable(arena))
-        {
-            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "capture a valid template first");
-            return;
-        }
-
-        if (mode == ArenaProvisioningMode.STATIC && arena.getProvisioningMode() == ArenaProvisioningMode.DYNAMIC
-                && arenaInstanceManager.hasProvisionedInstances(id))
-        {
+        ArenaMutationResult result = arenaManager.setProvisioningMode(id, mode);
+        if (result.status() == ArenaMutationResult.Status.IN_USE)
             messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED,
-                    "reason", "retire the provisioned instances before switching this arena back to STATIC");
-            return;
-        }
-
-        arenaManager.setProvisioningMode(id, mode);
-        messageManager.send(context.getSender(), Message.ARENA_PROVISIONING_SET, "id", id, "mode", mode.name());
+                    "reason", "arena type is fixed once setup begins; use the explicit one-copy conversion for existing arenas");
+        else
+            messageManager.send(context.getSender(), Message.ARENA_PROVISIONING_SET, "id", id, "mode", mode.name());
     }
 
     private void captureTemplate(CommandContext context)
@@ -602,16 +679,10 @@ public final class DuelsCommand
             return;
         }
 
-        if (arena.getProvisioningMode() == ArenaProvisioningMode.DYNAMIC)
-        {
-            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED,
-                    "reason", "switch the arena to STATIC before clearing its template");
-            return;
-        }
-
         if (!arenaTemplateManager.clear(arenaId))
         {
-            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "no captured template exists");
+            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+                    "reason", "retire generated copies first, or no captured template exists");
             return;
         }
 
@@ -622,12 +693,19 @@ public final class DuelsCommand
     {
         int arenaId = context.get("arenaId");
 
-        if (arenaManager.getArena(arenaId) == null)
+        Arena arena = arenaManager.getArena(arenaId);
+        if (arena == null)
         {
             messageManager.send(context.getSender(), Message.ARENA_NOT_FOUND, "id", arenaId);
             return;
         }
 
+        if (arena.getProvisioningMode() != ArenaProvisioningMode.STATIC)
+        {
+            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+                    "reason", "DYNAMIC arenas have one source, not hand-built playable instances; use /duels arena source create " + arenaId);
+            return;
+        }
         ArenaInstance instance = arenaInstanceManager.createInstance(arenaId);
         messageManager.send(context.getSender(), Message.ARENA_INSTANCE_CREATED, "id", instance.getId(), "arenaId", arenaId);
     }
@@ -659,7 +737,14 @@ public final class DuelsCommand
         switch (result.status())
         {
             case NOT_FOUND -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_NOT_FOUND, "id", instanceId);
-            case IN_USE -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_IN_USE, "id", instanceId);
+            case IN_USE ->
+            {
+                if (instance != null && instance.isSource())
+                    messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+                            "reason", "clear the captured template and retire generated copies before deleting this source");
+                else
+                    messageManager.send(context.getSender(), Message.ARENA_INSTANCE_IN_USE, "id", instanceId);
+            }
             case SUCCESS -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_DELETED, "id", instanceId);
         }
     }
@@ -717,6 +802,7 @@ public final class DuelsCommand
                     "id", instance.getId(),
                     "spawn1", spawn1,
                     "spawn2", spawn2,
+                    "origin", instance.getOrigin().name(),
                     "ready", instance.isReady()
             );
         }

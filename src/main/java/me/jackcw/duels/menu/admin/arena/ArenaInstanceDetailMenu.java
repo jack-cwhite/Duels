@@ -12,6 +12,7 @@ import me.jackcw.duels.arena.DynamicArenaProvisioner;
 import me.jackcw.duels.arena.DynamicArenaState;
 import me.jackcw.duels.message.Message;
 import me.jackcw.jcore.menu.MenuContext;
+import me.jackcw.jcore.menu.ConfiguredMenu;
 import me.jackcw.jcore.menu.MenuManager;
 import me.jackcw.jcore.message.MessageManager;
 import org.bukkit.Location;
@@ -50,7 +51,9 @@ public final class ArenaInstanceDetailMenu
             return;
         }
 
-        menus.menu("arena-instance-detail")
+        String menuKey = instance.isProvisioned() ? "arena-generated-detail"
+                : instance.isSource() ? "arena-instance-detail" : "arena-static-instance-detail";
+        ConfiguredMenu menu = menus.menu(menuKey)
                 .placeholders(Map.of(
                         "id", instanceId,
                         "bounds1", describe(instance.getBoundsCorner1()),
@@ -58,17 +61,21 @@ public final class ArenaInstanceDetailMenu
                         "corner1", describe(arenaEditManager.getStructureCorner(player, instanceId, 1)),
                         "corner2", describe(arenaEditManager.getStructureCorner(player, instanceId, 2)),
                         "origin", instance.getOrigin().name(),
-                        "health", instance.isProvisioned() ? instance.getDynamicState().name() : "Manual"))
-                .item("spawn1", context -> handleSpawnClick(player, instanceId, 1, context))
-                .item("spawn2", context -> handleSpawnClick(player, instanceId, 2, context))
-                .item("bounds1", context -> handleBoundsClick(player, instanceId, 1, context))
-                .item("bounds2", context -> handleBoundsClick(player, instanceId, 2, context))
-                .item("structure1", context -> handleStructureClick(player, instanceId, 1, context))
-                .item("structure2", context -> handleStructureClick(player, instanceId, 2, context))
-                .item("capture", context -> capture(player, instanceId, context))
-                .item("retry", context -> retry(player, instanceId, context))
-                .item("setup-status", context -> showStatus(player, instanceId, context))
-                .item("edit-mode", context ->
+                        "health", instance.isProvisioned() ? instance.getDynamicState().name() : instance.isSource() ? "Build source" : "Manual"));
+
+        if (instance.isProvisioned() && instance.getDynamicState() == DynamicArenaState.FAILED)
+            menu.item("retry", context -> retry(player, instanceId, context));
+        if (!instance.isProvisioned())
+        {
+            menu.item("spawn1", context -> handleSpawnClick(player, instanceId, 1, context))
+                    .item("spawn2", context -> handleSpawnClick(player, instanceId, 2, context))
+                    .item("bounds1", context -> handleBoundsClick(player, instanceId, 1, context))
+                    .item("bounds2", context -> handleBoundsClick(player, instanceId, 2, context));
+            if (instance.isSource())
+                menu.item("structure1", context -> handleStructureClick(player, instanceId, 1, context))
+                        .item("structure2", context -> handleStructureClick(player, instanceId, 2, context))
+                        .item("capture", context -> capture(player, instanceId, context));
+            menu.item("edit-mode", context ->
                 {
                     ArenaInstance current = requireInstance(player, instanceId, context);
 
@@ -84,7 +91,9 @@ public final class ArenaInstanceDetailMenu
 
                     arenaEditManager.start(player, current);
                     player.closeInventory();
-                })
+                });
+        }
+        menu.item("setup-status", context -> showStatus(player, instanceId, context))
                 .item("delete", context ->
                 {
                     ArenaInstance current = requireInstance(player, instanceId, context);
@@ -132,7 +141,11 @@ public final class ArenaInstanceDetailMenu
                                     }
                                     case IN_USE ->
                                     {
-                                        messageManager.send(player, Message.ARENA_INSTANCE_IN_USE, "id", instanceId);
+                                        if (currentInstance != null && currentInstance.isSource())
+                                            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+                                                    "reason", "this source is still linked to a captured template or generated copies; clear/retire them first");
+                                        else
+                                            messageManager.send(player, Message.ARENA_INSTANCE_IN_USE, "id", instanceId);
                                         confirmContext.back();
                                     }
                                     case SUCCESS ->
@@ -164,7 +177,7 @@ public final class ArenaInstanceDetailMenu
 
     private void handleStructureClick(Player player, int instanceId, int corner, MenuContext context)
     {
-        if (!editableManual(player, instanceId, context))
+        if (!editableSource(player, instanceId, context))
             return;
         if (context.clickType().isRightClick())
         {
@@ -184,7 +197,7 @@ public final class ArenaInstanceDetailMenu
 
     private void capture(Player player, int instanceId, MenuContext context)
     {
-        if (!editableManual(player, instanceId, context))
+        if (!editableSource(player, instanceId, context))
             return;
         ArenaTemplateCaptureResult result = templateManager.capture(instanceId,
                 arenaEditManager.getStructureCorner(player, instanceId, 1),
@@ -221,6 +234,19 @@ public final class ArenaInstanceDetailMenu
                 messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "retry failed; check the server log");
         });
         context.reopen();
+    }
+
+    private boolean editableSource(Player player, int instanceId, MenuContext context)
+    {
+        ArenaInstance instance = requireInstance(player, instanceId, context);
+        if (instance == null)
+            return false;
+        if (instance.isSource())
+            return true;
+        messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+                "reason", "only a DYNAMIC arena's build source has structure corners and capture tools");
+        context.reopen();
+        return false;
     }
 
     private void showStatus(Player player, int instanceId, MenuContext context)
