@@ -17,6 +17,7 @@ public final class Arena
     private final int id;
     private String name;
     private ArenaProvisioningMode provisioningMode = ArenaProvisioningMode.STATIC;
+    private ArenaTemplateDefinition templateDefinition;
     private BoundaryMode boundaryMode = BoundaryMode.SOFT_RETURN;
     private int graceSeconds;
     private final Set<Integer> disallowedKitIds = new TreeSet<>();
@@ -54,6 +55,29 @@ public final class Arena
         this.provisioningMode = provisioningMode != null
                 ? provisioningMode
                 : ArenaProvisioningMode.STATIC;
+    }
+
+    public ArenaTemplateDefinition getTemplateDefinition()
+    {
+        return templateDefinition;
+    }
+
+    public void setTemplateDefinition(ArenaTemplateDefinition templateDefinition)
+    {
+        this.templateDefinition = templateDefinition;
+    }
+
+    public ArenaTemplateStatus getTemplateStatus()
+    {
+        if (provisioningMode != ArenaProvisioningMode.DYNAMIC)
+            return ArenaTemplateStatus.STATIC;
+
+        return templateDefinition != null ? ArenaTemplateStatus.READY : ArenaTemplateStatus.MISSING_TEMPLATE;
+    }
+
+    public boolean canProvisionDynamically()
+    {
+        return getTemplateStatus() == ArenaTemplateStatus.READY;
     }
 
     public BoundaryMode getBoundaryMode()
