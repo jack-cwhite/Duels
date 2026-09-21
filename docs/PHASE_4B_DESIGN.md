@@ -1,9 +1,37 @@
 # Phase 4B Design: Arena Selection and Dynamic Provisioning
 
-_Implementation status: the core Paper-NBT capture, fixed-grid provisioning,
-asynchronous allocation, challenge selection, and recovery paths are implemented.
-GUI parity and the real-Paper manual verification matrix remain before this phase is
-declared complete._
+_Implementation status: core capture, provisioning, selection, recovery, and
+exclusive per-arena STATIC/DYNAMIC setup are implemented. Target-Paper manual
+verification remains before this phase is declared complete._
+
+## Revised per-arena type decision (2026-09-21)
+
+This section supersedes older hybrid examples below. An arena's type is chosen
+before setup. STATIC has any number of admin-built playable copies in existing
+worlds and never uses structure capture. DYNAMIC has exactly one non-playable
+build source; captured NBT provisions all of its playable copies in the Duels
+dynamic world. Both arena types may coexist on a server, but a single arena
+never mixes hand-built and generated playable copies.
+
+The reason is admin clarity: the old “use manual copies first, then generate”
+model made the source look like a playable copy and exposed irrelevant controls
+in both setup flows. Match, spectator, reset, and release lifecycles still use
+ordinary `ArenaInstance` objects for playable copies. Allocation filters by
+arena type and instance origin; it never allocates a SOURCE.
+
+Migration is non-destructive. One old MANUAL copy of an already-DYNAMIC arena
+becomes SOURCE at startup. A STATIC arena with exactly one idle MANUAL copy can
+be explicitly converted through the GUI or command; its ID, spawns, bounds
+and physical blocks remain, but it stops hosting matches until captured and
+provisioned. Multi-copy STATIC conversion is refused. An old DYNAMIC arena
+with multiple manual copies is quarantined from manual allocation; an admin
+selects one using `source adopt` and resolves the others deliberately.
+
+The type cannot be casually toggled after instances/templates exist. Dynamic
+template recapture/clear requires retiring generated copies first. The one
+source cannot be deleted while its template or generated copies still exist.
+`docs/IN_GAME_TEST_PLAN.md` is the current acceptance route; the hybrid
+scenarios later in this historical design are not test instructions.
 
 ## Purpose
 

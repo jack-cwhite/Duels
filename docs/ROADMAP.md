@@ -1334,12 +1334,10 @@ flag.
 
 ## Phase 4B - Dynamic Arena Provisioning `[~]` (v2)
 
-**Status:** `[~]` Provisioning, recovery, command selection, and the first GUI
-parity pass are implemented. Target-Paper testing exposed a capture-size bug
-(fixed in code, awaiting real-Paper retest) and a setup UX/architecture problem:
-the existing-instance-first hybrid model is too confusing. A per-arena exclusive
-STATIC/DYNAMIC creation flow is proposed but not yet agreed or implemented.
-Manual verification and hardening follow that decision.
+**Status:** `[~]` Provisioning, recovery, selection and per-arena STATIC/DYNAMIC
+setup are implemented. Capture-size is fixed in code but awaits target-Paper
+retest. The exclusive type-specific admin flow and one-copy conversion are
+implemented; real-Paper verification and hardening remain before sign-off.
 
 The complete implementation architecture, lifecycle, persistence model, failure
 handling, UX, incremental build order, and test plan are defined in
@@ -1416,10 +1414,10 @@ there, computes real spawn/bounds from the offsets, and registers a normal
 9. `[~]` Run the ordered target-Paper in-game, capacity, and restart suite in
    `docs/IN_GAME_TEST_PLAN.md`, then do a focused hardening review before Phase 4B
    sign-off.
-10. `[ ]` Resolve Jack's proposed exclusive per-arena type: STATIC uses only
-    hand-built playable copies; DYNAMIC uses one non-playable source build and
-    generated playable copies only. If agreed, migrate existing data safely,
-    simplify type-specific admin menus, and rewrite the acceptance suite.
+10. `[x]` Exclusive per-arena type: STATIC uses only hand-built playable copies;
+    DYNAMIC uses one non-playable source build and generated playable copies
+    only. Existing one-copy static arenas have explicit guarded conversion;
+    legacy dynamic sources migrate safely. Type-specific GUI and suite updated.
 
 ### Resolved implementation decisions
 

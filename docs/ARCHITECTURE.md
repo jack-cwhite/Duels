@@ -36,19 +36,21 @@ system, proxy, Redis instance, or external service is required.
 
 ### Paper server with opt-in dynamic arena instances
 
-A server may configure particular arena templates for dynamic provisioning. If
-all existing copies are busy, Duels can create another physical copy in its
-dedicated arena world and expose it as a normal `ArenaInstance`. Static and
-dynamic templates can coexist, and the static path remains available for small
-servers or arenas that are easier to build by hand.
+A server may create particular arenas as DYNAMIC. Each has one hand-built
+SOURCE that never hosts a match. Duels captures it and generates playable
+copies in its dedicated arena world, reusing free generated copies before
+creating more. STATIC arenas have only hand-built playable copies and no
+structure capture. Both types can coexist on one server, but one arena never
+mixes the two kinds of playable copy.
 
 The implementation architecture and recovery model are specified in
 `docs/PHASE_4B_DESIGN.md`.
 
 This dynamic mode means creating arena copies inside one Paper server. It does
 not mean creating new Minecraft servers. The match, spectator, reset, and
-player-restoration systems should continue to work against the resulting
-`ArenaInstance` without knowing whether it was manually built or provisioned.
+player-restoration systems continue to work against a playable `ArenaInstance`
+regardless of whether it was manually built or provisioned. The allocator
+filters out the SOURCE before the match lifecycle begins.
 
 ### Paper backends behind a Velocity network
 

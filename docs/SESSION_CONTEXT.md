@@ -7,16 +7,15 @@ starting work, then inspect the relevant source files before changing code.
 
 ## Current state
 
-Duels V1 is complete, tested, and manually verified on a real Paper server. It
-is technically suitable for standalone-server release. It is not committed as a
-release in Git yet; the current worktree contains the implementation and
-documentation changes from the V1 build-out.
+Duels V1 is complete, tested, and manually verified on a real Paper server.
+Phase 4B is implemented but needs a fresh real-Paper pass after the exclusive
+STATIC/DYNAMIC setup redesign before sign-off.
 
 Verification at the last handoff:
 
-- `mvn -o test`: 32 tests passed, 0 failures, 0 errors, 0 skipped.
-- `mvn -o clean package`: succeeded and produced the shaded plugin jar.
-- `git diff --check`: passed; only line-ending warnings were reported.
+- `mvn -o test`: 43 tests passed, 0 failures, 0 errors, 0 skipped.
+- `mvn -o package`: passed and copied the shaded jar to the configured test
+  server plugins folder. Target-Paper acceptance remains to be checked.
 - Manual in-game testing passed for arena management, matches, kits, bounds,
   instancing, rollback, spectators, GUI/command parity, and advancements.
 
@@ -45,7 +44,7 @@ Verification at the last handoff:
 ## Current intentional limitations and remaining verification
 
 - Selected-arena challenges have both command and player GUI paths. Dynamic
-  admin setup has GUI controls for mode, capture corners/template, health,
+  admin setup has GUI controls for source, capture corners/template, health,
   retry, and retirement; real-Paper validation is still pending.
 - Dynamic capture/provisioning/recovery is implemented but still requires the
   complete real-Paper run in `docs/IN_GAME_TEST_PLAN.md` before sign-off.
@@ -67,9 +66,9 @@ The next implementation phase is **Dynamic Arena Provisioning**, including
 player/admin arena selection. The desired flow is:
 
 1. A player or queue chooses an arena template/theme such as Desert or Castle.
-2. Duels tries to allocate a free manually registered instance of that template.
-3. If the template is configured for dynamic mode and no free instance exists,
-   Duels provisions a new physical copy in a dedicated void-world slot.
+2. STATIC uses a free hand-built playable copy. DYNAMIC uses a free generated
+   copy or provisions a new one in a dedicated void-world slot.
+3. A DYNAMIC source is only the build reference; it never hosts a duel.
 4. The resulting copy becomes a normal `ArenaInstance`, so existing match,
    bounds, spectator, and reset systems continue to work.
 
@@ -77,7 +76,8 @@ The design must support both modes:
 
 - **Static mode:** small/friends servers manually build a finite number of
   copies; no dynamic infrastructure is required.
-- **Dynamic mode:** larger servers opt an arena into on-demand provisioning.
+- **Dynamic mode:** larger servers build one source, capture it and provision
+  playable copies on demand.
 
 The baseline should use Paper/vanilla Structure APIs rather than requiring
 WorldEdit/FAWE. WorldEdit/FAWE may be an optional integration later. Whole
@@ -87,7 +87,7 @@ server.
 
 Phase 4B core implementation is now present. Admins capture a Paper NBT template from
 separate edit-session structure corners; template spawns and gameplay bounds are saved
-as offsets. A dynamic arena reuses a free manual/provisioned copy first, otherwise
+as offsets. A dynamic arena reuses a free generated copy first, otherwise
 reserves a persisted grid slot in a lazy Duels void world, prepares chunks, pastes the
 template, and publishes a normal provisioned `ArenaInstance`.
 
@@ -104,19 +104,20 @@ hardening review. See `docs/PHASE_4B_DESIGN.md` and `docs/ROADMAP.md`.
 
 The latest GUI/setup change from Jack's in-game review:
 
-- The arena/instance GUI now explains and controls the per-arena STATIC/DYNAMIC
-  choice; manual instances need spawns to play, while gameplay bounds support
-  confinement/rollback and structure corners are only needed for dynamic capture.
+- The creation GUI chooses STATIC/DYNAMIC before naming. STATIC screens show
+  hand-built playable copies and no structure controls. DYNAMIC screens show
+  one source, template capture, and generated copies. Gameplay bounds support
+  confinement/rollback; structure corners belong only to the source.
 - Capture corners are temporary per-admin/per-instance drafts shared between the
   GUI and edit tools, kept on leaving edit mode but cleared at disconnect or when
   another instance is selected. They are never persisted as arena configuration.
 - Orange structure preview is independent of gameplay bounds. The GUI now captures
   templates and guards generated-copy retirement. `/duel select <player>` exposes
   the selected-arena challenge flow to players without requiring IDs.
-- The acceptance suite was reordered into in-game flow. Existing checked boxes
-  from Jack's prior pass were preserved; changed behaviour requires rechecking.
+- The acceptance suite is ordered by in-game flow. All checks are open for a
+  fresh pass on this build.
 
-Current follow-up from Jack's next real-Paper test (architecture decision pending):
+Current follow-up from Jack's next real-Paper test:
 
 - Capturing arena #2 from instance #3 exposed Paper's two-corner `Structure.fill`
   saving one fewer block on every axis than our inclusive metadata. Capture now
@@ -126,13 +127,11 @@ Current follow-up from Jack's next real-Paper test (architecture decision pendin
   controls across three content rows and a fourth Back row; the kit editor
   moves Save above its Back row. Untouched legacy layouts are migrated on
   startup; custom slot layouts remain intact.
-- Jack proposes choosing STATIC or DYNAMIC at arena creation and treating them
-  as mutually exclusive *per arena*: static has any number of hand-built playable
-  copies and no structure tools; dynamic has one non-playable source build and
-  only generated playable copies. The current existing-instance-first hybrid
-  allocator and GUI are not yet changed. Agree the migration flow for existing
-  arena/source data before implementing this redesign, then update the in-game
-  suite and Phase 4B design/roadmap accordingly.
+- The hybrid allocator and GUI were replaced by exclusive per-arena flows.
+  Existing one-copy STATIC arenas have guarded explicit conversion (preserving
+  setup), and old one-manual-copy DYNAMIC arenas migrate their source at
+  startup. Multi-copy legacy DYNAMIC arenas require explicit source adoption;
+  no manual copy is accidentally matched.
 
 ## Recommended V2 order
 
@@ -152,7 +151,8 @@ Duels until a second real plugin creates a proven reusable need.
 
 ## Important architecture invariants
 
-- `Arena` is a template/policy object; `ArenaInstance` is a physical copy.
+- `Arena` is a template/policy object; `ArenaInstance` is either a playable
+  physical copy or the non-playable SOURCE for a DYNAMIC arena.
 - `MatchManager` allocation is instance-based, never template-based.
 - A spectator must never enter `MatchManager.matches`; combatant membership and
   spectator membership are separate questions.
