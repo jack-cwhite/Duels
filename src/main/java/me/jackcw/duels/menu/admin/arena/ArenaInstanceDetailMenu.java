@@ -5,6 +5,11 @@ import me.jackcw.duels.arena.ArenaEditManager;
 import me.jackcw.duels.arena.ArenaInstance;
 import me.jackcw.duels.arena.ArenaInstanceManager;
 import me.jackcw.duels.arena.ArenaInstanceMutationResult;
+import me.jackcw.duels.arena.ArenaTemplateCaptureResult;
+import me.jackcw.duels.arena.ArenaTemplateDefinition;
+import me.jackcw.duels.arena.ArenaTemplateManager;
+import me.jackcw.duels.arena.DynamicArenaProvisioner;
+import me.jackcw.duels.arena.DynamicArenaState;
 import me.jackcw.duels.message.Message;
 import me.jackcw.jcore.menu.MenuContext;
 import me.jackcw.jcore.menu.MenuManager;
@@ -20,6 +25,8 @@ public final class ArenaInstanceDetailMenu
     private final MenuManager menus;
     private final ArenaInstanceManager arenaInstanceManager;
     private final ArenaEditManager arenaEditManager;
+    private final ArenaTemplateManager templateManager;
+    private final DynamicArenaProvisioner provisioner;
     private final MessageManager messageManager;
 
     public ArenaInstanceDetailMenu(Duels plugin)
@@ -27,6 +34,8 @@ public final class ArenaInstanceDetailMenu
         this.menus = plugin.core().menus();
         this.arenaInstanceManager = plugin.getArenaInstanceManager();
         this.arenaEditManager = plugin.getArenaEditManager();
+        this.templateManager = plugin.getArenaTemplateManager();
+        this.provisioner = plugin.getDynamicArenaProvisioner();
         this.messageManager = plugin.core().messages();
     }
 
@@ -45,17 +54,33 @@ public final class ArenaInstanceDetailMenu
                 .placeholders(Map.of(
                         "id", instanceId,
                         "bounds1", describe(instance.getBoundsCorner1()),
-                        "bounds2", describe(instance.getBoundsCorner2())))
+                        "bounds2", describe(instance.getBoundsCorner2()),
+                        "corner1", describe(arenaEditManager.getStructureCorner(player, instanceId, 1)),
+                        "corner2", describe(arenaEditManager.getStructureCorner(player, instanceId, 2)),
+                        "origin", instance.getOrigin().name(),
+                        "health", instance.isProvisioned() ? instance.getDynamicState().name() : "Manual"))
                 .item("spawn1", context -> handleSpawnClick(player, instanceId, 1, context))
                 .item("spawn2", context -> handleSpawnClick(player, instanceId, 2, context))
                 .item("bounds1", context -> handleBoundsClick(player, instanceId, 1, context))
                 .item("bounds2", context -> handleBoundsClick(player, instanceId, 2, context))
+                .item("structure1", context -> handleStructureClick(player, instanceId, 1, context))
+                .item("structure2", context -> handleStructureClick(player, instanceId, 2, context))
+                .item("capture", context -> capture(player, instanceId, context))
+                .item("retry", context -> retry(player, instanceId, context))
+                .item("setup-status", context -> showStatus(player, instanceId, context))
                 .item("edit-mode", context ->
                 {
                     ArenaInstance current = requireInstance(player, instanceId, context);
 
                     if (current == null)
                         return;
+
+                    if (current.isProvisioned())
+                    {
+                        messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "provisioned copies are generated from the captured template; edit a manual source instead");
+                        context.reopen();
+                        return;
+                    }
 
                     arenaEditManager.start(player, current);
                     player.closeInventory();
@@ -75,6 +100,27 @@ public final class ArenaInstanceDetailMenu
                             ))
                             .onConfirm(confirmContext ->
                             {
+                                ArenaInstance currentInstance = arenaInstanceManager.getInstance(instanceId);
+                                if (currentInstance != null && currentInstance.isProvisioned())
+                                {
+                                    if (arenaInstanceManager.isActive(instanceId) || currentInstance.getDynamicState() == DynamicArenaState.RETIRING)
+                                    {
+                                        messageManager.send(player, Message.ARENA_INSTANCE_IN_USE, "id", instanceId);
+                                        confirmContext.back();
+                                        return;
+                                    }
+                                    provisioner.retire(currentInstance).whenComplete((ignored, failure) ->
+                                    {
+                                        if (failure == null)
+                                            messageManager.send(player, Message.ARENA_INSTANCE_DELETED, "id", instanceId);
+                                        else
+                                            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "retirement cleanup failed; check the server log");
+                                    });
+                                    if (!confirmContext.back(2))
+                                        player.closeInventory();
+                                    return;
+                                }
+
                                 ArenaInstanceMutationResult result = arenaInstanceManager.deleteInstance(instanceId);
 
                                 switch (result.status())
@@ -104,6 +150,90 @@ public final class ArenaInstanceDetailMenu
                 .open(player);
     }
 
+    private boolean editableManual(Player player, int instanceId, MenuContext context)
+    {
+        ArenaInstance instance = requireInstance(player, instanceId, context);
+        if (instance == null)
+            return false;
+        if (!instance.isProvisioned())
+            return true;
+        messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "provisioned copies are generated; change the manual source and recapture instead");
+        context.reopen();
+        return false;
+    }
+
+    private void handleStructureClick(Player player, int instanceId, int corner, MenuContext context)
+    {
+        if (!editableManual(player, instanceId, context))
+            return;
+        if (context.clickType().isRightClick())
+        {
+            Location location = arenaEditManager.getStructureCorner(player, instanceId, corner);
+            if (location == null)
+                messageManager.send(player, Message.ARENA_STRUCTURE_CORNER_NOT_SET, "corner", corner);
+            else
+                player.teleport(location);
+            return;
+        }
+        if (!context.clickType().isLeftClick())
+            return;
+        arenaEditManager.setStructureCorner(player, instanceId, corner, player.getLocation());
+        messageManager.send(player, Message.ARENA_STRUCTURE_CORNER_SET, "corner", corner);
+        context.reopen();
+    }
+
+    private void capture(Player player, int instanceId, MenuContext context)
+    {
+        if (!editableManual(player, instanceId, context))
+            return;
+        ArenaTemplateCaptureResult result = templateManager.capture(instanceId,
+                arenaEditManager.getStructureCorner(player, instanceId, 1),
+                arenaEditManager.getStructureCorner(player, instanceId, 2));
+        if (result.status() == ArenaTemplateCaptureResult.Status.SUCCESS)
+        {
+            ArenaTemplateDefinition template = result.template();
+            ArenaInstance instance = arenaInstanceManager.getInstance(instanceId);
+            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURED,
+                    "id", instance.getArenaId(), "revision", template.revision(),
+                    "sizeX", template.size().x(), "sizeY", template.size().y(), "sizeZ", template.size().z());
+        }
+        else
+            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+                    "reason", ArenaTemplateCaptureResult.describeFailure(result.status()));
+        context.reopen();
+    }
+
+    private void retry(Player player, int instanceId, MenuContext context)
+    {
+        ArenaInstance instance = requireInstance(player, instanceId, context);
+        if (instance == null)
+            return;
+        if (!instance.isProvisioned() || instance.getDynamicState() != DynamicArenaState.FAILED)
+        {
+            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "only FAILED provisioned copies can be retried");
+            return;
+        }
+        provisioner.rebuild(instance).whenComplete((result, failure) ->
+        {
+            if (failure == null && result.status() == me.jackcw.duels.arena.DynamicArenaProvisionResult.Status.SUCCESS)
+                messageManager.send(player, Message.ARENA_INSTANCE_REBUILT, "id", instanceId);
+            else
+                messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "retry failed; check the server log");
+        });
+        context.reopen();
+    }
+
+    private void showStatus(Player player, int instanceId, MenuContext context)
+    {
+        ArenaInstance instance = requireInstance(player, instanceId, context);
+        if (instance == null)
+            return;
+        player.sendMessage("Instance #" + instanceId + ": " + instance.getOrigin()
+                + (instance.isProvisioned() ? ", state=" + instance.getDynamicState() + ", slot=" + instance.getDynamicSlotIndex() : "")
+                + ", spawns=" + (instance.isReady() ? "ready" : "missing")
+                + ", gameplay bounds=" + (instance.hasBounds() ? "set" : "not set"));
+    }
+
     private ArenaInstance requireInstance(Player player, int instanceId, MenuContext context)
     {
         ArenaInstance instance = arenaInstanceManager.getInstance(instanceId);
@@ -119,6 +249,8 @@ public final class ArenaInstanceDetailMenu
 
     private void handleSpawnClick(Player player, int instanceId, int spawn, MenuContext context)
     {
+        if (!editableManual(player, instanceId, context))
+            return;
         if (context.clickType().isRightClick())
         {
             ArenaInstance current = requireInstance(player, instanceId, context);
@@ -153,6 +285,8 @@ public final class ArenaInstanceDetailMenu
 
     private void handleBoundsClick(Player player, int instanceId, int corner, MenuContext context)
     {
+        if (!editableManual(player, instanceId, context))
+            return;
         if (context.clickType().isRightClick())
         {
             ArenaInstance current = requireInstance(player, instanceId, context);

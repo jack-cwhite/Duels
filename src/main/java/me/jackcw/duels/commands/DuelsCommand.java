@@ -516,7 +516,7 @@ public final class DuelsCommand
             return;
         }
 
-        if (mode == ArenaProvisioningMode.DYNAMIC && !arena.canProvisionDynamically())
+        if (mode == ArenaProvisioningMode.DYNAMIC && !arenaTemplateManager.isUsable(arena))
         {
             messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "capture a valid template first");
             return;
@@ -553,7 +553,7 @@ public final class DuelsCommand
 
         if (result.status() != ArenaTemplateCaptureResult.Status.SUCCESS)
         {
-            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", describeCaptureFailure(result.status()));
+            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", ArenaTemplateCaptureResult.describeFailure(result.status()));
             return;
         }
 
@@ -616,25 +616,6 @@ public final class DuelsCommand
         }
 
         messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CLEARED, "id", arenaId);
-    }
-
-    private static String describeCaptureFailure(ArenaTemplateCaptureResult.Status status)
-    {
-        return switch (status)
-        {
-            case ARENA_NOT_FOUND -> "the arena no longer exists";
-            case INSTANCE_NOT_FOUND -> "the arena instance no longer exists";
-            case INSTANCE_IN_USE -> "that instance is hosting a match";
-            case DYNAMIC_MODE_ACTIVE -> "switch the arena to STATIC before replacing its template";
-            case MISSING_CAPTURE_CORNERS -> "set both structure capture corners first";
-            case INSTANCE_NOT_READY -> "set both player spawns first";
-            case BOUNDS_NOT_SET -> "set both gameplay bounds corners first";
-            case WORLD_MISMATCH -> "the capture box, spawns, and bounds must be in one world";
-            case OUTSIDE_CAPTURE_REGION -> "the capture box must contain both spawns and both gameplay bounds corners";
-            case TOO_LARGE -> "the capture volume exceeds dynamic-arenas.max-template-volume";
-            case CAPTURE_FAILED -> "Paper could not save or verify the structure file; check the server log";
-            case SUCCESS -> "unknown";
-        };
     }
 
     private void createArenaInstance(CommandContext context)

@@ -43,11 +43,15 @@ public final class ArenaInstanceListMenu
                 .placeholders(Map.of("arena-name", arena.getName()))
                 .page(page)
                 .item(instance -> Map.of(
-                        "material", instance.isReady() ? "LIME_DYE" : "GRAY_DYE",
+                        "material", instance.isProvisioned() && instance.getDynamicState() == me.jackcw.duels.arena.DynamicArenaState.FAILED
+                                ? "RED_DYE" : instance.isReady() ? "LIME_DYE" : "GRAY_DYE",
                         "id", instance.getId(),
                         "spawn1", instance.getSpawn1() != null ? "&aSet" : "&cNot Set",
                         "spawn2", instance.getSpawn2() != null ? "&aSet" : "&cNot Set",
-                        "ready", instance.isReady() ? "&aYes" : "&cNo"))
+                        "ready", instance.isReady() ? "&aYes" : "&cNo",
+                        "origin", instance.getOrigin().name(),
+                        "health", instance.isProvisioned() ? instance.getDynamicState().name() : "Manual",
+                        "slot", instance.isProvisioned() ? instance.getDynamicSlotIndex() : "-"))
                 .onClick((context, instance) -> context.openChild(() -> arenaInstanceDetailMenu.open(player, instance.getId())))
                 .back()
                 .open(player);

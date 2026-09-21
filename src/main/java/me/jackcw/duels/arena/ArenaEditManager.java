@@ -47,6 +47,52 @@ public final class ArenaEditManager
     }
 
     private final Map<UUID, ArenaEditSession> sessions = new HashMap<>();
+    private final Map<UUID, CaptureDraft> captureDrafts = new HashMap<>();
+
+    private static final class CaptureDraft
+    {
+        private final int instanceId;
+        private final Location[] corners = new Location[2];
+
+        private CaptureDraft(int instanceId)
+        {
+            this.instanceId = instanceId;
+        }
+    }
+
+    private CaptureDraft draft(Player player, int instanceId)
+    {
+        CaptureDraft current = captureDrafts.get(player.getUniqueId());
+        if (current != null && current.instanceId == instanceId)
+            return current;
+
+        CaptureDraft replacement = new CaptureDraft(instanceId);
+        captureDrafts.put(player.getUniqueId(), replacement);
+        return replacement;
+    }
+
+    public Location getStructureCorner(Player player, int instanceId, int corner)
+    {
+        return draft(player, instanceId).corners[corner - 1];
+    }
+
+    public void setStructureCorner(Player player, int instanceId, int corner, Location location)
+    {
+        draft(player, instanceId).corners[corner - 1] = location.clone();
+        ArenaEditSession session = getSession(player);
+        if (session != null && session.getInstanceId() == instanceId)
+        {
+            if (corner == 1)
+                session.setStructureCorner1(location.clone());
+            else
+                session.setStructureCorner2(location.clone());
+        }
+    }
+
+    public void clearCaptureDraft(UUID uuid)
+    {
+        captureDrafts.remove(uuid);
+    }
 
     public ArenaEditManager(Duels plugin)
     {
@@ -66,6 +112,8 @@ public final class ArenaEditManager
             end(player);
 
         ArenaEditSession session = new ArenaEditSession(player, instance);
+        session.setStructureCorner1(getStructureCorner(player, instance.getId(), 1));
+        session.setStructureCorner2(getStructureCorner(player, instance.getId(), 2));
         sessions.put(player.getUniqueId(), session);
 
         giveTools(player);
@@ -86,16 +134,21 @@ public final class ArenaEditManager
         Player player = getPlayer(session.getPlayerUuid());
         ArenaInstance instance = plugin.getArenaInstanceManager().getInstance(session.getInstanceId());
 
-        if (player == null || !player.isOnline() || instance == null || !instance.hasBounds())
+        if (player == null || !player.isOnline() || instance == null)
             return;
 
-        Location corner1 = instance.getBoundsCorner1();
-        Location corner2 = instance.getBoundsCorner2();
+        if (instance.hasBounds() && player.getWorld().equals(instance.getBoundsCorner1().getWorld()))
+            tickGameplayBoundsParticles(player, instance.getBoundsCorner1(), instance.getBoundsCorner2());
+
+        if (session.getStructureCorner1() != null && session.getStructureCorner2() != null
+                && player.getWorld().equals(session.getStructureCorner1().getWorld())
+                && player.getWorld().equals(session.getStructureCorner2().getWorld()))
+            tickStructureParticles(player, session.getStructureCorner1(), session.getStructureCorner2());
+    }
+
+    private void tickGameplayBoundsParticles(Player player, Location corner1, Location corner2)
+    {
         World world = corner1.getWorld();
-
-        if (!world.equals(player.getWorld()))
-            return;
-
         double minX = Math.min(corner1.getX(), corner2.getX());
         double maxX = Math.max(corner1.getX(), corner2.getX());
         double minY = Math.min(corner1.getY(), corner2.getY());
@@ -126,10 +179,6 @@ public final class ArenaEditManager
             spawnBoundsParticle(player, world, maxX, minY, z);
             spawnBoundsParticle(player, world, maxX, maxY, z);
         }
-
-        if (session.getStructureCorner1() != null && session.getStructureCorner2() != null
-                && world.equals(session.getStructureCorner1().getWorld()) && world.equals(session.getStructureCorner2().getWorld()))
-            tickStructureParticles(player, session.getStructureCorner1(), session.getStructureCorner2());
     }
 
     private void spawnBoundsParticle(Player player, World world, double x, double y, double z)

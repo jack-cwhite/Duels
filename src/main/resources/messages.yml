@@ -89,6 +89,7 @@ duel:
   help:
     - '&e/duel <player> &7- challenge a player to a duel'
     - '&e/duel challenge <player> &7- same as above, but works even if their name matches a subcommand below'
+    - '&e/duel select <player> &7- choose Any or a specific arena in a menu'
     - '&e/duel accept &7- accept a pending challenge'
     - '&e/duel deny &7- decline a pending challenge'
     - '&e/duel kit &7- reopen the kit selection menu mid-match'

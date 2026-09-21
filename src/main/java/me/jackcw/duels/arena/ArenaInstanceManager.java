@@ -82,6 +82,11 @@ public final class ArenaInstanceManager
         if (activeCheck.test(id))
             return ArenaInstanceMutationResult.inUse();
 
+        // Only the retirement flow may remove a generated copy; it clears the
+        // physical slot before freeing the persisted allocation.
+        if (instance.isProvisioned() && instance.getDynamicState() != DynamicArenaState.RETIRING)
+            return ArenaInstanceMutationResult.inUse();
+
         instances.remove(id);
         repository.delete(id);
 
@@ -98,7 +103,7 @@ public final class ArenaInstanceManager
         if (instance == null)
             return ArenaInstanceMutationResult.notFound();
 
-        if (activeCheck.test(id))
+        if (activeCheck.test(id) || instance.isProvisioned())
             return ArenaInstanceMutationResult.inUse();
 
         if (spawnNumber == 1)
@@ -121,7 +126,7 @@ public final class ArenaInstanceManager
         if (instance == null)
             return ArenaInstanceMutationResult.notFound();
 
-        if (activeCheck.test(id))
+        if (activeCheck.test(id) || instance.isProvisioned())
             return ArenaInstanceMutationResult.inUse();
 
         if (corner == 1)

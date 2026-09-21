@@ -166,6 +166,7 @@ public final class ArenaEditListener implements Listener
 
         if (arenaEditManager.isEditing(player))
             arenaEditManager.end(player);
+        arenaEditManager.clearCaptureDraft(player.getUniqueId());
     }
 
     private void handleTeleport(Player player, ArenaEditSession session, ArenaInstance instance, ArenaEditTool tool)
@@ -200,9 +201,9 @@ public final class ArenaEditListener implements Listener
         if (tool == ArenaEditTool.STRUCTURE_CORNER_1 || tool == ArenaEditTool.STRUCTURE_CORNER_2)
         {
             if (tool == ArenaEditTool.STRUCTURE_CORNER_1)
-                session.setStructureCorner1(player.getLocation());
+                arenaEditManager.setStructureCorner(player, instance.getId(), 1, player.getLocation());
             else
-                session.setStructureCorner2(player.getLocation());
+                arenaEditManager.setStructureCorner(player, instance.getId(), 2, player.getLocation());
 
             messageManager.send(player, Message.ARENA_STRUCTURE_CORNER_SET, "corner", toolNumber(tool));
             return;

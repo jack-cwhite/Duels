@@ -2,6 +2,8 @@ package me.jackcw.duels;
 
 import me.jackcw.duels.arena.Arena;
 import me.jackcw.duels.arena.ArenaInstance;
+import me.jackcw.duels.arena.ArenaStructureSize;
+import me.jackcw.duels.arena.DynamicArenaState;
 import me.jackcw.duels.arena.BlockChangeRollbackStrategy;
 import me.jackcw.duels.challenge.Challenge;
 import me.jackcw.duels.kit.Kit;
@@ -64,6 +66,41 @@ class DuelsIntegrationTest
 
         assertTrue(secondArena.getId() > firstArena.getId());
         assertTrue(secondKit.getId() > firstKit.getId());
+    }
+
+    @Test
+    void captureDraftWorksAcrossMenuAndEditModeButClearsOnQuit()
+    {
+        PlayerMock admin = addPlayer("Builder");
+        Arena arena = plugin.getArenaManager().createArena("Castle");
+        ArenaInstance instance = plugin.getArenaInstanceManager().createInstance(arena.getId());
+        Location corner = admin.getLocation();
+
+        plugin.getArenaEditManager().setStructureCorner(admin, instance.getId(), 1, corner);
+        plugin.getArenaEditManager().start(admin, instance);
+        assertEquals(corner, plugin.getArenaEditManager().getSession(admin).getStructureCorner1());
+        plugin.getArenaEditManager().end(admin);
+        assertEquals(corner, plugin.getArenaEditManager().getStructureCorner(admin, instance.getId(), 1));
+
+        plugin.getArenaEditManager().clearCaptureDraft(admin.getUniqueId());
+        assertNull(plugin.getArenaEditManager().getStructureCorner(admin, instance.getId(), 1));
+    }
+
+    @Test
+    void generatedCopyCannotBeEditedOrDeletedOutsideRetirement()
+    {
+        Arena arena = plugin.getArenaManager().createArena("Castle");
+        ArenaInstance copy = plugin.getArenaInstanceManager().createProvisionedInstance(
+                arena.getId(), 0, 1, new ArenaStructureSize(8, 8, 8));
+        Location location = new Location(server.addSimpleWorld("generated_guard_world"), 0, 64, 0);
+
+        assertFalse(plugin.getArenaInstanceManager().setSpawn(copy.getId(), 1, location).isSuccess());
+        assertFalse(plugin.getArenaInstanceManager().setBoundsCorner(copy.getId(), 1, location).isSuccess());
+        assertFalse(plugin.getArenaInstanceManager().deleteInstance(copy.getId()).isSuccess());
+        assertNotNull(plugin.getArenaInstanceManager().getInstance(copy.getId()));
+
+        plugin.getArenaInstanceManager().setDynamicState(copy, DynamicArenaState.RETIRING);
+        assertTrue(plugin.getArenaInstanceManager().deleteInstance(copy.getId()).isSuccess());
     }
 
     @Test

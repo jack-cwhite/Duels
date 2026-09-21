@@ -6,6 +6,9 @@ import me.jackcw.duels.arena.ArenaInstance;
 import me.jackcw.duels.arena.ArenaInstanceManager;
 import me.jackcw.duels.arena.ArenaManager;
 import me.jackcw.duels.arena.ArenaMutationResult;
+import me.jackcw.duels.arena.ArenaProvisioningMode;
+import me.jackcw.duels.arena.ArenaTemplateDefinition;
+import me.jackcw.duels.arena.ArenaTemplateManager;
 import me.jackcw.duels.arena.BoundaryMode;
 import me.jackcw.duels.message.Message;
 import me.jackcw.jcore.menu.MenuContext;
@@ -23,6 +26,7 @@ public final class ArenaDetailMenu
     private final MenuManager menus;
     private final ArenaManager arenaManager;
     private final ArenaInstanceManager arenaInstanceManager;
+    private final ArenaTemplateManager templateManager;
     private final MessageManager messageManager;
     private final ArenaKitMenu arenaKitMenu;
     private final ArenaInstanceListMenu arenaInstanceListMenu;
@@ -33,6 +37,7 @@ public final class ArenaDetailMenu
         this.menus = plugin.core().menus();
         this.arenaManager = plugin.getArenaManager();
         this.arenaInstanceManager = plugin.getArenaInstanceManager();
+        this.templateManager = plugin.getArenaTemplateManager();
         this.messageManager = plugin.core().messages();
         this.arenaKitMenu = arenaKitMenu;
         this.arenaInstanceListMenu = arenaInstanceListMenu;
@@ -148,8 +153,82 @@ public final class ArenaDetailMenu
                         "mode", arena.getBoundaryMode().name(),
                         "grace", arena.getGraceSeconds()
                 ), context -> handleBoundaryClick(player, arenaId, context))
+                .item("provisioning", Map.of(
+                        "mode", arena.getProvisioningMode().name(),
+                        "template", arena.getTemplateDefinition() == null ? "&cNot captured" : "&aCaptured"
+                ), context -> changeProvisioning(player, arenaId, context))
+                .item("template", Map.of(
+                        "status", arena.getTemplateDefinition() == null ? "&cNot captured" : "&aRevision " + arena.getTemplateDefinition().revision(),
+                        "size", templateSize(arena.getTemplateDefinition())
+                ), context -> showTemplate(player, arenaId, context))
                 .back()
                 .open(player);
+    }
+
+    private String templateSize(ArenaTemplateDefinition template)
+    {
+        return template == null ? "-" : template.size().x() + "x" + template.size().y() + "x" + template.size().z();
+    }
+
+    private void changeProvisioning(Player player, int arenaId, MenuContext context)
+    {
+        Arena arena = requireArena(player, arenaId, context);
+        if (arena == null)
+            return;
+
+        ArenaProvisioningMode next = arena.getProvisioningMode() == ArenaProvisioningMode.STATIC
+                ? ArenaProvisioningMode.DYNAMIC : ArenaProvisioningMode.STATIC;
+        if (next == ArenaProvisioningMode.DYNAMIC && !templateManager.isUsable(arena))
+        {
+            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "capture a valid template from a manual instance first (or restore its missing file)");
+            context.reopen();
+            return;
+        }
+        if (next == ArenaProvisioningMode.STATIC && arenaInstanceManager.hasProvisionedInstances(arenaId))
+        {
+            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "retire every provisioned copy before switching to STATIC");
+            context.reopen();
+            return;
+        }
+
+        arenaManager.setProvisioningMode(arenaId, next);
+        messageManager.send(player, Message.ARENA_PROVISIONING_SET, "id", arenaId, "mode", next.name());
+        context.reopen();
+    }
+
+    private void showTemplate(Player player, int arenaId, MenuContext context)
+    {
+        Arena arena = requireArena(player, arenaId, context);
+        if (arena == null)
+            return;
+
+        ArenaTemplateDefinition template = arena.getTemplateDefinition();
+        if (context.clickType().isRightClick())
+        {
+            if (template == null)
+            {
+                messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "no captured template exists");
+                context.reopen();
+                return;
+            }
+            context.openChild(() -> menus.confirm()
+                    .title("&8Clear Template?")
+                    .description(List.of("&cDelete arena #" + arenaId + "'s captured template?", "&7Switch to STATIC and retire dynamic copies first."))
+                    .onConfirm(confirmContext ->
+                    {
+                        if (templateManager.clear(arenaId))
+                            messageManager.send(player, Message.ARENA_TEMPLATE_CLEARED, "id", arenaId);
+                        else
+                            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "template is in use or arena is still DYNAMIC");
+                        confirmContext.back();
+                    }).open(player));
+            return;
+        }
+
+        messageManager.send(player, Message.ARENA_TEMPLATE_INFO,
+                "id", arenaId, "status", arena.getTemplateStatus().name(),
+                "revision", template == null ? "-" : template.revision(),
+                "size", templateSize(template));
     }
 
     /**

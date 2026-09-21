@@ -11,6 +11,7 @@ import me.jackcw.duels.match.Match;
 import me.jackcw.duels.match.MatchManager;
 import me.jackcw.duels.match.MatchState;
 import me.jackcw.duels.menu.user.KitSelectorMenu;
+import me.jackcw.duels.menu.user.ArenaSelectionMenu;
 import me.jackcw.duels.menu.user.LeaderboardMenu;
 import me.jackcw.duels.menu.user.SpectateMenu;
 import me.jackcw.duels.message.Message;
@@ -33,6 +34,7 @@ public final class DuelCommand
     private final ArenaManager arenaManager;
     private final MatchManager matchManager;
     private final KitSelectorMenu kitSelectorMenu;
+    private final ArenaSelectionMenu arenaSelectionMenu;
     private final LeaderboardMenu leaderboardMenu;
     private final SpectateMenu spectateMenu;
     private final SpectatorManager spectatorManager;
@@ -46,6 +48,7 @@ public final class DuelCommand
         this.arenaManager = plugin.getArenaManager();
         this.matchManager = plugin.getMatchManager();
         this.kitSelectorMenu = plugin.getKitSelectorMenu();
+        this.arenaSelectionMenu = new ArenaSelectionMenu(plugin);
         this.leaderboardMenu = plugin.getLeaderboardMenu();
         this.spectateMenu = plugin.getSpectateMenu();
         this.spectatorManager = plugin.getSpectatorManager();
@@ -72,6 +75,13 @@ public final class DuelCommand
                                 .argument("player", ArgumentTypes.player())
                                 .optionalArgument("arenaId", ArgumentTypes.integer())
                                 .executes(this::handleDuel))
+                .child(
+                        CommandBuilder.command("select")
+                                .description("Choose an arena in a menu before challenging a player")
+                                .usage("/duel select <player>")
+                                .playerOnly()
+                                .argument("player", ArgumentTypes.player())
+                                .executes(this::selectArena))
                 .child(
                         CommandBuilder.command("accept")
                                 .description("Accept a pending duel challenge")
@@ -145,21 +155,11 @@ public final class DuelCommand
             return;
         }
 
-        Challenge existing = challengeManager.getChallengeBetween(sender.getUniqueId(), target.getUniqueId());
-
-        if (existing != null && existing.getChallenged().equals(sender.getUniqueId()))
-        {
-            Challenge accepted = challengeManager.findIncoming(sender.getUniqueId(), target.getUniqueId());
-            finishAccept(sender, accepted);
-            return;
-        }
-
         ArenaSelection selection = ArenaSelection.any();
         if (context.has("arenaId"))
         {
             int arenaId = context.get("arenaId");
-            Arena arena = arenaManager.getArena(arenaId);
-            if (arena == null || !arena.isEnabled())
+            if (arenaId < 1)
             {
                 messageManager.send(sender, Message.NO_ARENA_AVAILABLE);
                 return;
@@ -167,13 +167,63 @@ public final class DuelCommand
             selection = ArenaSelection.specific(arenaId);
         }
 
+        sendChallenge(sender, target, selection);
+    }
+
+    private void selectArena(CommandContext context)
+    {
+        Player sender = context.getPlayer();
+        Player target = context.get("player");
+        if (sender.getUniqueId().equals(target.getUniqueId()))
+        {
+            messageManager.send(sender, Message.CHALLENGE_CANNOT_SELF);
+            return;
+        }
+        arenaSelectionMenu.open(sender, target.getName(), selection ->
+        {
+            Player currentTarget = Bukkit.getPlayer(target.getUniqueId());
+            if (currentTarget == null || !currentTarget.isOnline())
+            {
+                messageManager.send(sender, Message.NO_ARENA_AVAILABLE);
+                return;
+            }
+            sendChallenge(sender, currentTarget, selection);
+        });
+    }
+
+    private void sendChallenge(Player sender, Player target, ArenaSelection selection)
+    {
+        if (!sender.isOnline() || !target.isOnline())
+            return;
+        if (matchManager.getMatch(sender.getUniqueId()) != null || matchManager.isPending(sender.getUniqueId()))
+        {
+            messageManager.send(sender, Message.ALREADY_IN_MATCH);
+            return;
+        }
+        if (matchManager.getMatch(target.getUniqueId()) != null || matchManager.isPending(target.getUniqueId()))
+        {
+            messageManager.send(sender, Message.TARGET_IN_MATCH, "player", target.getName());
+            return;
+        }
+        Challenge existing = challengeManager.getChallengeBetween(sender.getUniqueId(), target.getUniqueId());
+        if (existing != null && existing.getChallenged().equals(sender.getUniqueId()))
+        {
+            finishAccept(sender, challengeManager.findIncoming(sender.getUniqueId(), target.getUniqueId()));
+            return;
+        }
+        Arena selected = selection.isAny() ? null : arenaManager.getArena(selection.arenaId());
+        if (!selection.isAny() && (selected == null || !selected.isEnabled()))
+        {
+            messageManager.send(sender, Message.NO_ARENA_AVAILABLE);
+            return;
+        }
         if (!challengeManager.createChallenge(sender, target, selection))
         {
             messageManager.send(sender, Message.CHALLENGE_ALREADY_PENDING, "player", target.getName());
             return;
         }
 
-        String selectedArena = selection.isAny() ? "Any arena" : arenaManager.getArena(selection.arenaId()).getName();
+        String selectedArena = selection.isAny() ? "Any arena" : selected.getName();
         messageManager.send(sender, Message.CHALLENGE_SENT, "player", target.getName(), "expiry", expiryText(), "arena", selectedArena);
         messageManager.send(target, Message.CHALLENGE_RECEIVED, "player", sender.getName(), "arena", selectedArena);
     }

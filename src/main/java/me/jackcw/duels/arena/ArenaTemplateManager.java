@@ -46,6 +46,13 @@ public final class ArenaTemplateManager
         return structuresDirectory.resolve(template.fileName());
     }
 
+    public boolean isUsable(Arena arena)
+    {
+        ArenaTemplateDefinition template = arena.getTemplateDefinition();
+        return template != null && provider.id().equals(template.providerId())
+                && Files.isRegularFile(getStructurePath(template));
+    }
+
     public ArenaTemplateCaptureResult capture(int instanceId, Location corner1, Location corner2)
     {
         ArenaInstance instance = instanceManager.getInstance(instanceId);
@@ -55,6 +62,9 @@ public final class ArenaTemplateManager
 
         if (instanceManager.isActive(instanceId))
             return ArenaTemplateCaptureResult.failure(ArenaTemplateCaptureResult.Status.INSTANCE_IN_USE);
+
+        if (instance.isProvisioned())
+            return ArenaTemplateCaptureResult.failure(ArenaTemplateCaptureResult.Status.PROVISIONED_SOURCE);
 
         Arena arena = arenaManager.getArena(instance.getArenaId());
 

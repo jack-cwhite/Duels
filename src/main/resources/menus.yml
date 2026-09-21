@@ -153,6 +153,31 @@ arena-detail:
         - ''
         - '&7Left click to change mode'
         - '&7Right click to set the grace period'
+    provisioning:
+      slot: 14
+      material: STRUCTURE_BLOCK
+      name: '&6Arena Mode: &f{mode}'
+      lore:
+        - '&7Template: {template}'
+        - ''
+        - '&7STATIC: only hand-built copies.'
+        - '&7DYNAMIC: use free copies first,'
+        - '&7then generate more on demand.'
+        - '&7Different arenas may use different modes.'
+        - ''
+        - '&eClick to switch mode'
+    template:
+      slot: 16
+      material: FILLED_MAP
+      name: '&6Captured Structure'
+      lore:
+        - '&7Status: {status}'
+        - '&7Size: &f{size}'
+        - ''
+        - '&7Capture from a manual instance.'
+        - '&7Only required for DYNAMIC mode.'
+        - '&7Left click for details.'
+        - '&7Right click to clear safely.'
 
 # Paginated menu listing the registered physical instances of one arena template.
 arena-instance-list:
@@ -165,6 +190,9 @@ arena-instance-list:
       - '&7Spawn 1: {spawn1}'
       - '&7Spawn 2: {spawn2}'
       - '&7Ready: {ready}'
+      - '&7Origin: &f{origin}'
+      - '&7Health: &f{health}'
+      - '&7Dynamic slot: &f{slot}'
       - '&eClick to manage'
 
 # Menu for managing a specific arena instance's spawns and bounds.
@@ -199,7 +227,7 @@ arena-instance-detail:
       lore:
         - '&7Click to enter edit mode - gives'
         - '&7hotbar tools for setting spawns'
-        - '&7and bounds in-world'
+        - '&7bounds and structure corners in-world'
     delete:
       slot: 7
       material: BARRIER
@@ -230,6 +258,53 @@ arena-instance-detail:
         - ''
         - '&7Right click to teleport to'
         - '&7currently set corner'
+    structure1:
+      slot: 0
+      material: ORANGE_CONCRETE
+      name: '&6Structure Corner 1'
+      lore:
+        - '&7Current draft: &f{corner1}'
+        - '&7Left click: set to where you stand'
+        - '&7Right click: teleport there'
+        - '&7Only needed to capture a DYNAMIC template'
+    structure2:
+      slot: 2
+      material: YELLOW_CONCRETE
+      name: '&eStructure Corner 2'
+      lore:
+        - '&7Current draft: &f{corner2}'
+        - '&7Left click: set to where you stand'
+        - '&7Right click: teleport there'
+        - '&7Only needed to capture a DYNAMIC template'
+    capture:
+      slot: 4
+      material: WRITABLE_BOOK
+      name: '&6Capture Structure'
+      lore:
+        - '&7Saves the blocks inside both orange corners.'
+        - '&7Requires both spawns and gameplay bounds'
+        - '&7inside that capture box.'
+        - '&7STATIC-only arenas do not need this.'
+    retry:
+      slot: 6
+      material: RECOVERY_COMPASS
+      name: '&eRetry Failed Copy'
+      lore:
+        - '&7Only for a FAILED provisioned copy.'
+        - '&7Current state: &f{health}'
+    setup-status:
+      slot: 8
+      material: BOOK
+      name: '&bInstance Setup'
+      lore:
+        - '&7Origin: &f{origin}'
+        - '&7State: &f{health}'
+        - '&7Both spawns: required to play.'
+        - '&7Gameplay bounds: for spectator confinement,'
+        - '&7boundary rules and block rollback.'
+        - '&7Structure corners: temporary capture draft'
+        - '&7only needed for a dynamic template.'
+        - '&eClick for current status'
 
 # Manage what kits are allowed in an arena
 arena-kit:
@@ -276,6 +351,17 @@ stats-leaderboard:
 spectate-matches:
   title: '&8Live Duels'
   rows: 6
+
+arena-selection:
+  title: '&8Challenge {player}: Arena'
+  rows: 6
+  entry:
+    material: '{material}'
+    name: '&e{name}'
+    lore:
+      - '&7{description}'
+      - '&7Mode: &f{mode}'
+      - '&eClick to challenge in this arena'
 
 # Paginated menu that lists all kits. Clicking a kit opens the kit-detail menu for that kit.
 kit-list:
