@@ -1,7 +1,9 @@
 # Phase 4B Design: Arena Selection and Dynamic Provisioning
 
-_Design status: implementation-ready; production code is not yet implemented beyond
-template-aware allocation and the persisted `ArenaProvisioningMode`._
+_Implementation status: the core Paper-NBT capture, fixed-grid provisioning,
+asynchronous allocation, challenge selection, and recovery paths are implemented.
+GUI parity and the real-Paper manual verification matrix remain before this phase is
+declared complete._
 
 ## Purpose
 

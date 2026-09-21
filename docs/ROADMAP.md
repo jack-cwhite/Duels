@@ -1334,8 +1334,9 @@ flag.
 
 ## Phase 4B - Dynamic Arena Provisioning `[~]` (v2)
 
-**Status:** `[~]` In progress. The first implementation slice adds explicit
-template-aware allocation while preserving the existing automatic allocation path.
+**Status:** `[~]` Code complete through the dynamic provisioning, recovery, and
+command-selection paths; the remaining Phase 4B work is product-surface parity,
+target-Paper manual verification, and a focused hardening/review pass.
 
 The complete implementation architecture, lifecycle, persistence model, failure
 handling, UX, incremental build order, and test plan are defined in
@@ -1367,7 +1368,7 @@ there, computes real spawn/bounds from the offsets, and registers a normal
 `ArenaInstance` against that pasted copy - reusing everything Phase 3/3B already built
 (allocation, bounds tracking, reset) rather than replacing it.
 
-### Proposed Architecture (agreed direction, not yet detailed)
+### Proposed Architecture
 
 - **Per-arena choice, not a global switch.** `StaticArenaAllocator` (hand-built,
   pre-registered instances) and a new dynamic allocator sit side by side behind the same
@@ -1391,25 +1392,22 @@ there, computes real spawn/bounds from the offsets, and registers a normal
 
 ### Implementation progress
 
-1. `[x]` Add template-aware allocation. `ArenaAllocator` now supports both
-   `allocate()` (any eligible arena, preserving V1 behaviour) and
-   `allocate(arenaId)` (only the selected template). `MatchManager` exposes the
-   corresponding `startMatch(player1, player2, arenaId)` overload. An explicit
-   selection never silently falls back to another template when the requested
-   arena has no capacity.
-2. `[~]` Define and persist each template's provisioning mode and dynamic-template
-   metadata without affecting static templates. `ArenaProvisioningMode` is now
-   persisted with a backwards-compatible `STATIC` default; capture metadata is
-   still to be designed and added.
-3. `[ ]` Add the admin capture/save flow for a structure and relative spawn/bounds
-   metadata.
-4. `[ ]` Add the dedicated arena world and bounded slot allocator.
-5. `[ ]` Provision a dynamic `ArenaInstance` through the existing allocation boundary,
-   including failure handling and restart recovery.
-6. `[ ]` Add player/admin arena-selection surfaces on top of template-aware match
-   start.
-7. `[ ]` Verify reset, release, spectator, shutdown, and migration behaviour in both
-   static and dynamic modes.
+1. `[x]` Template metadata, strict serializers, and backwards-compatible static
+   defaults. Templates use relative spawns/bounds and versioned Duels-owned files.
+2. `[x]` Admin edit-mode capture, Paper NBT save/reopen verification, template
+   inspection/clearing, and guarded provisioning-mode commands.
+3. `[x]` Lazy persistent grid layout plus a UUID-verified Duels void world. Static-only
+   installations do not create either.
+4. `[x]` Persisted manual/provisioned instance origin, slot/revision/size metadata,
+   and non-allocatable recovery states.
+5. `[x]` Asynchronous existing-instance-first allocation and chunk-backed provisioning.
+   `MatchManager` owns pending players and commits no player changes before success.
+6. `[x]` Challenge selection terms and `/duel challenge <player> <arenaId>`; acceptance
+   claims rather than prematurely consumes a delayed challenge.
+7. `[x]` Dirty/provisioning startup rebuild, bounded retirement cleanup, and failed
+   instance retry command.
+8. `[~]` Complete GUI parity and perform the target-Paper manual/capacity/restart test
+   matrix before calling Phase 4B fully done.
 
 ### Resolved implementation decisions
 

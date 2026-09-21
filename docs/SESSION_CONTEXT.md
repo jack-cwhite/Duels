@@ -14,7 +14,7 @@ documentation changes from the V1 build-out.
 
 Verification at the last handoff:
 
-- `mvn -o test`: 25 tests passed, 0 failures, 0 errors, 0 skipped.
+- `mvn -o test`: 32 tests passed, 0 failures, 0 errors, 0 skipped.
 - `mvn -o clean package`: succeeded and produced the shaded plugin jar.
 - `git diff --check`: passed; only line-ending warnings were reported.
 - Manual in-game testing passed for arena management, matches, kits, bounds,
@@ -83,23 +83,22 @@ world-per-match generation is not the baseline because of blocking world I/O,
 memory cost, and the fact that it does not remove the capacity limit of one
 server.
 
-Phase 4B is now in progress. Its first completed slice adds template-aware
-allocation: existing callers may still request any available instance, while a
-future selection flow can request one arena template and will never silently
-fall back to another template when that choice is full.
+Phase 4B core implementation is now present. Admins capture a Paper NBT template from
+separate edit-session structure corners; template spawns and gameplay bounds are saved
+as offsets. A dynamic arena reuses a free manual/provisioned copy first, otherwise
+reserves a persisted grid slot in a lazy Duels void world, prepares chunks, pastes the
+template, and publishes a normal provisioned `ArenaInstance`.
 
-The second slice has started: each `Arena` now persists an
-`ArenaProvisioningMode` with a backwards-compatible `STATIC` default. `DYNAMIC`
-will mean "reuse a free registered instance first, otherwise provision one on
-demand"; capture metadata and actual provisioning are not implemented yet.
+Allocation and match start are asynchronous: `MatchManager` owns a pending-player
+reservation and does not mutate either player until provisioning succeeds. Challenges
+carry either Any or a specific arena selection (`/duel challenge <player> <arenaId>`) and
+are claimed during preparation rather than consumed early. Provisioned instances persist
+health states and startup rebuilds interrupted/dirty copies; retirement is bounded and
+failed copies can be retried.
 
-The complete Phase 4B design is now recorded in `docs/PHASE_4B_DESIGN.md`.
-Important resolved choices include: Duels-owned Paper NBT structures, separate
-capture versus gameplay bounds, a fixed persisted slot grid, pooled/reused
-dynamic instances, persisted recovery states, and an asynchronous allocation/
-match-start workflow that does not mutate players before preparation succeeds.
-The next implementation checkpoint is the template data model: relative
-positions, the strict template-definition serializer, and compatibility tests.
+The remaining Phase 4B work is GUI parity, target-Paper manual verification (capture,
+paste, capacity, shutdown/restart, spectator and reset paths), and a focused hardening
+review. See `docs/PHASE_4B_DESIGN.md` and `docs/ROADMAP.md` for the authoritative detail.
 
 ## Recommended V2 order
 
