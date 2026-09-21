@@ -47,6 +47,7 @@ permissions:
       duels.admin.arena.toggle: true
       duels.admin.arena.bounds: true
       duels.admin.arena.boundary: true
+      duels.admin.arena.instance: true
       duels.admin.arena.editmode: true
       duels.admin.arena.allowkit: true
       duels.admin.arena.provisioning: true
@@ -80,6 +81,9 @@ permissions:
     default: op
   duels.admin.arena.editmode:
     description: Enter arena edit mode
+    default: op
+  duels.admin.arena.instance.retry:
+    description: Retry a failed provisioned arena instance
     default: op
   duels.admin.arena.allowkit:
     description: Toggle whether a kit is allowed in an arena

@@ -64,6 +64,7 @@ public enum Message implements MessageKey
     ARENA_TEMPLATE_INFO("admin.arena-template-info"),
     ARENA_TEMPLATE_CLEARED("admin.arena-template-cleared"),
     ARENA_PROVISIONING_SET("admin.arena-provisioning-set"),
+    ARENA_INSTANCE_REBUILT("admin.arena-instance-rebuilt"),
     ARENA_INSTANCE_CREATED("admin.arena-instance-created"),
     ARENA_INSTANCE_DELETED("admin.arena-instance-deleted"),
     ARENA_INSTANCE_NOT_FOUND("admin.arena-instance-not-found"),

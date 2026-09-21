@@ -54,6 +54,7 @@ public class Duels extends JavaPlugin
     private DynamicArenaSlotManager dynamicArenaSlotManager;
     private DynamicArenaWorldManager dynamicArenaWorldManager;
     private DynamicArenaProvisioner dynamicArenaProvisioner;
+    private DynamicArenaRecovery dynamicArenaRecovery;
     private ArenaEditManager arenaEditManager;
     private BoundaryEnforcer boundaryEnforcer;
     private BlockChangeRollbackStrategy arenaResetStrategy;
@@ -354,6 +355,8 @@ public class Duels extends JavaPlugin
         dynamicArenaWorldManager = new DynamicArenaWorldManager(dynamicArenaSlotManager);
         dynamicArenaProvisioner = new DynamicArenaProvisioner(this);
         arenaAllocator = new StaticArenaAllocator(arenaManager, arenaInstanceManager, dynamicArenaProvisioner);
+        dynamicArenaRecovery = new DynamicArenaRecovery(this);
+        dynamicArenaRecovery.recover();
         arenaEditManager = new ArenaEditManager(this);
         challengeManager = new ChallengeManager(jCore.tasks(), settings, new ChallengeExpiryHandler(jCore.messages())::onExpire);
         playerStateManager = new PlayerStateManager(jCore.files().yaml("playerstates.yml", true), jCore.serializers());

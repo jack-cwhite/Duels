@@ -142,7 +142,8 @@ public final class ArenaTemplateManager
     {
         Arena arena = arenaManager.getArena(arenaId);
 
-        if (arena == null || arena.getTemplateDefinition() == null || arena.getProvisioningMode() == ArenaProvisioningMode.DYNAMIC)
+        if (arena == null || arena.getTemplateDefinition() == null || arena.getProvisioningMode() == ArenaProvisioningMode.DYNAMIC
+                || instanceManager.hasProvisionedInstances(arenaId))
             return false;
 
         Path file = getStructurePath(arena.getTemplateDefinition());

@@ -213,6 +213,14 @@ public final class ArenaInstanceManager
         return false;
     }
 
+    public boolean hasProvisionedInstances(int arenaId)
+    {
+        for (ArenaInstance instance : instances.values())
+            if (instance.getArenaId() == arenaId && instance.isProvisioned())
+                return true;
+        return false;
+    }
+
     public void save(ArenaInstance instance)
     {
         instances.put(instance.getId(), instance);

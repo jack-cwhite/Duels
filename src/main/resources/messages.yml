@@ -51,6 +51,7 @@ admin:
   arena-template-info: '&7Arena &e{id} &7template: &e{status} &7(revision: &e{revision}&7, size: &e{size}&7)'
   arena-template-cleared: '&7Cleared the captured template for arena &e{id}'
   arena-provisioning-set: '&7Arena &e{id} &7provisioning mode is now &e{mode}'
+  arena-instance-rebuilt: '&7Provisioned arena instance &e{id} &7has been rebuilt and is ready again'
   cannot-open-inventory-while-in-edit-mode: '&cYou can not open an inventory while in arena edit mode. Use the exit tool to exit edit mode.'
   kit-created: '&7Kit &acreated &7with name: &e{name} &7and ID: &e{id}'
   kit-deleted: '&7Kit with ID: &e{id} &7has been &cdeleted'

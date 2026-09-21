@@ -18,6 +18,7 @@ public final class DynamicArenaProvisioner
 {
     private final Duels plugin;
     private final ArenaInstanceManager instanceManager;
+    private final ArenaManager arenaManager;
     private final ArenaTemplateManager templateManager;
     private final DynamicArenaSlotManager slotManager;
     private final DynamicArenaWorldManager worldManager;
@@ -26,6 +27,7 @@ public final class DynamicArenaProvisioner
     {
         this.plugin = plugin;
         this.instanceManager = plugin.getArenaInstanceManager();
+        this.arenaManager = plugin.getArenaManager();
         this.templateManager = plugin.getArenaTemplateManager();
         this.slotManager = plugin.getDynamicArenaSlotManager();
         this.worldManager = plugin.getDynamicArenaWorldManager();
@@ -82,6 +84,64 @@ public final class DynamicArenaProvisioner
         addChunkTickets(world, slot, instance.getStructureSize());
     }
 
+    /** Re-pastes an interrupted provision or dirty arena before it can be reused. */
+    public CompletableFuture<DynamicArenaProvisionResult> rebuild(ArenaInstance instance)
+    {
+        if (instance == null || !instance.isProvisioned())
+            return CompletableFuture.completedFuture(DynamicArenaProvisionResult.failure(DynamicArenaProvisionResult.Status.FAILED));
+
+        Arena arena = arenaManager.getArena(instance.getArenaId());
+        ArenaTemplateDefinition template = arena == null ? null : arena.getTemplateDefinition();
+        if (template == null || template.revision() != instance.getTemplateRevision()
+                || !template.providerId().equals(templateManager.getProvider().id())
+                || !Files.isRegularFile(templateManager.getStructurePath(template)))
+        {
+            fail(instance, "Its source template revision is unavailable");
+            return CompletableFuture.completedFuture(DynamicArenaProvisionResult.failure(DynamicArenaProvisionResult.Status.TEMPLATE_UNAVAILABLE));
+        }
+
+        try
+        {
+            if (instance.getDynamicState() == DynamicArenaState.FAILED)
+                instanceManager.setDynamicState(instance, DynamicArenaState.PROVISIONING);
+            World world = worldManager.getOrCreateWorld();
+            DynamicArenaSlot slot = slotManager.getOrCreateLayout().slot(instance.getDynamicSlotIndex());
+            addChunkTickets(world, slot, instance.getStructureSize());
+            CompletableFuture<?>[] chunkLoads = chunkLoads(world, slot, instance.getStructureSize()).toArray(CompletableFuture[]::new);
+            return CompletableFuture.allOf(chunkLoads)
+                    .orTimeout(plugin.getSettings().dynamicArenas().provisionTimeoutSeconds(), TimeUnit.SECONDS)
+                    .handle((ignored, throwable) -> completeOnMain(() -> finishProvision(world, slot, template, instance, throwable)))
+                    .thenCompose(future -> future);
+        }
+        catch (RuntimeException exception)
+        {
+            fail(instance, "The dynamic world could not be loaded");
+            return CompletableFuture.completedFuture(DynamicArenaProvisionResult.failure(DynamicArenaProvisionResult.Status.FAILED));
+        }
+    }
+
+    /** Clears a retired slot in bounded batches before its record is removed. */
+    public CompletableFuture<Void> retire(ArenaInstance instance)
+    {
+        if (instance == null || !instance.isProvisioned())
+            return CompletableFuture.completedFuture(null);
+
+        try
+        {
+            if (instance.getDynamicState() != DynamicArenaState.RETIRING)
+                instanceManager.setDynamicState(instance, DynamicArenaState.RETIRING);
+            World world = worldManager.getOrCreateWorld();
+            DynamicArenaSlot slot = slotManager.getOrCreateLayout().slot(instance.getDynamicSlotIndex());
+            addChunkTickets(world, slot, instance.getStructureSize());
+            return clearSlotInBatches(world, slot, instance);
+        }
+        catch (RuntimeException exception)
+        {
+            fail(instance, "Could not begin retirement cleanup");
+            return CompletableFuture.failedFuture(exception);
+        }
+    }
+
     public void releaseChunks(ArenaInstance instance)
     {
         if (!instance.isProvisioned())
@@ -116,6 +176,57 @@ public final class DynamicArenaProvisioner
             catch (RuntimeException stateFailure) { plugin.getLogger().log(Level.SEVERE, "Could not mark failed dynamic arena instance #" + instance.getId(), stateFailure); }
             releaseChunks(instance);
             return DynamicArenaProvisionResult.failure(DynamicArenaProvisionResult.Status.FAILED);
+        }
+    }
+
+    private CompletableFuture<Void> clearSlotInBatches(World world, DynamicArenaSlot slot, ArenaInstance instance)
+    {
+        CompletableFuture<Void> finished = new CompletableFuture<>();
+        int maxX = slot.originX() + instance.getStructureSize().x() - 1;
+        int maxY = slot.originY() + instance.getStructureSize().y() - 1;
+        int maxZ = slot.originZ() + instance.getStructureSize().z() - 1;
+        int[] cursor = {slot.originX(), slot.originY(), slot.originZ()};
+        int perTick = plugin.getSettings().dynamicArenas().cleanupBlocksPerTick();
+
+        plugin.getServer().getScheduler().runTaskTimer(plugin, task ->
+        {
+            int changed = 0;
+            while (changed < perTick && cursor[1] <= maxY)
+            {
+                world.getBlockAt(cursor[0], cursor[1], cursor[2]).setType(org.bukkit.Material.AIR, false);
+                changed++;
+                if (++cursor[0] > maxX)
+                {
+                    cursor[0] = slot.originX();
+                    if (++cursor[2] > maxZ)
+                    {
+                        cursor[2] = slot.originZ();
+                        cursor[1]++;
+                    }
+                }
+            }
+            if (cursor[1] > maxY)
+            {
+                task.cancel();
+                instanceManager.deleteInstance(instance.getId());
+                slotManager.markVacant(slot.index());
+                releaseChunks(instance);
+                finished.complete(null);
+            }
+        }, 1L, 1L);
+        return finished;
+    }
+
+    private void fail(ArenaInstance instance, String reason)
+    {
+        try
+        {
+            if (instance.getDynamicState() != DynamicArenaState.FAILED)
+                instanceManager.setDynamicState(instance, DynamicArenaState.FAILED);
+        }
+        catch (RuntimeException exception)
+        {
+            plugin.getLogger().log(Level.SEVERE, "Could not mark dynamic arena instance #" + instance.getId() + " failed: " + reason, exception);
         }
     }
 

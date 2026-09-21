@@ -14,6 +14,8 @@ import me.jackcw.duels.arena.ArenaTemplateCaptureResult;
 import me.jackcw.duels.arena.ArenaTemplateDefinition;
 import me.jackcw.duels.arena.ArenaTemplateManager;
 import me.jackcw.duels.arena.ArenaTemplateStatus;
+import me.jackcw.duels.arena.DynamicArenaProvisioner;
+import me.jackcw.duels.arena.DynamicArenaState;
 import me.jackcw.duels.arena.BoundaryMode;
 import me.jackcw.duels.kit.Kit;
 import me.jackcw.duels.kit.KitManager;
@@ -45,6 +47,7 @@ public final class DuelsCommand
     private final ArenaInstanceManager arenaInstanceManager;
     private final ArenaEditManager arenaEditManager;
     private final ArenaTemplateManager arenaTemplateManager;
+    private final DynamicArenaProvisioner dynamicArenaProvisioner;
     private final KitManager kitManager;
     private final MessageManager messageManager;
     private final MenuManager menus;
@@ -63,6 +66,7 @@ public final class DuelsCommand
         this.arenaInstanceManager = plugin.getArenaInstanceManager();
         this.arenaEditManager = plugin.getArenaEditManager();
         this.arenaTemplateManager = plugin.getArenaTemplateManager();
+        this.dynamicArenaProvisioner = plugin.getDynamicArenaProvisioner();
         this.kitManager = plugin.getKitManager();
         this.messageManager = plugin.core().messages();
         this.menus = plugin.core().menus();
@@ -211,6 +215,13 @@ public final class DuelsCommand
                                                                 .permission("duels.admin.arena.instance.delete")
                                                                 .argument("instanceId", ArgumentTypes.integer())
                                                                 .executes(this::deleteArenaInstance))
+                                                .child(
+                                                        CommandBuilder.command("retry")
+                                                                .description("Retry a failed provisioned arena instance")
+                                                                .usage("/duels arena instance retry <instanceId>")
+                                                                .permission("duels.admin.arena.instance.retry")
+                                                                .argument("instanceId", ArgumentTypes.integer())
+                                                                .executes(this::retryArenaInstance))
                                                 .child(
                                                         CommandBuilder.command("list")
                                                                 .description("List an arena's registered instances")
@@ -511,6 +522,14 @@ public final class DuelsCommand
             return;
         }
 
+        if (mode == ArenaProvisioningMode.STATIC && arena.getProvisioningMode() == ArenaProvisioningMode.DYNAMIC
+                && arenaInstanceManager.hasProvisionedInstances(id))
+        {
+            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+                    "reason", "retire the provisioned instances before switching this arena back to STATIC");
+            return;
+        }
+
         arenaManager.setProvisioningMode(id, mode);
         messageManager.send(context.getSender(), Message.ARENA_PROVISIONING_SET, "id", id, "mode", mode.name());
     }
@@ -635,6 +654,25 @@ public final class DuelsCommand
     private void deleteArenaInstance(CommandContext context)
     {
         int instanceId = context.get("instanceId");
+        ArenaInstance instance = arenaInstanceManager.getInstance(instanceId);
+
+        if (instance != null && instance.isProvisioned())
+        {
+            if (arenaInstanceManager.isActive(instanceId))
+            {
+                messageManager.send(context.getSender(), Message.ARENA_INSTANCE_IN_USE, "id", instanceId);
+                return;
+            }
+            dynamicArenaProvisioner.retire(instance).whenComplete((ignored, throwable) ->
+            {
+                if (throwable == null)
+                    messageManager.send(context.getSender(), Message.ARENA_INSTANCE_DELETED, "id", instanceId);
+                else
+                    messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "retirement cleanup failed; check the server log");
+            });
+            return;
+        }
+
         ArenaInstanceMutationResult result = arenaInstanceManager.deleteInstance(instanceId);
 
         switch (result.status())
@@ -643,6 +681,30 @@ public final class DuelsCommand
             case IN_USE -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_IN_USE, "id", instanceId);
             case SUCCESS -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_DELETED, "id", instanceId);
         }
+    }
+
+    private void retryArenaInstance(CommandContext context)
+    {
+        int instanceId = context.get("instanceId");
+        ArenaInstance instance = arenaInstanceManager.getInstance(instanceId);
+        if (instance == null)
+        {
+            messageManager.send(context.getSender(), Message.ARENA_INSTANCE_NOT_FOUND, "id", instanceId);
+            return;
+        }
+        if (!instance.isProvisioned() || instance.getDynamicState() != DynamicArenaState.FAILED)
+        {
+            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "only a failed provisioned instance can be retried");
+            return;
+        }
+
+        dynamicArenaProvisioner.rebuild(instance).whenComplete((result, throwable) ->
+        {
+            if (throwable == null && result.status() == me.jackcw.duels.arena.DynamicArenaProvisionResult.Status.SUCCESS)
+                messageManager.send(context.getSender(), Message.ARENA_INSTANCE_REBUILT, "id", instanceId);
+            else
+                messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "retry failed; check the server log");
+        });
     }
 
     private void listArenaInstances(CommandContext context)
