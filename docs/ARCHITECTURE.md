@@ -42,6 +42,9 @@ dedicated arena world and expose it as a normal `ArenaInstance`. Static and
 dynamic templates can coexist, and the static path remains available for small
 servers or arenas that are easier to build by hand.
 
+The implementation architecture and recovery model are specified in
+`docs/PHASE_4B_DESIGN.md`.
+
 This dynamic mode means creating arena copies inside one Paper server. It does
 not mean creating new Minecraft servers. The match, spectator, reset, and
 player-restoration systems should continue to work against the resulting

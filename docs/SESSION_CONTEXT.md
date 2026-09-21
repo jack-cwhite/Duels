@@ -93,6 +93,14 @@ The second slice has started: each `Arena` now persists an
 will mean "reuse a free registered instance first, otherwise provision one on
 demand"; capture metadata and actual provisioning are not implemented yet.
 
+The complete Phase 4B design is now recorded in `docs/PHASE_4B_DESIGN.md`.
+Important resolved choices include: Duels-owned Paper NBT structures, separate
+capture versus gameplay bounds, a fixed persisted slot grid, pooled/reused
+dynamic instances, persisted recovery states, and an asynchronous allocation/
+match-start workflow that does not mutate players before preparation succeeds.
+The next implementation checkpoint is the template data model: relative
+positions, the strict template-definition serializer, and compatibility tests.
+
 ## Recommended V2 order
 
 1. Phase 4B: arena selection and dynamic provisioning, while preserving static

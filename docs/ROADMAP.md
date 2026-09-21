@@ -1337,6 +1337,11 @@ flag.
 **Status:** `[~]` In progress. The first implementation slice adds explicit
 template-aware allocation while preserving the existing automatic allocation path.
 
+The complete implementation architecture, lifecycle, persistence model, failure
+handling, UX, incremental build order, and test plan are defined in
+`docs/PHASE_4B_DESIGN.md`. That document is authoritative for Phase 4B details; this
+section remains the compact roadmap summary.
+
 **Note on numbering:** like 3B, this sits here because of when it was scoped (after
 Phase 4/Spectator Mode had already been implemented and numbered), not because the file
 is renumbered. It depends on Phase 3 (Arena Instancing) and Phase 3B (Arena Reset), and
@@ -1406,16 +1411,18 @@ there, computes real spawn/bounds from the offsets, and registers a normal
 7. `[ ]` Verify reset, release, spectator, shutdown, and migration behaviour in both
    static and dynamic modes.
 
-### Open questions for the implementation plan (not yet resolved)
+### Resolved implementation decisions
 
-- Slot sizing/spacing: fixed maximum footprint per slot, or per-template sizing derived
-  from the saved structure's bounding box?
-- Whether a template's saved structure lives as a file under the plugin's data folder or
-  is captured through an in-game capture flow (select a region, name it, save) similar to
-  the existing edit-mode wand.
-- Exact cleanup semantics: explicit clear-to-air immediately on release, versus lazy
-  overwrite-on-next-paste (matters for how "abandoned" slots look to an admin walking
-  through the instance world).
+- Use a fixed, bounded, persisted slot grid rather than variable-size packing.
+- Store Duels-owned Paper structure files under the plugin data folder.
+- Capture through the existing in-game instance edit workflow with separate structure
+  corners; gameplay bounds are not assumed to be the whole structure.
+- Pool and reuse provisioned instances after normal block rollback. Clear a slot only
+  when its instance is retired, deleted, or recovered from an incomplete operation.
+- Make allocation/match preparation asynchronous, with pending-player reservations and
+  main-thread publication only after preparation succeeds.
+- Persist dynamic instance health so interrupted provisioning, matches, resets, and
+  cleanup cannot make a dirty or partial slot allocatable after restart.
 
 ## Phase 5 - Deeper Statistics & Tracking `[ ]` (v2)
 
