@@ -42,12 +42,12 @@ Verification at the last handoff:
 - YAML, SQLite, MySQL/MariaDB, and PostgreSQL statistics backends.
 - Configurable database pool size and resilient stats-failure cleanup.
 
-## V1 intentional limitations
+## Current intentional limitations and remaining verification
 
-- Arena selection is not implemented. A duel currently receives the first free,
-  ready, enabled instance found by `StaticArenaAllocator`.
-- Arena instances are manually built and registered. Nothing is dynamically
-  pasted or generated yet.
+- Selected-arena challenges are implemented by command. A player-facing arena
+  selection GUI and equivalent dynamic admin GUI controls remain Phase 4B polish.
+- Dynamic capture/provisioning/recovery is implemented but still requires the
+  complete real-Paper run in `docs/IN_GAME_TEST_PLAN.md` before sign-off.
 - The baseline reset is block-change rollback. The optional WorldEdit/FAWE
   schematic reset path is not implemented.
 - There is no matchmaking queue, ranked/MMR system, Vault reward integration,
@@ -57,7 +57,8 @@ Verification at the last handoff:
 - A durable pending-outcome/retry record is deferred until rewards and other
   consumers require guaranteed delivery.
 
-These are V2 or later scope decisions, not unfinished V1 defects.
+The matchmaking/rewards/rating/network items are later scope decisions, not
+unfinished V1 defects.
 
 ## Next development target: V2 Phase 4B
 
@@ -156,5 +157,7 @@ Duels until a second real plugin creates a proven reusable need.
 - Detailed phase status and dependencies: `docs/ROADMAP.md`
 - Architectural reasoning and ownership rules: `docs/ARCHITECTURE.md`
 - Full manual V1 test suite: `docs/V1_TEST_PLAN.md`
+- Current complete V1 + Phase 4B in-game acceptance suite:
+  `docs/IN_GAME_TEST_PLAN.md`
 - Focused regression/retest checklist: `docs/RETEST.md`
 - Learning notes: `docs/LEARNING.md` and `docs/JAVA_CONCEPTS_AND_JCORE.md`
