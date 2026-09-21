@@ -101,6 +101,19 @@ The remaining Phase 4B work is GUI parity, target-Paper manual verification (cap
 paste, capacity, shutdown/restart, spectator and reset paths), and a focused hardening
 review. See `docs/PHASE_4B_DESIGN.md` and `docs/ROADMAP.md` for the authoritative detail.
 
+Next code-change notes from Jack's in-game setup review:
+
+- The arena/instance GUI currently has no controls or guidance for choosing the two
+  structure capture corners. Add a GUI-accessible capture setup flow; keep structure
+  corners distinct from gameplay bounds and explain that static-only arenas do not
+  need capture corners at all.
+- Edit-mode structure particles currently depend on gameplay bounds being set because
+  `ArenaEditManager.tickBoundsParticles` returns early when `instance.hasBounds()` is
+  false. Fix that preview independently of any other setup changes.
+- Make setup/readiness text distinguish required spawns, optional-but-useful gameplay
+  bounds for manual instances, and structure capture corners required only to create
+  a dynamic template. Do not change gameplay logic until the ongoing test run finishes.
+
 ## Recommended V2 order
 
 1. Phase 4B: arena selection and dynamic provisioning, while preserving static
