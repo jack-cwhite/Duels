@@ -88,7 +88,7 @@ arena-list:
 # Menu for managing a specific arena. This menu is opened when an arena is clicked in the arena-list menu.
 arena-detail:
   title: '&8{arena-name}'
-  rows: 2
+  rows: 3
   items:
     toggle-available:
       slot: 8
@@ -198,7 +198,7 @@ arena-instance-list:
 # Menu for managing a specific arena instance's spawns and bounds.
 arena-instance-detail:
   title: '&8Instance #{id}'
-  rows: 2
+  rows: 4
   items:
     spawn1:
       slot: 1
@@ -221,7 +221,7 @@ arena-instance-detail:
         - '&7Right click to teleport to'
         - '&7currently set location'
     edit-mode:
-      slot: 5
+      slot: 19
       material: BLAZE_ROD
       name: '&eEnter Edit Mode'
       lore:
@@ -229,13 +229,13 @@ arena-instance-detail:
         - '&7hotbar tools for setting spawns'
         - '&7bounds and structure corners in-world'
     delete:
-      slot: 7
+      slot: 25
       material: BARRIER
       name: '&cDelete Instance'
       lore:
         - '&7Click to permanently delete this instance'
     bounds1:
-      slot: 10
+      slot: 5
       material: LAPIS_LAZULI
       name: '&bSet Bounds Corner 1'
       lore:
@@ -247,7 +247,7 @@ arena-instance-detail:
         - '&7Right click to teleport to'
         - '&7currently set corner'
     bounds2:
-      slot: 12
+      slot: 7
       material: LAPIS_LAZULI
       name: '&bSet Bounds Corner 2'
       lore:
@@ -259,7 +259,7 @@ arena-instance-detail:
         - '&7Right click to teleport to'
         - '&7currently set corner'
     structure1:
-      slot: 0
+      slot: 10
       material: ORANGE_CONCRETE
       name: '&6Structure Corner 1'
       lore:
@@ -268,7 +268,7 @@ arena-instance-detail:
         - '&7Right click: teleport there'
         - '&7Only needed to capture a DYNAMIC template'
     structure2:
-      slot: 2
+      slot: 12
       material: YELLOW_CONCRETE
       name: '&eStructure Corner 2'
       lore:
@@ -277,7 +277,7 @@ arena-instance-detail:
         - '&7Right click: teleport there'
         - '&7Only needed to capture a DYNAMIC template'
     capture:
-      slot: 4
+      slot: 14
       material: WRITABLE_BOOK
       name: '&6Capture Structure'
       lore:
@@ -286,14 +286,14 @@ arena-instance-detail:
         - '&7inside that capture box.'
         - '&7STATIC-only arenas do not need this.'
     retry:
-      slot: 6
+      slot: 23
       material: RECOVERY_COMPASS
       name: '&eRetry Failed Copy'
       lore:
         - '&7Only for a FAILED provisioned copy.'
         - '&7Current state: &f{health}'
     setup-status:
-      slot: 8
+      slot: 21
       material: BOOK
       name: '&bInstance Setup'
       lore:
@@ -427,13 +427,14 @@ kit-view:
 # Menu for editing the items of a specific kit. This menu is opened when the edit option is clicked in the kit-detail menu.
 # Slots 0-35 are free-edit slots mirroring the kit's stored inventory contents 1:1 (slot N here
 # is contents[N]). Row 4 holds a helmet/chestplate/leggings/boots/offhand "paperdoll" (slots
-# 38/39/40/41/43), each restricted to the matching equipment type. Row 5 holds Save/Back.
+# 38/39/40/41/43), each restricted to the matching equipment type. Save is at
+# the far right of row 4; the bottom row is reserved for Back navigation.
 kit-edit:
   title: '&8{kit-name}'
   rows: 6
   items:
     save:
-      slot: 51
+      slot: 44
       material: EMERALD
       name: '&aSave Kit'
       lore:

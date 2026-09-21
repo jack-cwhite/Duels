@@ -29,11 +29,14 @@ public final class PaperArenaStructureProvider implements ArenaStructureProvider
     }
 
     @Override
-    public void capture(Location corner1, Location corner2, Path target) throws IOException
+    public void capture(Location origin, ArenaStructureSize size, Path target) throws IOException
     {
         StructureManager manager = Bukkit.getStructureManager();
         Structure structure = manager.createStructure();
-        structure.fill(corner1, corner2, false);
+        // The two-corner overload excludes the opposite corner on Paper.
+        // An explicit size includes every block the admin selected and keeps
+        // saved dimensions identical to the metadata and slot calculations.
+        structure.fill(origin, new BlockVector(size.x(), size.y(), size.z()), false);
         manager.saveStructure(target.toFile(), structure);
     }
 

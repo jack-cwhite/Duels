@@ -323,6 +323,7 @@ public class Duels extends JavaPlugin
     {
         YamlFile menusFile = jCore.files().yaml("menus.yml", true);
         menusFile.updateDefaults();
+        migrateDefaultMenuLayout(menusFile);
 
         jCore.menus().configure(menusFile);
 
@@ -343,6 +344,60 @@ public class Duels extends JavaPlugin
         spectateMenu = new SpectateMenu(this);
 
         adminMainMenu = new AdminMainMenu(this, arenaMainMenu, kitMainMenu);
+    }
+
+    /** Upgrade only the old bundled layout; do not overwrite custom positions. */
+    void migrateDefaultMenuLayout(YamlFile file)
+    {
+        boolean changed = false;
+        changed |= moveBackToOwnRow(file, "arena-detail", new int[] {0, 2, 4, 6, 8, 10, 12, 14, 16},
+                new String[] {"rename", "instances", "create-instance", "delete", "toggle-available", "kits", "boundary", "provisioning", "template"});
+        changed |= migrateInstanceDetailLayout(file);
+
+        if (file.getConfig().getInt("kit-edit.items.save.slot", -1) == 51)
+        {
+            file.getConfig().set("kit-edit.items.save.slot", 44);
+            changed = true;
+        }
+
+        if (changed)
+        {
+            file.save();
+            getLogger().info("Moved default menu actions off the Back navigation row; custom layouts were left intact.");
+        }
+    }
+
+    private boolean moveBackToOwnRow(YamlFile file, String menu, int[] slots, String[] keys)
+    {
+        if (file.getConfig().getInt(menu + ".rows", -1) != 2)
+            return false;
+
+        for (int i = 0; i < keys.length; i++)
+            if (file.getConfig().getInt(menu + ".items." + keys[i] + ".slot", -1) != slots[i])
+                return false;
+
+        file.getConfig().set(menu + ".rows", 3);
+        return true;
+    }
+
+    private boolean migrateInstanceDetailLayout(YamlFile file)
+    {
+        String menu = "arena-instance-detail";
+        String[] keys = {"spawn1", "spawn2", "edit-mode", "delete", "bounds1", "bounds2",
+                "structure1", "structure2", "capture", "retry", "setup-status"};
+        int[] oldSlots = {1, 3, 5, 7, 10, 12, 0, 2, 4, 6, 8};
+        int[] newSlots = {1, 3, 19, 25, 5, 7, 10, 12, 14, 23, 21};
+        if (file.getConfig().getInt(menu + ".rows", -1) != 2)
+            return false;
+
+        for (int i = 0; i < keys.length; i++)
+            if (file.getConfig().getInt(menu + ".items." + keys[i] + ".slot", -1) != oldSlots[i])
+                return false;
+
+        file.getConfig().set(menu + ".rows", 4);
+        for (int i = 0; i < keys.length; i++)
+            file.getConfig().set(menu + ".items." + keys[i] + ".slot", newSlots[i]);
+        return true;
     }
 
     private void initializeManagers()

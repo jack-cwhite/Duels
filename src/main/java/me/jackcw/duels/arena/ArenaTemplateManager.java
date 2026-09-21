@@ -123,7 +123,7 @@ public final class ArenaTemplateManager
 
             try
             {
-                provider.capture(origin, maximum, temporary);
+                provider.capture(origin, size, temporary);
                 ArenaStructureSize storedSize = provider.readSize(temporary);
 
                 if (!storedSize.equals(size))

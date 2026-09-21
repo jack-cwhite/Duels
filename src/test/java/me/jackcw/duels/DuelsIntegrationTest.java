@@ -3,6 +3,9 @@ package me.jackcw.duels;
 import me.jackcw.duels.arena.Arena;
 import me.jackcw.duels.arena.ArenaInstance;
 import me.jackcw.duels.arena.ArenaStructureSize;
+import me.jackcw.duels.arena.ArenaStructureProvider;
+import me.jackcw.duels.arena.ArenaTemplateManager;
+import me.jackcw.duels.arena.ArenaTemplateCaptureResult;
 import me.jackcw.duels.arena.DynamicArenaState;
 import me.jackcw.duels.arena.BlockChangeRollbackStrategy;
 import me.jackcw.duels.challenge.Challenge;
@@ -32,6 +35,10 @@ import org.mockbukkit.mockbukkit.world.WorldMock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -101,6 +108,81 @@ class DuelsIntegrationTest
 
         plugin.getArenaInstanceManager().setDynamicState(copy, DynamicArenaState.RETIRING);
         assertTrue(plugin.getArenaInstanceManager().deleteInstance(copy.getId()).isSuccess());
+    }
+
+    @Test
+    void structureCaptureUsesInclusiveSelectionSize() throws IOException
+    {
+        WorldMock world = server.addSimpleWorld("inclusive_capture_world");
+        Arena arena = plugin.getArenaManager().createArena("Temple");
+        ArenaInstance instance = plugin.getArenaInstanceManager().createInstance(arena.getId());
+        instance.setSpawn1(new Location(world, 11, 65, 21));
+        instance.setSpawn2(new Location(world, 12, 65, 22));
+        instance.setBoundsCorner1(new Location(world, 10, 64, 20));
+        instance.setBoundsCorner2(new Location(world, 12, 67, 24));
+        plugin.getArenaInstanceManager().save(instance);
+
+        AtomicReference<Location> capturedOrigin = new AtomicReference<>();
+        AtomicReference<ArenaStructureSize> capturedSize = new AtomicReference<>();
+        ArenaStructureProvider provider = new ArenaStructureProvider()
+        {
+            public String id() { return "test-structure"; }
+
+            public void capture(Location origin, ArenaStructureSize size, Path target) throws IOException
+            {
+                capturedOrigin.set(origin);
+                capturedSize.set(size);
+                Files.writeString(target, "test structure");
+            }
+
+            public ArenaStructureSize readSize(Path source) { return capturedSize.get(); }
+
+            public void place(Path source, org.bukkit.World destination, int x, int y, int z) { }
+        };
+        ArenaTemplateManager manager = new ArenaTemplateManager(plugin, provider);
+
+        ArenaTemplateCaptureResult result = manager.capture(instance.getId(),
+                new Location(world, 12, 67, 24), new Location(world, 10, 64, 20));
+
+        assertEquals(ArenaTemplateCaptureResult.Status.SUCCESS, result.status());
+        assertEquals(new Location(world, 10, 64, 20), capturedOrigin.get());
+        assertEquals(new ArenaStructureSize(3, 4, 5), capturedSize.get());
+        assertEquals(capturedSize.get(), result.template().size());
+        assertEquals(2, result.template().boundsCorner2().x());
+    }
+
+    @Test
+    void bundledMenusReserveTheBottomRowForNavigation()
+    {
+        var config = plugin.core().files().yaml("menus.yml", true).getConfig();
+        assertEquals(3, config.getInt("arena-detail.rows"));
+        assertEquals(4, config.getInt("arena-instance-detail.rows"));
+        assertEquals(14, config.getInt("arena-instance-detail.items.capture.slot"));
+        assertEquals(44, config.getInt("kit-edit.items.save.slot"));
+    }
+
+    @Test
+    void oldBundledMenuSlotsUpgradeWithoutTouchingUnrelatedOptions()
+    {
+        var file = plugin.core().files().yaml("menus.yml", true);
+        var config = file.getConfig();
+        config.set("arena-detail.rows", 2);
+        config.set("arena-instance-detail.rows", 2);
+        String[] keys = {"spawn1", "spawn2", "edit-mode", "delete", "bounds1", "bounds2",
+                "structure1", "structure2", "capture", "retry", "setup-status"};
+        int[] oldSlots = {1, 3, 5, 7, 10, 12, 0, 2, 4, 6, 8};
+        for (int i = 0; i < keys.length; i++)
+            config.set("arena-instance-detail.items." + keys[i] + ".slot", oldSlots[i]);
+        config.set("kit-edit.items.save.slot", 51);
+        config.set("arena-detail.items.rename.name", "&aMy custom label");
+
+        plugin.migrateDefaultMenuLayout(file);
+
+        assertEquals(3, config.getInt("arena-detail.rows"));
+        assertEquals(4, config.getInt("arena-instance-detail.rows"));
+        assertEquals(14, config.getInt("arena-instance-detail.items.capture.slot"));
+        assertEquals(44, config.getInt("kit-edit.items.save.slot"));
+        assertEquals("&aMy custom label", config.getString("arena-detail.items.rename.name"));
     }
 
     @Test

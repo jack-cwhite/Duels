@@ -18,7 +18,8 @@ public interface ArenaStructureProvider
 {
     String id();
 
-    void capture(Location corner1, Location corner2, Path target) throws IOException;
+    /** Capture an inclusive block selection by its minimum corner and dimensions. */
+    void capture(Location origin, ArenaStructureSize size, Path target) throws IOException;
 
     ArenaStructureSize readSize(Path source) throws IOException;
 
