@@ -1,12 +1,15 @@
 package me.jackcw.duels;
 
 import me.jackcw.duels.arena.Arena;
+import me.jackcw.duels.arena.ArenaSelection;
+import me.jackcw.duels.arena.ArenaAllocationResult;
 import me.jackcw.duels.arena.ArenaInstance;
 import me.jackcw.duels.arena.ArenaStructureSize;
 import me.jackcw.duels.arena.ArenaStructureProvider;
 import me.jackcw.duels.arena.ArenaTemplateManager;
 import me.jackcw.duels.arena.ArenaTemplateCaptureResult;
 import me.jackcw.duels.arena.DynamicArenaState;
+import me.jackcw.duels.arena.ArenaProvisioningMode;
 import me.jackcw.duels.arena.BlockChangeRollbackStrategy;
 import me.jackcw.duels.challenge.Challenge;
 import me.jackcw.duels.kit.Kit;
@@ -96,7 +99,7 @@ class DuelsIntegrationTest
     @Test
     void generatedCopyCannotBeEditedOrDeletedOutsideRetirement()
     {
-        Arena arena = plugin.getArenaManager().createArena("Castle");
+        Arena arena = plugin.getArenaManager().createArena("Castle", ArenaProvisioningMode.DYNAMIC);
         ArenaInstance copy = plugin.getArenaInstanceManager().createProvisionedInstance(
                 arena.getId(), 0, 1, new ArenaStructureSize(8, 8, 8));
         Location location = new Location(server.addSimpleWorld("generated_guard_world"), 0, 64, 0);
@@ -111,11 +114,54 @@ class DuelsIntegrationTest
     }
 
     @Test
+    void dynamicSourceIsNeverAllocatedAsAPlayableCopy()
+    {
+        WorldMock world = server.addSimpleWorld("exclusive_modes_world");
+        Arena staticArena = plugin.getArenaManager().createArena("Built", ArenaProvisioningMode.STATIC);
+        Arena dynamicArena = plugin.getArenaManager().createArena("Copied", ArenaProvisioningMode.DYNAMIC);
+        ArenaInstance built = plugin.getArenaInstanceManager().createInstance(staticArena.getId());
+        ArenaInstance source = plugin.getArenaInstanceManager().createSource(dynamicArena.getId());
+        built.setSpawn1(new Location(world, 0, 64, 0));
+        built.setSpawn2(new Location(world, 5, 64, 5));
+        source.setSpawn1(new Location(world, 20, 64, 20));
+        source.setSpawn2(new Location(world, 25, 64, 25));
+        plugin.getArenaInstanceManager().save(built);
+        plugin.getArenaInstanceManager().save(source);
+
+        assertEquals(0, plugin.getArenaInstanceManager().countReady(dynamicArena.getId()));
+        ArenaAllocationResult dynamicResult = plugin.getArenaAllocator().allocate(ArenaSelection.specific(dynamicArena.getId())).join();
+        assertEquals(ArenaAllocationResult.Status.TEMPLATE_UNAVAILABLE, dynamicResult.status());
+        ArenaAllocationResult staticResult = plugin.getArenaAllocator().allocate(ArenaSelection.specific(staticArena.getId())).join();
+        assertEquals(built.getId(), staticResult.instance().getId());
+        assertThrows(IllegalStateException.class, () -> plugin.getArenaInstanceManager().createInstance(dynamicArena.getId()));
+        assertThrows(IllegalStateException.class, () -> plugin.getArenaInstanceManager().createSource(dynamicArena.getId()));
+    }
+
+    @Test
+    void existingSingleCopyCanBecomeDynamicSourceWithoutDeletingItsSetup()
+    {
+        WorldMock world = server.addSimpleWorld("source_conversion_world");
+        Arena arena = plugin.getArenaManager().createArena("Old hybrid");
+        ArenaInstance copy = plugin.getArenaInstanceManager().createInstance(arena.getId());
+        Location spawn = new Location(world, 4, 65, 4);
+        copy.setSpawn1(spawn);
+        copy.setSpawn2(new Location(world, 9, 65, 9));
+        plugin.getArenaInstanceManager().save(copy);
+
+        assertTrue(plugin.getArenaInstanceManager().convertToDynamicSource(arena.getId(), copy.getId()));
+        assertEquals(ArenaProvisioningMode.DYNAMIC, arena.getProvisioningMode());
+        assertTrue(copy.isSource());
+        assertEquals(spawn, copy.getSpawn1());
+        assertEquals(0, plugin.getArenaInstanceManager().countFree(arena.getId()));
+        assertFalse(plugin.getArenaInstanceManager().convertToDynamicSource(arena.getId(), copy.getId()));
+    }
+
+    @Test
     void structureCaptureUsesInclusiveSelectionSize() throws IOException
     {
         WorldMock world = server.addSimpleWorld("inclusive_capture_world");
-        Arena arena = plugin.getArenaManager().createArena("Temple");
-        ArenaInstance instance = plugin.getArenaInstanceManager().createInstance(arena.getId());
+        Arena arena = plugin.getArenaManager().createArena("Temple", ArenaProvisioningMode.DYNAMIC);
+        ArenaInstance instance = plugin.getArenaInstanceManager().createSource(arena.getId());
         instance.setSpawn1(new Location(world, 11, 65, 21));
         instance.setSpawn2(new Location(world, 12, 65, 22));
         instance.setBoundsCorner1(new Location(world, 10, 64, 20));

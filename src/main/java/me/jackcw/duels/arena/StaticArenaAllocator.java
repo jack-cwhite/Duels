@@ -56,7 +56,7 @@ public final class StaticArenaAllocator implements ArenaAllocator
             if (requestedArenaId != null && instance.getArenaId() != requestedArenaId)
                 continue;
 
-            if (allocated.contains(instance.getId()) || !instance.isReady())
+            if (allocated.contains(instance.getId()) || !arenaInstanceManager.isPlayable(instance) || !instance.isReady())
                 continue;
 
             Arena arena = arenaManager.getArena(instance.getArenaId());

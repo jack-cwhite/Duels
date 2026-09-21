@@ -37,4 +37,17 @@ class ArenaInstanceSerializerTest
         ArenaInstanceSerializer serializer = new ArenaInstanceSerializer(new SerializerManager());
         assertThrows(IllegalArgumentException.class, () -> serializer.deserialize(2, Map.of("arenaId", 1, "dynamic", Map.of())));
     }
+
+    @Test
+    void nonPlayableSourceRoundTripsWithoutGeneratedMetadata()
+    {
+        ArenaInstanceSerializer serializer = new ArenaInstanceSerializer(new SerializerManager());
+        ArenaInstance source = new ArenaInstance(8, 3);
+        source.markSource();
+
+        ArenaInstance restored = serializer.deserialize(8, serializer.serialize(source));
+
+        assertEquals(ArenaInstanceOrigin.SOURCE, restored.getOrigin());
+        assertEquals(null, restored.getDynamicSlotIndex());
+    }
 }

@@ -48,8 +48,14 @@ public final class ArenaManager
 
     public Arena createArena(String name)
     {
+        return createArena(name, ArenaProvisioningMode.STATIC);
+    }
+
+    public Arena createArena(String name, ArenaProvisioningMode mode)
+    {
         int id = repository.reserveId();
         Arena arena = new Arena(id, name);
+        arena.setProvisioningMode(mode);
 
         repository.save(arena);
         arenas.put(id, arena);
@@ -119,6 +125,9 @@ public final class ArenaManager
 
         if (arena == null)
             return ArenaMutationResult.notFound();
+
+        if (hasInstancesCheck.test(id) || arena.getTemplateDefinition() != null)
+            return ArenaMutationResult.inUse();
 
         arena.setProvisioningMode(mode);
         save(arena);

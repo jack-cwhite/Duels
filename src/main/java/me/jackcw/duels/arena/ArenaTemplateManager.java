@@ -71,8 +71,11 @@ public final class ArenaTemplateManager
         if (arena == null)
             return ArenaTemplateCaptureResult.failure(ArenaTemplateCaptureResult.Status.ARENA_NOT_FOUND);
 
-        if (arena.getProvisioningMode() == ArenaProvisioningMode.DYNAMIC)
-            return ArenaTemplateCaptureResult.failure(ArenaTemplateCaptureResult.Status.DYNAMIC_MODE_ACTIVE);
+        if (arena.getProvisioningMode() != ArenaProvisioningMode.DYNAMIC || !instance.isSource())
+            return ArenaTemplateCaptureResult.failure(ArenaTemplateCaptureResult.Status.NOT_DYNAMIC_SOURCE);
+
+        if (instanceManager.hasProvisionedInstances(arena.getId()))
+            return ArenaTemplateCaptureResult.failure(ArenaTemplateCaptureResult.Status.TEMPLATE_IN_USE);
 
         if (corner1 == null || corner2 == null)
             return ArenaTemplateCaptureResult.failure(ArenaTemplateCaptureResult.Status.MISSING_CAPTURE_CORNERS);
@@ -152,8 +155,7 @@ public final class ArenaTemplateManager
     {
         Arena arena = arenaManager.getArena(arenaId);
 
-        if (arena == null || arena.getTemplateDefinition() == null || arena.getProvisioningMode() == ArenaProvisioningMode.DYNAMIC
-                || instanceManager.hasProvisionedInstances(arenaId))
+        if (arena == null || arena.getTemplateDefinition() == null || instanceManager.hasProvisionedInstances(arenaId))
             return false;
 
         Path file = getStructurePath(arena.getTemplateDefinition());

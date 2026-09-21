@@ -14,6 +14,8 @@ public record ArenaTemplateCaptureResult(Status status, ArenaTemplateDefinition 
         INSTANCE_NOT_FOUND,
         INSTANCE_IN_USE,
         PROVISIONED_SOURCE,
+        NOT_DYNAMIC_SOURCE,
+        TEMPLATE_IN_USE,
         DYNAMIC_MODE_ACTIVE,
         MISSING_CAPTURE_CORNERS,
         INSTANCE_NOT_READY,
@@ -42,6 +44,8 @@ public record ArenaTemplateCaptureResult(Status status, ArenaTemplateDefinition 
             case INSTANCE_NOT_FOUND -> "the arena instance no longer exists";
             case INSTANCE_IN_USE -> "that instance is hosting a match";
             case PROVISIONED_SOURCE -> "capture from a hand-built source instance, not a generated copy";
+            case NOT_DYNAMIC_SOURCE -> "this arena must be DYNAMIC and this copy must be its source";
+            case TEMPLATE_IN_USE -> "retire generated copies before recapturing the source";
             case DYNAMIC_MODE_ACTIVE -> "switch the arena to STATIC before replacing its template";
             case MISSING_CAPTURE_CORNERS -> "set both structure capture corners first";
             case INSTANCE_NOT_READY -> "set both player spawns first";

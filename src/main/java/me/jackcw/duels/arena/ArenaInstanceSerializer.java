@@ -55,10 +55,20 @@ public final class ArenaInstanceSerializer implements RepositorySerializer<Arena
 
         ArenaInstance instance = new ArenaInstance(id, arenaId.intValue());
 
-        if (map.get("origin") instanceof String origin && ArenaInstanceOrigin.PROVISIONED.name().equals(origin))
-            deserializeProvisioned(instance, map.get("dynamic"));
+        if (map.get("origin") instanceof String origin)
+        {
+            ArenaInstanceOrigin parsed;
+            try { parsed = ArenaInstanceOrigin.valueOf(origin); }
+            catch (IllegalArgumentException exception) { throw new IllegalArgumentException("Unknown arena instance origin '" + origin + "'", exception); }
+            if (parsed == ArenaInstanceOrigin.PROVISIONED)
+                deserializeProvisioned(instance, map.get("dynamic"));
+            else if (map.containsKey("dynamic"))
+                throw new IllegalArgumentException("Only generated copies may have dynamic metadata");
+            else if (parsed == ArenaInstanceOrigin.SOURCE)
+                instance.markSource();
+        }
         else if (map.containsKey("dynamic"))
-            throw new IllegalArgumentException("Manual arena instances cannot have dynamic metadata");
+            throw new IllegalArgumentException("Only generated copies may have dynamic metadata");
 
         instance.setSpawn1(serializerManager.deserialize(map.get("spawn1"), Location.class));
         instance.setSpawn2(serializerManager.deserialize(map.get("spawn2"), Location.class));

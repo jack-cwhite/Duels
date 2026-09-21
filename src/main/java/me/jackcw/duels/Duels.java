@@ -404,7 +404,8 @@ public class Duels extends JavaPlugin
     {
         kitManager = new KitManager(kitRepository);
         arenaManager = new ArenaManager(arenaRepository);
-        arenaInstanceManager = new ArenaInstanceManager(arenaInstanceRepository);
+        arenaInstanceManager = new ArenaInstanceManager(arenaInstanceRepository, arenaManager);
+        arenaInstanceManager.migrateLegacyDynamicSources(getLogger());
         arenaTemplateManager = new ArenaTemplateManager(this, new PaperArenaStructureProvider());
         dynamicArenaSlotManager = new DynamicArenaSlotManager(this);
         dynamicArenaWorldManager = new DynamicArenaWorldManager(dynamicArenaSlotManager);

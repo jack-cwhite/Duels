@@ -58,6 +58,18 @@ public final class ArenaInstance
         return origin == ArenaInstanceOrigin.PROVISIONED;
     }
 
+    public boolean isSource()
+    {
+        return origin == ArenaInstanceOrigin.SOURCE;
+    }
+
+    public void markSource()
+    {
+        if (isProvisioned())
+            throw new IllegalStateException("A generated arena copy cannot become a source");
+        origin = ArenaInstanceOrigin.SOURCE;
+    }
+
     public Integer getDynamicSlotIndex()
     {
         return dynamicSlotIndex;

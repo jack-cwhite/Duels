@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.IntPredicate;
+import java.util.logging.Logger;
 
 /**
  * Owns the registered physical copies of every arena template.
@@ -22,12 +23,14 @@ import java.util.function.IntPredicate;
 public final class ArenaInstanceManager
 {
     private final YamlRepository<ArenaInstance> repository;
+    private final ArenaManager arenaManager;
     private final Map<Integer, ArenaInstance> instances = new HashMap<>();
     private IntPredicate activeCheck = id -> false;
 
-    public ArenaInstanceManager(YamlRepository<ArenaInstance> repository)
+    public ArenaInstanceManager(YamlRepository<ArenaInstance> repository, ArenaManager arenaManager)
     {
         this.repository = repository;
+        this.arenaManager = arenaManager;
 
         for (ArenaInstance instance : repository.findAll())
             instances.put(instance.getId(), instance);
@@ -45,6 +48,9 @@ public final class ArenaInstanceManager
 
     public ArenaInstance createInstance(int arenaId)
     {
+        Arena arena = arenaManager.getArena(arenaId);
+        if (arena == null || arena.getProvisioningMode() != ArenaProvisioningMode.STATIC)
+            throw new IllegalStateException("Only STATIC arenas can register hand-built playable copies");
         int id = repository.reserveId();
         ArenaInstance instance = new ArenaInstance(id, arenaId);
 
@@ -56,11 +62,81 @@ public final class ArenaInstanceManager
 
     public ArenaInstance createProvisionedInstance(int arenaId, int slotIndex, int templateRevision, ArenaStructureSize structureSize)
     {
+        Arena arena = arenaManager.getArena(arenaId);
+        if (arena == null || arena.getProvisioningMode() != ArenaProvisioningMode.DYNAMIC)
+            throw new IllegalStateException("Only DYNAMIC arenas can provision copies");
         int id = repository.reserveId();
         ArenaInstance instance = ArenaInstance.provisioned(id, arenaId, slotIndex, templateRevision, structureSize);
         repository.save(instance);
         instances.put(id, instance);
         return instance;
+    }
+
+    public ArenaInstance createSource(int arenaId)
+    {
+        Arena arena = arenaManager.getArena(arenaId);
+        if (arena == null || arena.getProvisioningMode() != ArenaProvisioningMode.DYNAMIC || getSource(arenaId) != null
+                || getInstancesForArena(arenaId).stream().anyMatch(instance -> instance.getOrigin() == ArenaInstanceOrigin.MANUAL))
+            throw new IllegalStateException("A DYNAMIC arena may have only one source");
+        int id = repository.reserveId();
+        ArenaInstance source = new ArenaInstance(id, arenaId);
+        source.markSource();
+        save(source);
+        return source;
+    }
+
+    public ArenaInstance getSource(int arenaId)
+    {
+        for (ArenaInstance instance : instances.values())
+            if (instance.getArenaId() == arenaId && instance.isSource())
+                return instance;
+        return null;
+    }
+
+    public void promoteToSource(ArenaInstance instance)
+    {
+        if (instance == null || instance.isProvisioned() || getSource(instance.getArenaId()) != null)
+            throw new IllegalStateException("Cannot promote this copy to a source");
+        instance.markSource();
+        save(instance);
+    }
+
+    /** Upgrade the old hybrid DYNAMIC arena: its single manual copy becomes a non-playable source. */
+    public void migrateLegacyDynamicSources(Logger logger)
+    {
+        for (Arena arena : arenaManager.getArenas())
+        {
+            if (arena.getProvisioningMode() != ArenaProvisioningMode.DYNAMIC || getSource(arena.getId()) != null)
+                continue;
+            List<ArenaInstance> manual = getInstancesForArena(arena.getId()).stream()
+                    .filter(instance -> instance.getOrigin() == ArenaInstanceOrigin.MANUAL).toList();
+            if (manual.size() == 1)
+            {
+                promoteToSource(manual.getFirst());
+                logger.info("Migrated DYNAMIC arena #" + arena.getId() + " copy #" + manual.getFirst().getId() + " to a non-playable source");
+            }
+            else if (manual.size() > 1)
+                logger.warning("DYNAMIC arena #" + arena.getId() + " has multiple legacy manual copies; none will be playable. Choose one source and resolve the others before capture.");
+        }
+    }
+
+    /** Explicit, non-destructive upgrade for an existing one-copy STATIC arena. */
+    public boolean convertToDynamicSource(int arenaId, int sourceId)
+    {
+        Arena arena = arenaManager.getArena(arenaId);
+        ArenaInstance source = instances.get(sourceId);
+        if (arena == null || arena.getProvisioningMode() != ArenaProvisioningMode.STATIC || source == null
+                || source.getArenaId() != arenaId || source.getOrigin() != ArenaInstanceOrigin.MANUAL
+                || isActive(sourceId) || arena.getTemplateDefinition() != null
+                || getInstancesForArena(arenaId).size() != 1)
+            return false;
+
+        // Save mode first: a crash between writes leaves the manual copy
+        // non-playable, and startup migration finishes the promotion.
+        arena.setProvisioningMode(ArenaProvisioningMode.DYNAMIC);
+        arenaManager.save(arena);
+        promoteToSource(source);
+        return true;
     }
 
     public void setDynamicState(ArenaInstance instance, DynamicArenaState state)
@@ -81,6 +157,13 @@ public final class ArenaInstanceManager
 
         if (activeCheck.test(id))
             return ArenaInstanceMutationResult.inUse();
+
+        if (instance.isSource())
+        {
+            Arena arena = arenaManager.getArena(instance.getArenaId());
+            if (arena != null && (arena.getTemplateDefinition() != null || hasProvisionedInstances(instance.getArenaId())))
+                return ArenaInstanceMutationResult.inUse();
+        }
 
         // Only the retirement flow may remove a generated copy; it clears the
         // physical slot before freeing the persisted allocation.
@@ -188,7 +271,7 @@ public final class ArenaInstanceManager
         int ready = 0;
 
         for (ArenaInstance instance : instances.values())
-            if (instance.getArenaId() == arenaId && instance.isReady())
+            if (instance.getArenaId() == arenaId && isPlayable(instance) && instance.isReady())
                 ready++;
 
         return ready;
@@ -203,7 +286,7 @@ public final class ArenaInstanceManager
         int free = 0;
 
         for (ArenaInstance instance : instances.values())
-            if (instance.getArenaId() == arenaId && instance.isReady() && !isActive(instance.getId()))
+            if (instance.getArenaId() == arenaId && isPlayable(instance) && instance.isReady() && !isActive(instance.getId()))
                 free++;
 
         return free;
@@ -224,6 +307,14 @@ public final class ArenaInstanceManager
             if (instance.getArenaId() == arenaId && instance.isProvisioned())
                 return true;
         return false;
+    }
+
+    public boolean isPlayable(ArenaInstance instance)
+    {
+        Arena arena = arenaManager.getArena(instance.getArenaId());
+        return arena != null && ((arena.getProvisioningMode() == ArenaProvisioningMode.STATIC
+                && instance.getOrigin() == ArenaInstanceOrigin.MANUAL)
+                || (arena.getProvisioningMode() == ArenaProvisioningMode.DYNAMIC && instance.isProvisioned()));
     }
 
     public void save(ArenaInstance instance)

@@ -1,8 +1,9 @@
 package me.jackcw.duels.arena;
 
-/** Whether a physical arena was manually registered or provisioned by Duels. */
+/** A playable hand-built copy, a non-playable capture source, or a generated copy. */
 public enum ArenaInstanceOrigin
 {
     MANUAL,
+    SOURCE,
     PROVISIONED
 }
