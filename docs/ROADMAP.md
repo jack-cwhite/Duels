@@ -1334,9 +1334,9 @@ flag.
 
 ## Phase 4B - Dynamic Arena Provisioning `[~]` (v2)
 
-**Status:** `[~]` Code complete through the dynamic provisioning, recovery, and
-command-selection paths; the remaining Phase 4B work is product-surface parity,
-target-Paper manual verification, and a focused hardening/review pass.
+**Status:** `[~]` Provisioning, recovery, command selection, and the first GUI
+parity pass are implemented. The remaining Phase 4B work is target-Paper manual
+verification and a focused hardening/review pass based on its findings.
 
 The complete implementation architecture, lifecycle, persistence model, failure
 handling, UX, incremental build order, and test plan are defined in
@@ -1406,8 +1406,13 @@ there, computes real spawn/bounds from the offsets, and registers a normal
    claims rather than prematurely consumes a delayed challenge.
 7. `[x]` Dirty/provisioning startup rebuild, bounded retirement cleanup, and failed
    instance retry command.
-8. `[~]` Complete GUI parity and perform the target-Paper manual/capacity/restart test
-   matrix before calling Phase 4B fully done.
+8. `[x]` Add player arena-selection GUI and admin menu controls for mode, capture
+   corners/template, dynamic health/retry, and safe retirement. Structure preview
+   no longer depends on gameplay bounds; mode activation checks the captured
+   template rather than requiring the arena to already be dynamic.
+9. `[~]` Run the ordered target-Paper in-game, capacity, and restart suite in
+   `docs/IN_GAME_TEST_PLAN.md`, then do a focused hardening review before Phase 4B
+   sign-off.
 
 ### Resolved implementation decisions
 

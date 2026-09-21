@@ -44,8 +44,9 @@ Verification at the last handoff:
 
 ## Current intentional limitations and remaining verification
 
-- Selected-arena challenges are implemented by command. A player-facing arena
-  selection GUI and equivalent dynamic admin GUI controls remain Phase 4B polish.
+- Selected-arena challenges have both command and player GUI paths. Dynamic
+  admin setup has GUI controls for mode, capture corners/template, health,
+  retry, and retirement; real-Paper validation is still pending.
 - Dynamic capture/provisioning/recovery is implemented but still requires the
   complete real-Paper run in `docs/IN_GAME_TEST_PLAN.md` before sign-off.
 - The baseline reset is block-change rollback. The optional WorldEdit/FAWE
@@ -97,22 +98,23 @@ are claimed during preparation rather than consumed early. Provisioned instances
 health states and startup rebuilds interrupted/dirty copies; retirement is bounded and
 failed copies can be retried.
 
-The remaining Phase 4B work is GUI parity, target-Paper manual verification (capture,
-paste, capacity, shutdown/restart, spectator and reset paths), and a focused hardening
-review. See `docs/PHASE_4B_DESIGN.md` and `docs/ROADMAP.md` for the authoritative detail.
+The remaining Phase 4B work is target-Paper manual verification (capture,
+paste, capacity, shutdown/restart, spectator and reset paths), followed by a focused
+hardening review. See `docs/PHASE_4B_DESIGN.md` and `docs/ROADMAP.md`.
 
-Next code-change notes from Jack's in-game setup review:
+The latest GUI/setup change from Jack's in-game review:
 
-- The arena/instance GUI currently has no controls or guidance for choosing the two
-  structure capture corners. Add a GUI-accessible capture setup flow; keep structure
-  corners distinct from gameplay bounds and explain that static-only arenas do not
-  need capture corners at all.
-- Edit-mode structure particles currently depend on gameplay bounds being set because
-  `ArenaEditManager.tickBoundsParticles` returns early when `instance.hasBounds()` is
-  false. Fix that preview independently of any other setup changes.
-- Make setup/readiness text distinguish required spawns, optional-but-useful gameplay
-  bounds for manual instances, and structure capture corners required only to create
-  a dynamic template. Do not change gameplay logic until the ongoing test run finishes.
+- The arena/instance GUI now explains and controls the per-arena STATIC/DYNAMIC
+  choice; manual instances need spawns to play, while gameplay bounds support
+  confinement/rollback and structure corners are only needed for dynamic capture.
+- Capture corners are temporary per-admin/per-instance drafts shared between the
+  GUI and edit tools, kept on leaving edit mode but cleared at disconnect or when
+  another instance is selected. They are never persisted as arena configuration.
+- Orange structure preview is independent of gameplay bounds. The GUI now captures
+  templates and guards generated-copy retirement. `/duel select <player>` exposes
+  the selected-arena challenge flow to players without requiring IDs.
+- The acceptance suite was reordered into in-game flow. Existing checked boxes
+  from Jack's prior pass were preserved; changed behaviour requires rechecking.
 
 ## Recommended V2 order
 

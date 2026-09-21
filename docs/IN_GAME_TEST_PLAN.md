@@ -8,12 +8,19 @@ development phase. It includes command behaviour, every current GUI, static and
 dynamic arenas, match lifecycle, recovery, statistics, permissions, and failure
 handling.
 
+Follow the sections from top to bottom. Review each GUI when the corresponding
+feature first appears; there is no separate "open every menu" detour. Keep the
+server running between sections unless a step specifically says to restart.
+
 `docs/V1_TEST_PLAN.md` remains the historical V1 sign-off. You do not need to
 run it separately when you run this document.
 
 ## How to record results
 
 Tick each item as it passes. For a failure, record:
+
+Existing `[X]` marks are from the earlier test pass. Recheck any menu or command
+whose behaviour changed in this build; do not treat an old tick as new sign-off.
 
 ```text
 Test:
@@ -58,6 +65,11 @@ Kit 2: Archer (bow, arrows, distinct armor)
 Kit 3: Destruction (pickaxe, blocks, TNT, flint and steel)
 ```
 
+An **arena** is the named match choice; an **instance** is a real physical
+copy. StaticArena has only the two copies you build. DynamicArena starts with
+one hand-built source copy and can create more once you capture its structure
+and turn on DYNAMIC mode. Both arenas can coexist on one server.
+
 ## 1. Build, install, and startup
 
 ```powershell
@@ -67,34 +79,31 @@ cd C:\Users\jncwh\Development\Duels
 mvn clean package
 ```
 
-- [ ] JCore and Duels builds finish without test failures.
-- [ ] Install the newly built shaded Duels jar; do not install JCore as a
+- [X] JCore and Duels builds finish without test failures.
+- [X] Install the newly built shaded Duels jar; do not install JCore as a
   separate server plugin.
-- [ ] Duels enables with no exception or severe log entry.
-- [ ] `plugins/Duels/` contains the normal configuration files.
-- [ ] On a clean static-only data folder there is no `dynamic-layout.yml`,
+- [X] Duels enables with no exception or severe log entry.
+- [X] `plugins/Duels/` contains the normal configuration files.
+- [X] On a clean static-only data folder there is no `dynamic-layout.yml`,
   `structures/` directory, or `duels_dynamic_arenas` world yet.
-- [ ] `/duel` shows player help.
-- [ ] `/duels` opens the admin menu for an operator.
-- [ ] A non-operator can use `/duel` but cannot use `/duels` or admin
+- [X] `/duel` shows player help.
+- [X] `/duels` opens the admin menu for an operator.
+- [X] A non-operator can use `/duel` but cannot use `/duels` or admin
   subcommands.
-- [ ] `/ds` and `/fight` aliases behave like `/duels` and `/duel`.
-- [ ] Player/admin help text lists the current commands and syntax, including
+- [X] `/ds` and `/fight` aliases behave like `/duels` and `/duel`.
+- [X] Player/admin help text lists the current commands and syntax, including
   selected-arena challenges and dynamic template/provisioning operations.
-- [ ] Tab completion and incorrect-usage messages are sensible for the main
+- [X] Tab completion and incorrect-usage messages are sensible for the main
   command branches.
 
-## 2. Global GUI visual review
+## 2. Admin menu and setup GUI review
 
 Review each menu at normal GUI scale and at one smaller/larger client GUI scale.
 
-- [ ] Admin main menu.
-- [ ] Arena main, arena list, arena detail, instance list, and instance detail.
-- [ ] Allowed-kits menu.
-- [ ] Kit main, kit list, kit detail, and kit editor.
-- [ ] Kit selector and kit preview during a match.
-- [ ] Live-duels spectator menu.
-- [ ] Statistics leaderboard.
+- [X] Admin main menu.
+- [X] Arena main, arena list, arena detail, instance list, and instance detail.
+- [X] Allowed-kits menu.
+- [X] Kit main, kit list, kit detail, and kit editor.
 - [ ] Confirmation menu and chat-input prompts.
 - [ ] Titles fit; items are aligned; empty space is intentional; colours and
   capitalization are consistent.
@@ -103,14 +112,14 @@ Review each menu at normal GUI scale and at one smaller/larger client GUI scale.
 - [ ] Item lore is accurate, readable, and does not claim an unimplemented action.
 - [ ] Back, Previous, Next, Confirm, and Cancel work and return to the expected
   parent menu.
-- [ ] Create enough arenas/kits/live matches to force pagination; page controls,
+- [ ] Create enough arenas/kits to force admin-list pagination; page controls,
   page indicator, and entry clicks remain correct on every page.
 - [ ] Shift-click, number keys, offhand swap, drag, double-click, and Q/drop do
   not steal menu items or inject items into protected menus.
 
-Known current Phase 4B gap: provisioning mode, template capture/status, dynamic
-health, retry, and retirement are command-driven. Their absence from the admin
-GUI should be recorded as GUI-parity work, not as a runtime regression.
+The arena detail menu should now expose STATIC/DYNAMIC mode and captured-template
+status/clear. The instance menu should expose structure capture corners, capture,
+health, retry, and safe deletion/retirement. Record any missing or confusing item.
 
 ## 3. Arena templates and manual instances
 
@@ -123,6 +132,10 @@ GUI should be recorded as GUI-parity work, not as a runtime regression.
 
 - [ ] Arena list command and GUI show the same name, ID, enabled state, total
   instances, ready count, and free count.
+- [ ] A new arena starts in STATIC mode. Its two hand-built copies require only
+  both spawns to host a duel; structure capture is not required.
+- [ ] Arena detail GUI explains STATIC vs DYNAMIC and allows switching, with
+  DYNAMIC refused until a structure has been captured.
 - [ ] A new instance is not ready before both spawns are set.
 - [ ] Set both spawns using `/duels arena instance setspawn <instanceId> <1|2>`.
 - [ ] Set both spawns through the instance GUI; left click sets and right click
@@ -150,29 +163,18 @@ GUI should be recorded as GUI-parity work, not as a runtime regression.
 - [ ] Structure corner 1/2 tools set and teleport correctly.
 - [ ] Orange/yellow particles distinguish the structure capture box from aqua
   gameplay bounds.
-- [ ] Structure corners remain session-only: exit and re-enter edit mode and
-  confirm they must be selected again.
+- [ ] Orange/yellow capture particles appear even before gameplay bounds are set.
+- [ ] Instance GUI structure-corner buttons set corners from the player's
+  current location; right click teleports to the selected corner.
+- [ ] Structure-corner draft carries between the GUI and edit tools for the
+  same instance, but clears on disconnect or when selecting another instance.
 - [ ] Inventory opening/editing, item drop, inventory drag, number keys, and
   offhand swap cannot lose or duplicate the edit tools.
 - [ ] Death in edit mode does not drop tools; respawn restores the tools.
 - [ ] Disconnecting or using Exit restores the original hotbar/offhand exactly.
 - [ ] Console cannot use player-only location/edit commands.
 
-## 5. Boundary policies
-
-- [ ] Command and GUI both configure `WARNING`, `SOFT_RETURN`, and `FORFEIT`.
-- [ ] GUI left click cycles modes and right click requests grace seconds.
-- [ ] Invalid chat input changes nothing and provides useful feedback.
-- [ ] `WARNING`: leaving bounds warns but does not move or forfeit the player.
-- [ ] `SOFT_RETURN`: leaving bounds returns the player safely.
-- [ ] `FORFEIT`: leaving for the whole grace period loses the duel.
-- [ ] Re-entering before the grace expires cancels a pending forfeit.
-- [ ] Boundary mode changes during a running match take effect consistently.
-- [ ] A reversed pair of bounds corners behaves exactly like normally ordered corners.
-- [ ] Bounds editing is refused while that physical instance is allocated and
-  succeeds after reset/release.
-
-## 6. Kits and kit editor
+## 5. Kits and kit editor
 
 ```text
 /duels kit create Sword
@@ -199,11 +201,46 @@ GUI should be recorded as GUI-parity work, not as a runtime regression.
 - [ ] Allowed-kits GUI and `/duels arena allowkit <arenaId> <kitId>` agree.
 - [ ] Delete confirmation cancel/confirm works and IDs remain monotonic.
 
+## 6. Dynamic template capture
+
+Build DynamicArena's manual source instance with blocks/block entities such as
+chests, signs, doors, water, and redstone. Configure both spawns and gameplay
+bounds. Make the structure capture box larger than gameplay bounds so it also
+contains decorative walls.
+
+```text
+/duels arena create DynamicArena
+/duels arena instance create <dynamicArenaId>
+/duels arena instance editmode <sourceInstanceId>
+# Set both orange/yellow structure corners in-world.
+/duels arena template capture <sourceInstanceId>
+/duels arena template info <dynamicArenaId>
+/duels arena provisioning <dynamicArenaId> DYNAMIC
+```
+
+- [ ] Capture is refused until both spawns, both gameplay bounds, and both
+  structure corners exist.
+- [ ] Capture is refused if the capture box excludes either spawn or either
+  gameplay-bounds corner.
+- [ ] Capture is refused across different worlds.
+- [ ] GUI capture uses the temporary two-corner draft, reports the same errors
+  as the command, and shows the captured revision/size in arena detail.
+- [ ] Oversized capture is refused according to `max-template-volume`.
+- [ ] Successful capture reports revision and dimensions.
+- [ ] `plugins/Duels/structures/arena-<id>-r<revision>.nbt` exists.
+- [ ] `/duels arena template info` reports the same revision/size.
+- [ ] Dynamic mode is refused before a valid template exists and succeeds after capture.
+- [ ] Dynamic mode can be switched through both command and arena-detail GUI;
+  the GUI explains that existing manual copies are used before generation.
+- [ ] Recapture while DYNAMIC is refused without replacing the saved revision.
+
 ## 7. Challenges and arena selection
 
 - [ ] Self-challenge is refused.
 - [ ] `/duel P2` and `/duel challenge P2` both create an Any Arena challenge.
 - [ ] `/duel challenge P2 <staticArenaId>` names the selected arena to both players.
+- [ ] `/duel select P2` opens an arena-choice GUI with Any and enabled arenas;
+  clicking one sends the matching challenge. Disabled arenas do not appear.
 - [ ] A selected challenge never silently falls back to another arena.
 - [ ] A nonexistent or disabled selected arena is refused.
 - [ ] A second challenge for the same pair is refused.
@@ -231,6 +268,7 @@ Set `kit-selection-time: 10` for convenience and restart.
   gamemode, and flight state are absent during the match but preserved for restore.
 - [ ] Players can move during kit selection but cannot damage each other.
 - [ ] Kit selector opens only when allowed kits exist.
+- [X] Kit selector and kit preview visual layout reviewed during a match.
 - [ ] Left click selects; right click previews; Back returns; `/duel kit` reopens.
 - [ ] No choice applies the first allowed kit when selection ends.
 - [ ] Selector closes when selection ends; stale clicks cannot change the kit.
@@ -258,7 +296,47 @@ fangs, fire tick, fall, lava, drowning, void, and `/kill`.
   selection or grace.
 - [ ] Death drops from duel inventory are cleared and cannot be collected.
 
-## 10. Player-state restoration
+## 10. Boundary policies
+
+- [ ] Command and GUI both configure `WARNING`, `SOFT_RETURN`, and `FORFEIT`.
+- [ ] GUI left click cycles modes and right click requests grace seconds.
+- [ ] Invalid chat input changes nothing and provides useful feedback.
+- [ ] `WARNING`: leaving bounds warns but does not move or forfeit the player.
+- [ ] `SOFT_RETURN`: leaving bounds returns the player safely.
+- [ ] `FORFEIT`: leaving for the whole grace period loses the duel.
+- [ ] Re-entering before the grace expires cancels a pending forfeit.
+- [ ] Boundary mode changes during a running match take effect consistently.
+- [ ] A reversed pair of bounds corners behaves exactly like normally ordered corners.
+- [ ] Bounds editing is refused while that physical instance is allocated and
+  succeeds after reset/release.
+
+## 11. Spectators
+
+- [ ] `/duel spectate` reports no matches when none exist.
+- [X] Live-duels spectator menu visual layout reviewed with a match running.
+- [ ] With enough live matches, spectator-menu pagination works.
+- [ ] With a match, `/duel spectate` lists it and clicking joins it.
+- [ ] `/duel spectate <player>` joins that player's match directly.
+- [ ] Spectator state is saved; gamemode becomes Spectator and combat cannot be influenced.
+- [ ] Spectator is confined to arena bounds regardless of combatant boundary mode.
+- [ ] Camera-lock may target either combatant but not unrelated entities/players.
+- [ ] `/duel leave` restores exact original state/location.
+- [ ] A match with no bounds cannot be spectated.
+- [ ] Combatants cannot spectate; duplicate spectating is refused.
+- [ ] Match end auto-ejects and restores all spectators.
+- [ ] Two spectators operate independently.
+- [ ] Disconnect/reconnect restores a spectator, including when the watched
+  match ends while the spectator is offline.
+- [ ] Repeat direct and menu spectating for a dynamically provisioned arena.
+
+## 12. Advancement suppression
+
+- [ ] During a duel, perform actions that would grant advancement criteria;
+  no toast, chat broadcast, or repeat spam occurs.
+- [ ] The advancement screen/command confirms duel-earned criteria were not granted.
+- [ ] The same advancement can be earned normally outside a duel.
+
+## 13. Player-state restoration
 
 Before each case give both players distinctive inventories, armor, offhand,
 XP, effects, health, location, gamemode, flight settings, and movement speeds.
@@ -274,7 +352,7 @@ XP, effects, health, location, gamemode, flight settings, and movement speeds.
 - [ ] No duelled kit item, effect, flight flag, or altered attribute leaks into
   the restored state.
 
-## 11. Static allocation and concurrency
+## 14. Static allocation and concurrency
 
 With two ready instances of StaticArena and at least four players:
 
@@ -288,7 +366,7 @@ With two ready instances of StaticArena and at least four players:
 - [ ] Arena-level rename, boundary, and allowed-kit behaviour matches the
   intended live/snapshot semantics rather than corrupting the running match.
 
-## 12. Block rollback and debris cleanup
+## 15. Block rollback and debris cleanup
 
 Use Destruction kit in an arena with bounds. Leave blocks immediately outside
 the bounds as controls.
@@ -304,61 +382,6 @@ the bounds as controls.
 - [ ] `stop` during a damaged match and restart does not leave Duels in an
   invalid allocation state.
 
-## 13. Spectators
-
-- [ ] `/duel spectate` reports no matches when none exist.
-- [ ] With a match, `/duel spectate` lists it and clicking joins it.
-- [ ] `/duel spectate <player>` joins that player's match directly.
-- [ ] Spectator state is saved; gamemode becomes Spectator and combat cannot be influenced.
-- [ ] Spectator is confined to arena bounds regardless of combatant boundary mode.
-- [ ] Camera-lock may target either combatant but not unrelated entities/players.
-- [ ] `/duel leave` restores exact original state/location.
-- [ ] A match with no bounds cannot be spectated.
-- [ ] Combatants cannot spectate; duplicate spectating is refused.
-- [ ] Match end auto-ejects and restores all spectators.
-- [ ] Two spectators operate independently.
-- [ ] Disconnect/reconnect restores a spectator, including when the watched
-  match ends while the spectator is offline.
-- [ ] Repeat direct and menu spectating for a dynamically provisioned arena.
-
-## 14. Advancement suppression
-
-- [ ] During a duel, perform actions that would grant advancement criteria;
-  no toast, chat broadcast, or repeat spam occurs.
-- [ ] The advancement screen/command confirms duel-earned criteria were not granted.
-- [ ] The same advancement can be earned normally outside a duel.
-
-## 15. Dynamic template capture
-
-Build DynamicArena's manual source instance with blocks/block entities such as
-chests, signs, doors, water, and redstone. Configure both spawns and gameplay
-bounds. Make the structure capture box larger than gameplay bounds so it also
-contains decorative walls.
-
-```text
-/duels arena instance editmode <sourceInstanceId>
-# Set both orange/yellow structure corners in-world.
-/duels arena template capture <sourceInstanceId>
-/duels arena template info <dynamicArenaId>
-/duels arena provisioning <dynamicArenaId> DYNAMIC
-```
-
-- [ ] Capture is refused until both spawns, both gameplay bounds, and both
-  structure corners exist.
-- [ ] Capture is refused if the capture box excludes either spawn or either
-  gameplay-bounds corner.
-- [ ] Capture is refused across different worlds.
-- [ ] Capture is refused while the source instance is hosting a match.
-- [ ] Oversized capture is refused according to `max-template-volume`.
-- [ ] Successful capture reports revision and dimensions.
-- [ ] `plugins/Duels/structures/arena-<id>-r<revision>.nbt` exists.
-- [ ] `/duels arena template info` reports the same revision/size.
-- [ ] Dynamic mode is refused before a valid template exists and succeeds after capture.
-- [ ] Recapture while DYNAMIC is refused; switch safely to STATIC first only
-  when no provisioned pool remains.
-- [ ] `template clear` requires the literal `confirm`, is refused while DYNAMIC,
-  and removes metadata/file when safely allowed.
-
 ## 16. Dynamic provisioning and selection
 
 Use four players. Start P1 vs P2 in DynamicArena's manual source instance, then:
@@ -368,10 +391,15 @@ P3: /duel challenge P4 <dynamicArenaId>
 P4: /duel accept P3
 ```
 
+- [ ] Recapturing the source while P1/P2 are playing is refused without changing
+  the saved template.
+
 - [ ] P3/P4 see “Preparing arena…” while work is delayed.
 - [ ] `dynamic-layout.yml` is created only now, with frozen geometry and world UUID.
 - [ ] The configured dynamic void world is created and contains no normal terrain.
 - [ ] A new provisioned instance row is persisted as a distinct instance/slot.
+- [ ] Instance-list GUI identifies generated copies, slot, health state, and
+  whether each copy is ready.
 - [ ] The copied arena includes every block and block entity inside capture bounds.
 - [ ] Decorative blocks outside gameplay bounds but inside capture bounds are present.
 - [ ] Blocks outside capture bounds are absent.
@@ -395,6 +423,8 @@ then start another selected duel while the manual instance is still occupied.
 - [ ] `/duels arena instance delete <provisionedInstanceId>` is refused while active.
 - [ ] Deleting an idle provisioned instance marks it retiring, clears the slot
   in bounded batches, then removes its persisted row.
+- [ ] The same retirement via GUI confirmation clears the physical slot before
+  removing its record; an active copy cannot be retired via GUI.
 - [ ] Another provision cannot use the slot until clearing finishes.
 - [ ] Provisioning after retirement can reuse the now-vacant slot without old blocks.
 - [ ] Manual instance deletion remains immediate and does not clear unrelated world blocks.
@@ -429,11 +459,18 @@ Back up the test data before these tests.
   restart leaves the instance quarantined/FAILED and does not overlap its slot.
 - [ ] Restore the file and run `/duels arena instance retry <instanceId>`; the
   instance rebuilds and becomes ready.
+- [ ] Instance-detail GUI retry works only for a FAILED provisioned copy and
+  reports success/failure without opening a broken copy to matches.
 - [ ] Rename/remove the dynamic world folder while stopped; startup refuses to
   create a replacement over the saved layout and logs a prominent diagnostic.
 - [ ] Restore the correct folder and world UUID; recovery resumes normally.
 - [ ] A duplicate/out-of-range slot edited into `arena-instances.yml` is
   quarantined by startup rather than allowed to overlap another instance.
+- [ ] After all provisioned copies have been retired, switch DynamicArena back
+  to STATIC; it refuses to switch while any generated copy still exists.
+- [ ] `template clear` requires literal `confirm`, and the GUI uses a
+  confirmation screen. Both refuse to clear while DYNAMIC and remove the saved
+  metadata/file only when safe. Do this after the dynamic tests above.
 
 ## 20. Statistics and leaderboard
 
@@ -446,6 +483,7 @@ should be checked separately from completed combat results.
 - [ ] PostgreSQL backend has the same row counts and boolean queries work, if available.
 - [ ] `/duel top` loads asynchronously, displays correct ordering/win totals,
   shows the viewer's record, and remains responsive with no records.
+- [X] Statistics leaderboard visual layout reviewed after recorded matches.
 - [ ] Restart preserves all records without duplication.
 - [ ] Stop an external database during a result write: players restore and the
   arena releases despite failure; one severe log entry contains the complete
@@ -492,5 +530,5 @@ Perform malformed-config tests one at a time and restore the file after each.
   marked BLOCKED with the missing environment recorded.
 - [ ] Every GUI has visual notes, even if the note is “looks good; no change.”
 - [ ] Every failure has a reproducible bug note using the template at the top.
-- [ ] Phase 4B GUI-parity gaps and desired UX changes are collected for the
-  hardening plan before beginning Phase 5.
+- [ ] Any remaining Phase 4B GUI/UX issues are collected for the hardening
+  plan before beginning Phase 5.
