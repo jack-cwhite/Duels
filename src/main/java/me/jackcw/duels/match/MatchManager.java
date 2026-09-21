@@ -24,6 +24,7 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.util.Vector;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -40,6 +41,7 @@ public final class MatchManager
     private final Duels plugin;
     private final Map<UUID, Match> matches = new HashMap<>();
     private final Map<UUID, Location> pendingRespawnRestores = new HashMap<>();
+    private final Set<UUID> pendingPlayers = new HashSet<>();
 
     public MatchManager(Duels plugin)
     {
@@ -72,17 +74,66 @@ public final class MatchManager
 
     private Match startMatch(Player player1, Player player2, Integer requestedArenaId)
     {
-        if (player1 == null || player2 == null || !player1.isOnline() || !player2.isOnline() || player1.getUniqueId().equals(player2.getUniqueId()) || getMatch(player1.getUniqueId()) != null || getMatch(player2.getUniqueId()) != null)
-            return null;
+        MatchStartResult result = startMatchAsync(player1, player2,
+                requestedArenaId == null ? ArenaSelection.any() : ArenaSelection.specific(requestedArenaId)).getNow(null);
+        return result != null && result.status() == MatchStartResult.Status.SUCCESS ? result.match() : null;
+    }
 
-        Optional<ArenaInstance> allocated = requestedArenaId == null
-                ? arenaAllocator.allocate()
-                : arenaAllocator.allocate(requestedArenaId);
+    /**
+     * Reserves the two players before allocation, then changes neither player
+     * until the asynchronous arena operation has completed and been
+     * revalidated on the server thread.
+     */
+    public CompletableFuture<MatchStartResult> startMatchAsync(Player player1, Player player2, ArenaSelection selection)
+    {
+        if (!validPlayers(player1, player2))
+            return CompletableFuture.completedFuture(MatchStartResult.failure(MatchStartResult.Status.INVALID_PLAYERS));
 
-        if (allocated.isEmpty())
-            return null;
+        UUID firstId = player1.getUniqueId();
+        UUID secondId = player2.getUniqueId();
+        if (pendingPlayers.contains(firstId) || pendingPlayers.contains(secondId)
+                || getMatch(firstId) != null || getMatch(secondId) != null)
+            return CompletableFuture.completedFuture(MatchStartResult.failure(MatchStartResult.Status.PLAYERS_BUSY));
 
-        ArenaInstance arenaInstance = allocated.get();
+        pendingPlayers.add(firstId);
+        pendingPlayers.add(secondId);
+
+        return arenaAllocator.allocate(selection).handle((allocation, throwable) -> completeOnMain(() ->
+        {
+            try
+            {
+                if (throwable != null || allocation == null || allocation.status() != ArenaAllocationResult.Status.SUCCESS)
+                    return MatchStartResult.failure(MatchStartResult.Status.ARENA_UNAVAILABLE);
+
+                ArenaInstance instance = allocation.instance();
+                if (!validPlayers(player1, player2) || !pendingPlayers.contains(firstId) || !pendingPlayers.contains(secondId)
+                        || getMatch(firstId) != null || getMatch(secondId) != null)
+                {
+                    arenaAllocator.release(instance);
+                    return MatchStartResult.failure(MatchStartResult.Status.PLAYERS_BUSY);
+                }
+
+                if (instance.isProvisioned())
+                    plugin.getArenaInstanceManager().setDynamicState(instance, DynamicArenaState.DIRTY);
+
+                Match match = commitStartedMatch(instance, player1, player2);
+                return MatchStartResult.success(match);
+            }
+            finally
+            {
+                pendingPlayers.remove(firstId);
+                pendingPlayers.remove(secondId);
+            }
+        })).thenCompose(future -> future);
+    }
+
+    public boolean isPending(UUID playerId)
+    {
+        return pendingPlayers.contains(playerId);
+    }
+
+    private Match commitStartedMatch(ArenaInstance arenaInstance, Player player1, Player player2)
+    {
         Match match = createMatch(arenaInstance, player1, player2);
 
         matches.put(player1.getUniqueId(), match);
@@ -107,6 +158,27 @@ public final class MatchManager
         startPregameCountdown(match, player1, player2, !match.getAvailableKits().isEmpty());
 
         return match;
+    }
+
+    private boolean validPlayers(Player player1, Player player2)
+    {
+        return player1 != null && player2 != null && player1.isOnline() && player2.isOnline()
+                && !player1.getUniqueId().equals(player2.getUniqueId());
+    }
+
+    private CompletableFuture<MatchStartResult> completeOnMain(java.util.concurrent.Callable<MatchStartResult> work)
+    {
+        CompletableFuture<MatchStartResult> future = new CompletableFuture<>();
+        Runnable run = () ->
+        {
+            try { future.complete(work.call()); }
+            catch (Exception exception) { future.completeExceptionally(exception); }
+        };
+        if (Bukkit.isPrimaryThread())
+            run.run();
+        else
+            Bukkit.getScheduler().runTask(plugin, run);
+        return future;
     }
 
     private void initializePlayers(Player player1, Player player2)
@@ -221,6 +293,7 @@ public final class MatchManager
 
     public void shutdown(boolean preservePlayerStates)
     {
+        pendingPlayers.clear();
         for (Match match : new HashSet<>(matches.values()))
             abortMatch(match, preservePlayerStates);
     }
@@ -285,11 +358,31 @@ public final class MatchManager
 
         if (resetStrategy == null)
         {
+            markProvisionedInstanceReady(instance);
             arenaAllocator.release(instance);
             return;
         }
 
-        resetStrategy.reset(instance, () -> arenaAllocator.release(instance));
+        resetStrategy.reset(instance, () ->
+        {
+            markProvisionedInstanceReady(instance);
+            arenaAllocator.release(instance);
+        });
+    }
+
+    private void markProvisionedInstanceReady(ArenaInstance instance)
+    {
+        if (!instance.isProvisioned())
+            return;
+
+        try
+        {
+            plugin.getArenaInstanceManager().setDynamicState(instance, DynamicArenaState.READY);
+        }
+        catch (RuntimeException exception)
+        {
+            LOGGER.log(Level.SEVERE, "Could not mark provisioned arena instance #" + instance.getId() + " ready after reset", exception);
+        }
     }
 
     private void endParticipant(Match match, UUID playerId, UUID winnerId)

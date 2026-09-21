@@ -19,6 +19,7 @@ public enum Message implements MessageKey
     CHALLENGE_CANCELLED_DISCONNECT("duel.cancelled-disconnect"),
     CHALLENGE_EXPIRED("duel.challenge-expired"),
     NO_ARENA_AVAILABLE("duel.no-arena-available"),
+    PREPARING_ARENA("duel.preparing-arena"),
     ALREADY_IN_MATCH("duel.already-in-match"),
     TARGET_IN_MATCH("duel.target-in-match"),
     MATCH_START("duel.match-start"),

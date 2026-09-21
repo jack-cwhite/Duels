@@ -2,6 +2,9 @@ package me.jackcw.duels.commands;
 
 import me.jackcw.duels.Duels;
 import me.jackcw.duels.DuelsSettings;
+import me.jackcw.duels.arena.Arena;
+import me.jackcw.duels.arena.ArenaSelection;
+import me.jackcw.duels.arena.ArenaManager;
 import me.jackcw.duels.challenge.Challenge;
 import me.jackcw.duels.challenge.ChallengeManager;
 import me.jackcw.duels.match.Match;
@@ -27,6 +30,7 @@ import java.util.UUID;
 public final class DuelCommand
 {
     private final ChallengeManager challengeManager;
+    private final ArenaManager arenaManager;
     private final MatchManager matchManager;
     private final KitSelectorMenu kitSelectorMenu;
     private final LeaderboardMenu leaderboardMenu;
@@ -39,6 +43,7 @@ public final class DuelCommand
     public DuelCommand(Duels plugin)
     {
         this.challengeManager = plugin.getChallengeManager();
+        this.arenaManager = plugin.getArenaManager();
         this.matchManager = plugin.getMatchManager();
         this.kitSelectorMenu = plugin.getKitSelectorMenu();
         this.leaderboardMenu = plugin.getLeaderboardMenu();
@@ -65,6 +70,7 @@ public final class DuelCommand
                                 .usage("/duel challenge <player>")
                                 .playerOnly()
                                 .argument("player", ArgumentTypes.player())
+                                .optionalArgument("arenaId", ArgumentTypes.integer())
                                 .executes(this::handleDuel))
                 .child(
                         CommandBuilder.command("accept")
@@ -127,13 +133,13 @@ public final class DuelCommand
             return;
         }
 
-        if (matchManager.getMatch(sender.getUniqueId()) != null)
+        if (matchManager.getMatch(sender.getUniqueId()) != null || matchManager.isPending(sender.getUniqueId()))
         {
             messageManager.send(sender, Message.ALREADY_IN_MATCH);
             return;
         }
 
-        if (matchManager.getMatch(target.getUniqueId()) != null)
+        if (matchManager.getMatch(target.getUniqueId()) != null || matchManager.isPending(target.getUniqueId()))
         {
             messageManager.send(sender, Message.TARGET_IN_MATCH, "player", target.getName());
             return;
@@ -148,14 +154,28 @@ public final class DuelCommand
             return;
         }
 
-        if (!challengeManager.createChallenge(sender, target))
+        ArenaSelection selection = ArenaSelection.any();
+        if (context.has("arenaId"))
+        {
+            int arenaId = context.get("arenaId");
+            Arena arena = arenaManager.getArena(arenaId);
+            if (arena == null || !arena.isEnabled())
+            {
+                messageManager.send(sender, Message.NO_ARENA_AVAILABLE);
+                return;
+            }
+            selection = ArenaSelection.specific(arenaId);
+        }
+
+        if (!challengeManager.createChallenge(sender, target, selection))
         {
             messageManager.send(sender, Message.CHALLENGE_ALREADY_PENDING, "player", target.getName());
             return;
         }
 
-        messageManager.send(sender, Message.CHALLENGE_SENT, "player", target.getName(), "expiry", expiryText());
-        messageManager.send(target, Message.CHALLENGE_RECEIVED, "player", sender.getName());
+        String selectedArena = selection.isAny() ? "Any arena" : arenaManager.getArena(selection.arenaId()).getName();
+        messageManager.send(sender, Message.CHALLENGE_SENT, "player", target.getName(), "expiry", expiryText(), "arena", selectedArena);
+        messageManager.send(target, Message.CHALLENGE_RECEIVED, "player", sender.getName(), "arena", selectedArena);
     }
 
     private String expiryText()
@@ -189,7 +209,7 @@ public final class DuelCommand
             return;
         }
 
-        if (matchManager.getMatch(sender.getUniqueId()) != null)
+        if (matchManager.getMatch(sender.getUniqueId()) != null || matchManager.isPending(sender.getUniqueId()))
         {
             messageManager.send(sender, Message.ALREADY_IN_MATCH);
             return;
@@ -203,32 +223,36 @@ public final class DuelCommand
             return;
         }
 
-        if (matchManager.getMatch(challenger.getUniqueId()) != null)
+        if (matchManager.getMatch(challenger.getUniqueId()) != null || matchManager.isPending(challenger.getUniqueId()))
         {
             messageManager.send(sender, Message.TARGET_IN_MATCH, "player", challenger.getName());
             return;
         }
 
-        Match match = matchManager.startMatch(challenger, sender);
-
-        // The challenge is consumed only once a match genuinely exists. Removing
-        // it up front meant a failed arena allocation destroyed the challenge as
-        // well, so both players were told "no arena available" and then had to
-        // start the whole challenge over for something that was nobody's fault.
-        if (match == null)
+        if (!challengeManager.claim(challenge))
         {
-            messageManager.send(sender, Message.NO_ARENA_AVAILABLE);
-            messageManager.send(challenger, Message.NO_ARENA_AVAILABLE);
+            messageManager.send(sender, Message.CHALLENGE_NO_PENDING);
             return;
         }
 
-        challengeManager.remove(challenge);
+        messageManager.send(sender, Message.PREPARING_ARENA);
+        messageManager.send(challenger, Message.PREPARING_ARENA);
+        matchManager.startMatchAsync(challenger, sender, challenge.getSelection()).whenComplete((result, throwable) ->
+        {
+            if (throwable != null || result == null || result.status() != me.jackcw.duels.match.MatchStartResult.Status.SUCCESS)
+            {
+                challengeManager.releaseClaim(challenge);
+                if (sender.isOnline()) messageManager.send(sender, Message.NO_ARENA_AVAILABLE);
+                if (challenger.isOnline()) messageManager.send(challenger, Message.NO_ARENA_AVAILABLE);
+                return;
+            }
 
-        messageManager.send(sender, Message.CHALLENGE_ACCEPTED, "player", challenger.getName());
-        messageManager.send(challenger, Message.CHALLENGE_ACCEPTED_OPPONENT, "player", sender.getName());
-
-        if (settings.removeOutstandingChallenges())
-            challengeManager.removeAll(sender.getUniqueId(), challenger.getUniqueId());
+            challengeManager.remove(challenge);
+            messageManager.send(sender, Message.CHALLENGE_ACCEPTED, "player", challenger.getName());
+            messageManager.send(challenger, Message.CHALLENGE_ACCEPTED_OPPONENT, "player", sender.getName());
+            if (settings.removeOutstandingChallenges())
+                challengeManager.removeAll(sender.getUniqueId(), challenger.getUniqueId());
+        });
     }
 
     /**

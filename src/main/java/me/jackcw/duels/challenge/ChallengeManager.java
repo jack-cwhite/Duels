@@ -1,6 +1,7 @@
 package me.jackcw.duels.challenge;
 
 import me.jackcw.duels.DuelsSettings;
+import me.jackcw.duels.arena.ArenaSelection;
 import me.jackcw.jcore.task.TaskManager;
 import org.bukkit.entity.Player;
 
@@ -28,6 +29,11 @@ public final class ChallengeManager
 
     public boolean createChallenge(Player challenger, Player challenged)
     {
+        return createChallenge(challenger, challenged, ArenaSelection.any());
+    }
+
+    public boolean createChallenge(Player challenger, Player challenged, ArenaSelection selection)
+    {
         if (challenger == null || !challenger.isOnline())
             return false;
 
@@ -40,7 +46,7 @@ public final class ChallengeManager
         int expirySeconds = settings.challengeExpirySeconds();
         Instant expiry = expirySeconds > 0 ? Instant.now().plusSeconds(expirySeconds) : Instant.MAX;
 
-        Challenge challenge = new Challenge(challenger.getUniqueId(), challenged.getUniqueId(), expiry);
+        Challenge challenge = new Challenge(challenger.getUniqueId(), challenged.getUniqueId(), expiry, selection);
         challenges.add(challenge);
 
         if (expirySeconds > 0)
@@ -111,6 +117,37 @@ public final class ChallengeManager
         challenges.remove(challenge);
     }
 
+    /** Claims a challenge while delayed arena preparation is in progress. */
+    public boolean claim(Challenge challenge)
+    {
+        if (challenge == null || !challenges.contains(challenge) || challenge.isClaimed())
+            return false;
+
+        challenge.setClaimed(true);
+        return true;
+    }
+
+    /**
+     * Returns whether the challenge remains pending. If allocation failed only
+     * after its original expiry time, it expires normally instead of becoming
+     * a zombie request.
+     */
+    public boolean releaseClaim(Challenge challenge)
+    {
+        if (challenge == null || !challenges.contains(challenge))
+            return false;
+
+        challenge.setClaimed(false);
+        if (!Instant.MAX.equals(challenge.getExpiry()) && !challenge.getExpiry().isAfter(Instant.now()))
+        {
+            challenges.remove(challenge);
+            if (onExpire != null)
+                onExpire.accept(challenge);
+            return false;
+        }
+        return true;
+    }
+
     public void removeAll(UUID... playerIds)
     {
         for (UUID playerId : playerIds)
@@ -159,6 +196,9 @@ public final class ChallengeManager
 
     private void expire(Challenge challenge)
     {
+        if (challenge.isClaimed())
+            return;
+
         if (!challenges.remove(challenge))
             return;
 

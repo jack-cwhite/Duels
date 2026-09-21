@@ -1,7 +1,7 @@
 package me.jackcw.duels.arena;
 
 import java.util.HashSet;
-import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.Set;
 
 /**
@@ -14,27 +14,42 @@ public final class StaticArenaAllocator implements ArenaAllocator
 {
     private final ArenaManager arenaManager;
     private final ArenaInstanceManager arenaInstanceManager;
+    private final DynamicArenaProvisioner provisioner;
     private final Set<Integer> allocated = new HashSet<>();
 
-    public StaticArenaAllocator(ArenaManager arenaManager, ArenaInstanceManager arenaInstanceManager)
+    public StaticArenaAllocator(ArenaManager arenaManager, ArenaInstanceManager arenaInstanceManager, DynamicArenaProvisioner provisioner)
     {
         this.arenaManager = arenaManager;
         this.arenaInstanceManager = arenaInstanceManager;
+        this.provisioner = provisioner;
     }
 
     @Override
-    public Optional<ArenaInstance> allocate()
+    public CompletableFuture<ArenaAllocationResult> allocate(ArenaSelection selection)
     {
-        return allocateMatching(null);
+        ArenaSelection requested = selection != null ? selection : ArenaSelection.any();
+        ArenaInstance existing = allocateExisting(requested.arenaId());
+        if (existing != null)
+            return CompletableFuture.completedFuture(ArenaAllocationResult.success(existing));
+
+        if (!requested.isAny())
+        {
+            Arena arena = arenaManager.getArena(requested.arenaId());
+            if (arena == null)
+                return CompletableFuture.completedFuture(ArenaAllocationResult.failure(ArenaAllocationResult.Status.ARENA_NOT_FOUND));
+            if (!arena.isEnabled())
+                return CompletableFuture.completedFuture(ArenaAllocationResult.failure(ArenaAllocationResult.Status.ARENA_DISABLED));
+            return provision(arena);
+        }
+
+        for (Arena arena : arenaManager.getArenas())
+            if (arena.isEnabled() && arena.canProvisionDynamically())
+                return provision(arena);
+
+        return CompletableFuture.completedFuture(ArenaAllocationResult.failure(ArenaAllocationResult.Status.NO_ARENA_AVAILABLE));
     }
 
-    @Override
-    public Optional<ArenaInstance> allocate(int arenaId)
-    {
-        return allocateMatching(arenaId);
-    }
-
-    private Optional<ArenaInstance> allocateMatching(Integer requestedArenaId)
+    private ArenaInstance allocateExisting(Integer requestedArenaId)
     {
         for (ArenaInstance instance : arenaInstanceManager.getInstances())
         {
@@ -51,16 +66,44 @@ public final class StaticArenaAllocator implements ArenaAllocator
 
             allocated.add(instance.getId());
 
-            return Optional.of(instance);
+            if (instance.isProvisioned())
+                provisioner.retainChunks(instance);
+
+            return instance;
         }
 
-        return Optional.empty();
+        return null;
+    }
+
+    private CompletableFuture<ArenaAllocationResult> provision(Arena arena)
+    {
+        if (!arena.canProvisionDynamically())
+            return CompletableFuture.completedFuture(ArenaAllocationResult.failure(ArenaAllocationResult.Status.TEMPLATE_UNAVAILABLE));
+
+        return provisioner.provision(arena).thenApply(result ->
+        {
+            if (result.status() != DynamicArenaProvisionResult.Status.SUCCESS)
+                return ArenaAllocationResult.failure(switch (result.status())
+                {
+                    case TEMPLATE_UNAVAILABLE -> ArenaAllocationResult.Status.TEMPLATE_UNAVAILABLE;
+                    case CAPACITY_REACHED -> ArenaAllocationResult.Status.CAPACITY_REACHED;
+                    case FAILED -> ArenaAllocationResult.Status.PROVISIONING_FAILED;
+                    case SUCCESS -> throw new IllegalStateException("Success handled above");
+                });
+
+            ArenaInstance instance = result.instance();
+            allocated.add(instance.getId());
+            provisioner.retainChunks(instance);
+            return ArenaAllocationResult.success(instance);
+        });
     }
 
     @Override
     public void release(ArenaInstance instance)
     {
         allocated.remove(instance.getId());
+        if (instance.isProvisioned())
+            provisioner.releaseChunks(instance);
     }
 
     @Override
