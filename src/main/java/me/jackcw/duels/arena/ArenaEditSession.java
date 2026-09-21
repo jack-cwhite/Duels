@@ -9,15 +9,15 @@ import java.util.UUID;
 public final class ArenaEditSession
 {
     private final UUID playerUuid;
-    private final int arenaId;
+    private final int instanceId;
     private final ItemStack[] savedHotbar;
     private final ItemStack savedOffhand;
     private BukkitTask boundsParticleTask;
 
-    public ArenaEditSession(Player player, Arena arena)
+    public ArenaEditSession(Player player, ArenaInstance instance)
     {
         this.playerUuid = player.getUniqueId();
-        this.arenaId = arena.getId();
+        this.instanceId = instance.getId();
         this.savedHotbar = new ItemStack[9];
 
         for (int i = 0; i < 9; i++)
@@ -41,9 +41,9 @@ public final class ArenaEditSession
         return playerUuid;
     }
 
-    public int getArenaId()
+    public int getInstanceId()
     {
-        return arenaId;
+        return instanceId;
     }
 
     public ItemStack[] getSavedHotbar()

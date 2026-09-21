@@ -14,6 +14,8 @@ public final class DuelsSettings
     private final boolean removeOutstandingChallenges;
     private final boolean enableGracePeriod;
     private final int gracePeriodSeconds;
+    private final int arenaResetMaxTrackedBlockChanges;
+    private final int arenaResetBlocksPerTick;
 
     public DuelsSettings(YamlFile config, Logger logger)
     {
@@ -42,6 +44,16 @@ public final class DuelsSettings
         this.gracePeriodSeconds = readPositiveInt(
                 config, logger, "grace-period-seconds", 5,
                 "must be a valid number of at least 1 "
+        );
+
+        this.arenaResetMaxTrackedBlockChanges = readPositiveInt(
+                config, logger, "arena-reset-max-tracked-block-changes", 4000,
+                "must be a whole number of at least 1"
+        );
+
+        this.arenaResetBlocksPerTick = readPositiveInt(
+                config, logger, "arena-reset-blocks-per-tick", 64,
+                "must be a whole number of at least 1"
         );
     }
 
@@ -73,6 +85,16 @@ public final class DuelsSettings
     public int gracePeriodSeconds()
     {
         return gracePeriodSeconds;
+    }
+
+    public int arenaResetMaxTrackedBlockChanges()
+    {
+        return arenaResetMaxTrackedBlockChanges;
+    }
+
+    public int arenaResetBlocksPerTick()
+    {
+        return arenaResetBlocksPerTick;
     }
 
     private static StatsStorageType readStatsStorage(YamlFile config, Logger logger)

@@ -5,6 +5,8 @@ import me.jackcw.duels.match.Match;
 import me.jackcw.duels.match.MatchManager;
 import me.jackcw.duels.match.MatchState;
 import me.jackcw.duels.message.Message;
+import me.jackcw.duels.spectator.SpectatorManager;
+import me.jackcw.duels.spectator.SpectatorSession;
 import me.jackcw.jcore.message.MessageManager;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -17,7 +19,8 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Owns arena boundary state and enforcement for players in an active match.
+ * Owns arena boundary state and enforcement for players in an active match, and
+ * for the spectators watching one.
  *
  * <p>Movement tells us when a player <em>crosses</em> the boundary, but a
  * grace period is a condition on elapsed time and no event fires for "three
@@ -47,6 +50,15 @@ public final class BoundaryEnforcer
         this.arenaManager = plugin.getArenaManager();
     }
 
+    /**
+     * Which arena is currently keeping a player in, and under what policy.
+     *
+     * <p>Combatants and spectators answer this differently, and the answer is
+     * needed in both the move handler and the scheduled check, so it is worked
+     * out in one place rather than branched on twice.
+     */
+    private record Enforcement(Match match, ArenaInstance instance, BoundaryMode mode, int graceSeconds, boolean spectator) {}
+
     public void handleMove(PlayerMoveEvent event)
     {
         Location from = event.getFrom();
@@ -59,20 +71,15 @@ public final class BoundaryEnforcer
 
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
-        Match match = matchManager.getMatch(uuid);
+        Enforcement enforcement = resolve(uuid);
 
-        if (match == null || match.getState() != MatchState.IN_PROGRESS)
+        if (enforcement == null)
         {
             forget(uuid);
             return;
         }
 
-        Arena arena = arenaManager.getArena(match.getArenaInstance().getArenaId());
-
-        if (arena == null || !arena.hasBounds())
-            return;
-
-        if (isWithinBounds(to, arena))
+        if (enforcement.instance().contains(to))
         {
             clearOutOfBounds(uuid);
             lastInBoundsLocation.put(uuid, to.clone());
@@ -88,10 +95,10 @@ public final class BoundaryEnforcer
         // back at getFrom()", which is itself outside the bounds, and issuing a
         // teleport alongside it leaves two repositions competing inside one
         // movement packet. Every other case is left to the scheduled check.
-        if (arena.getBoundaryMode() != BoundaryMode.SOFT_RETURN || arena.getGraceSeconds() > 0)
+        if (enforcement.mode() != BoundaryMode.SOFT_RETURN || enforcement.graceSeconds() > 0)
             return;
 
-        event.setTo(safeLocation(uuid, match));
+        event.setTo(safeLocation(uuid, enforcement));
         clearOutOfBounds(uuid);
         messageManager.send(player, Message.OUT_OF_BOUNDS_RETURNED);
     }
@@ -107,6 +114,53 @@ public final class BoundaryEnforcer
         outOfBoundsSince.clear();
         lastInBoundsLocation.clear();
         stopTask();
+    }
+
+    private Enforcement resolve(UUID uuid)
+    {
+        Match match = matchManager.getMatch(uuid);
+
+        if (match != null)
+        {
+            if (match.getState() != MatchState.IN_PROGRESS)
+                return null;
+
+            ArenaInstance instance = boundedInstance(match);
+
+            if (instance == null)
+                return null;
+
+            Arena arena = arenaManager.getArena(instance.getArenaId());
+
+            return arena == null ? null : new Enforcement(match, instance, arena.getBoundaryMode(), arena.getGraceSeconds(), false);
+        }
+
+        SpectatorManager spectatorManager = plugin.getSpectatorManager();
+        SpectatorSession session = spectatorManager != null ? spectatorManager.getSession(uuid) : null;
+
+        if (session == null || session.getMatch() == null || session.getMatch().getState() == MatchState.ENDED)
+            return null;
+
+        ArenaInstance instance = boundedInstance(session.getMatch());
+
+        if (instance == null)
+            return null;
+
+        // A spectator is held to the bounds throughout PREGAME and GRACE too,
+        // not just IN_PROGRESS - there is a fight to watch from the moment they
+        // arrive. The arena's configured mode deliberately does not apply to
+        // them: FORFEIT is meaningless for somebody who is not fighting, and
+        // WARNING would let them drift into a neighbouring arena while the
+        // plugin still believes they are watching this one. They are always
+        // walled in immediately.
+        return new Enforcement(session.getMatch(), instance, BoundaryMode.SOFT_RETURN, 0, true);
+    }
+
+    private ArenaInstance boundedInstance(Match match)
+    {
+        ArenaInstance instance = match.getArenaInstance();
+
+        return instance.hasBounds() ? instance : null;
     }
 
     private void markOutOfBounds(UUID uuid, Player player)
@@ -143,17 +197,9 @@ public final class BoundaryEnforcer
     private void tickPlayer(UUID uuid)
     {
         Player player = plugin.getServer().getPlayer(uuid);
-        Match match = matchManager.getMatch(uuid);
+        Enforcement enforcement = resolve(uuid);
 
-        if (player == null || !player.isOnline() || match == null || match.getState() != MatchState.IN_PROGRESS)
-        {
-            forget(uuid);
-            return;
-        }
-
-        Arena arena = arenaManager.getArena(match.getArenaInstance().getArenaId());
-
-        if (arena == null || !arena.hasBounds())
+        if (player == null || !player.isOnline() || enforcement == null)
         {
             forget(uuid);
             return;
@@ -164,41 +210,39 @@ public final class BoundaryEnforcer
         // An admin can move the bounds or change the mode mid-match, so both
         // are re-read every check instead of being captured when the player
         // first left.
-        if (isWithinBounds(location, arena))
+        if (enforcement.instance().contains(location))
         {
             clearOutOfBounds(uuid);
             lastInBoundsLocation.put(uuid, location.clone());
             return;
         }
 
-        BoundaryMode mode = arena.getBoundaryMode();
-
-        if (mode == BoundaryMode.WARNING)
+        if (enforcement.mode() == BoundaryMode.WARNING)
             return;
 
         long elapsed = System.currentTimeMillis() - outOfBoundsSince.get(uuid);
 
-        if (elapsed < arena.getGraceSeconds() * 1000L)
+        if (elapsed < enforcement.graceSeconds() * 1000L)
             return;
 
-        if (mode == BoundaryMode.FORFEIT)
+        if (enforcement.mode() == BoundaryMode.FORFEIT)
         {
             forget(uuid);
-            matchManager.endMatch(match, match.getOpponent(uuid));
+            matchManager.endMatch(enforcement.match(), enforcement.match().getOpponent(uuid));
             return;
         }
 
         // Deliberately cleared only once the teleport has succeeded. Clearing
         // first would let a failed return look like the player had only just
         // stepped out, handing them a fresh grace period on every attempt.
-        if (!player.teleport(safeLocation(uuid, match)))
+        if (!player.teleport(safeLocation(uuid, enforcement)))
             return;
 
         clearOutOfBounds(uuid);
         messageManager.send(player, Message.OUT_OF_BOUNDS_RETURNED);
     }
 
-    private Location safeLocation(UUID uuid, Match match)
+    private Location safeLocation(UUID uuid, Enforcement enforcement)
     {
         Location safe = lastInBoundsLocation.get(uuid);
 
@@ -208,33 +252,12 @@ public final class BoundaryEnforcer
         // Not Match#getLocation - that is where the player stood before the
         // duel began, so returning them there would eject them from the arena
         // entirely rather than putting them back inside it.
-        ArenaInstance instance = match.getArenaInstance();
+        ArenaInstance instance = enforcement.match().getArenaInstance();
 
-        return uuid.equals(match.getPlayer1Id()) ? instance.getSpawn1() : instance.getSpawn2();
-    }
+        if (enforcement.spectator())
+            return instance.getSpawn1();
 
-    private boolean isWithinBounds(Location location, Arena arena)
-    {
-        Location corner1 = arena.getBoundsCorner1();
-        Location corner2 = arena.getBoundsCorner2();
-
-        // A player who is not even in the arena's world cannot be inside its
-        // bounds. Only matches that are IN_PROGRESS reach this check, and a
-        // participant is removed from the match before end-of-match restoration
-        // teleports them out, so this does not fire during normal cleanup.
-        if (!location.getWorld().equals(corner1.getWorld()))
-            return false;
-
-        double minX = Math.min(corner1.getX(), corner2.getX());
-        double maxX = Math.max(corner1.getX(), corner2.getX());
-        double minY = Math.min(corner1.getY(), corner2.getY());
-        double maxY = Math.max(corner1.getY(), corner2.getY());
-        double minZ = Math.min(corner1.getZ(), corner2.getZ());
-        double maxZ = Math.max(corner1.getZ(), corner2.getZ());
-
-        return location.getX() >= minX && location.getX() <= maxX
-                && location.getY() >= minY && location.getY() <= maxY
-                && location.getZ() >= minZ && location.getZ() <= maxZ;
+        return uuid.equals(enforcement.match().getPlayer1Id()) ? instance.getSpawn1() : instance.getSpawn2();
     }
 
     private void startTask()

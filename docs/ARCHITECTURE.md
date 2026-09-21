@@ -179,6 +179,16 @@ Kit snapshots are held by the match. Editing or deleting a live kit therefore ch
 
 Snapshots also provide restart and crash recovery. During a full server stop, Duels leaves the durable snapshots in `playerstates.yml`; the join listener restores each player and tells them what happened on the next startup. During a plugin-only disable or reload, active players are restored immediately before JCore shuts down.
 
+## "Am I fighting?" and "am I watching?" are two questions
+
+Membership of `MatchManager`'s participant-keyed map *is* the definition of a combatant. It is not a cache of who happens to be in an arena - every listener answers "is this player in a duel?" by calling `getMatch(uuid)`, and acts on the match it gets back. The most damaging consequence of blurring that is `MatchListener.onPlayerQuitWhileInMatch`: if a spectator were reachable through that map, a spectator closing their client would award the duel to one of the fighters.
+
+Spectators therefore live entirely in `SpectatorManager`, in a separate UUID-keyed map of `SpectatorSession`, and never appear in `MatchManager`'s map. A `SpectatorSession` records what to put back (game mode, flight flags, return location) plus which match is being watched. Code that needs to know "is this player watching a duel?" asks `SpectatorManager.isSpectating(uuid)`; code that needs "is this player fighting?" still asks `MatchManager.getMatch(uuid)`. Keeping the two questions separate is what makes it safe for a spectator to stand inside a live arena.
+
+Most of the interference problem is handled by `GameMode.SPECTATOR` itself, which already prevents dealing and taking damage, block and inventory interaction, and collision, and hides the player from non-spectators. What it does *not* do is constrain position, so `BoundaryEnforcer` resolves spectators as well as combatants - always walling them in immediately, regardless of the arena's configured boundary mode, since forfeiting is meaningless for somebody who is not fighting. Nor does it prevent camera-locking onto an arbitrary entity, which would let a knocked-back fighter drag a spectator's position out of the arena; `SpectatorListener` cancels `PlayerStartSpectatingEntityEvent` for anything other than the two combatants.
+
+Sessions are persisted to `spectators.yml` for the same reason `PlayerStateManager` writes to disk rather than holding a `HashMap`: on a crash neither `PlayerQuitEvent` nor `onDisable` runs, and a spectator would come back stuck in spectator mode inside an arena with no way to fix it themselves. Disconnect and server shutdown deliberately reuse that path - the live session is dropped but its row is kept, and the join listener finishes the restoration - because teleporting a player who is already on their way out is not dependable.
+
 ## Storage strategy
 
 `StatsRepository` is an interface with YAML and SQL implementations. `StatsManager` chooses one from configuration and the rest of Duels talks only to the interface.

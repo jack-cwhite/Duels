@@ -1,5 +1,6 @@
 package me.jackcw.duels.listener;
 
+import com.destroystokyo.paper.event.player.PlayerAdvancementCriterionGrantEvent;
 import me.jackcw.duels.Duels;
 import me.jackcw.duels.arena.BoundaryEnforcer;
 import me.jackcw.duels.challenge.Challenge;
@@ -8,6 +9,7 @@ import me.jackcw.duels.match.Match;
 import me.jackcw.duels.match.MatchManager;
 import me.jackcw.duels.match.MatchState;
 import me.jackcw.duels.message.Message;
+import me.jackcw.duels.spectator.SpectatorManager;
 import me.jackcw.jcore.message.MessageManager;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Entity;
@@ -25,7 +27,6 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.AreaEffectCloudApplyEvent;
 import org.bukkit.event.entity.PotionSplashEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
-import org.bukkit.event.player.PlayerAdvancementDoneEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
@@ -40,6 +41,7 @@ public final class MatchListener implements Listener
     private final MatchManager matchManager;
     private final ChallengeManager challengeManager;
     private final BoundaryEnforcer boundaryEnforcer;
+    private final SpectatorManager spectatorManager;
 
     public MatchListener(Duels plugin)
     {
@@ -48,6 +50,7 @@ public final class MatchListener implements Listener
         this.matchManager = plugin.getMatchManager();
         this.challengeManager = plugin.getChallengeManager();
         this.boundaryEnforcer = plugin.getBoundaryEnforcer();
+        this.spectatorManager = plugin.getSpectatorManager();
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -129,6 +132,13 @@ public final class MatchListener implements Listener
 
     private boolean shouldBlockEffect(Player source, Player target)
     {
+        // Spectator gamemode already makes a player immune to this, so it is
+        // defence in depth rather than the mechanism - but it also means a
+        // spectator is never treated as an uninvolved third party standing in
+        // the splash radius, which is what the rest of this method is about.
+        if (spectatorManager.isSpectating(target.getUniqueId()))
+            return true;
+
         Match targetMatch = matchManager.getMatch(target.getUniqueId());
         Match sourceMatch = source != null ? matchManager.getMatch(source.getUniqueId()) : null;
 
@@ -167,18 +177,22 @@ public final class MatchListener implements Listener
         boundaryEnforcer.handleMove(event);
     }
 
-    @EventHandler
-    public void onAdvancementDone(PlayerAdvancementDoneEvent event)
+    /**
+     * Advancements earned incidentally inside a duel are suppressed before they
+     * are granted rather than revoked afterwards.
+     *
+     * <p>Revoking on {@code PlayerAdvancementDoneEvent} cannot work: that event
+     * is not cancellable and fires after the toast and broadcast, and because
+     * the underlying trigger is still satisfied the criterion is immediately
+     * re-awarded - a grant/revoke/grant loop that spams the player. Paper's
+     * criterion-grant event is cancellable and fires first, so nothing is ever
+     * awarded and there is nothing to re-award.
+     */
+    @EventHandler(ignoreCancelled = true)
+    public void onAdvancementCriterionGrant(PlayerAdvancementCriterionGrantEvent event)
     {
-        Player player = event.getPlayer();
-
-        if (matchManager.getMatch(player.getUniqueId()) == null)
-            return;
-
-        var progress = player.getAdvancementProgress(event.getAdvancement());
-
-        for (String criteria : List.copyOf(progress.getAwardedCriteria()))
-            progress.revokeCriteria(criteria);
+        if (matchManager.getMatch(event.getPlayer().getUniqueId()) != null)
+            event.setCancelled(true);
     }
 
     @EventHandler
@@ -194,6 +208,12 @@ public final class MatchListener implements Listener
         Match match = matchManager.getMatch(player.getUniqueId());
 
         boundaryEnforcer.forget(player.getUniqueId());
+
+        // A spectator's session is dropped but its saved row is kept, so they
+        // are put back by the join handler next time rather than teleported now
+        // - the player is already on their way out, and this runs whether or
+        // not they were in a match, so it must happen before the return below.
+        spectatorManager.detach(player.getUniqueId());
 
         if (match == null)
             return;

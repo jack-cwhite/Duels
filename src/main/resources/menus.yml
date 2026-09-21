@@ -79,9 +79,9 @@ arena-list:
     name: '&f{arena-name}'
     lore:
       - '&7ID: &f{id}'
-      - '&7Spawn 1: {spawn1}'
-      - '&7Spawn 2: {spawn2}'
-      - '&7Ready: {ready}'
+      - '&7Instances: &f{instances}'
+      - '&7Ready: &f{ready}'
+      - '&7Free right now: &f{free}'
       - '&7Enabled: {enabled}'
       - '&eClick to manage'
 
@@ -111,26 +111,21 @@ arena-detail:
       lore:
         - '&7Click, then type the arenas'
         - '&7new name in chat'
-    spawn1:
+    instances:
       slot: 2
       material: EMERALD
-      name: '&aSet Spawn 1'
+      name: '&aInstances'
       lore:
-        - '&7Left Click to set spawn 1 to'
-        - '&7your current location'
-        - ''
-        - '&7Right click to teleport to'
-        - '&7currently set location'
-    spawn2:
+        - '&7Click to view and manage'
+        - '&7this arena''s registered'
+        - '&7physical copies'
+    create-instance:
       slot: 4
-      material: EMERALD
-      name: '&aSet Spawn 2'
+      material: NETHER_STAR
+      name: '&aCreate Instance'
       lore:
-        - '&7Left Click to set spawn 2 to'
-        - '&7your current location'
-        - ''
-        - '&7Right click to teleport to'
-        - '&7currently set location'
+        - '&7Click to register a new'
+        - '&7physical copy of this arena'
     delete:
       slot: 6
       material: BARRIER
@@ -144,14 +139,97 @@ arena-detail:
       lore:
         - '&7Click to manage allowed'
         - '&7kits in this arena'
-    edit-mode:
+    boundary:
       slot: 12
+      material: IRON_BARS
+      name: '&bOut Of Bounds'
+      lore:
+        - '&7Mode: &f{mode}'
+        - '&7Grace period: &f{grace}s'
+        - ''
+        - '&7SOFT_RETURN &8- &7pull the player back in'
+        - '&7WARNING &8- &7only warn the player'
+        - '&7FORFEIT &8- &7lose the duel after the grace period'
+        - ''
+        - '&7Left click to change mode'
+        - '&7Right click to set the grace period'
+
+# Paginated menu listing the registered physical instances of one arena template.
+arena-instance-list:
+  title: '&8{arena-name} Instances'
+  rows: 6
+  entry:
+    material: '{material}'
+    name: '&f#{id}'
+    lore:
+      - '&7Spawn 1: {spawn1}'
+      - '&7Spawn 2: {spawn2}'
+      - '&7Ready: {ready}'
+      - '&eClick to manage'
+
+# Menu for managing a specific arena instance's spawns and bounds.
+arena-instance-detail:
+  title: '&8Instance #{id}'
+  rows: 2
+  items:
+    spawn1:
+      slot: 1
+      material: EMERALD
+      name: '&aSet Spawn 1'
+      lore:
+        - '&7Left Click to set spawn 1 to'
+        - '&7your current location'
+        - ''
+        - '&7Right click to teleport to'
+        - '&7currently set location'
+    spawn2:
+      slot: 3
+      material: EMERALD
+      name: '&aSet Spawn 2'
+      lore:
+        - '&7Left Click to set spawn 2 to'
+        - '&7your current location'
+        - ''
+        - '&7Right click to teleport to'
+        - '&7currently set location'
+    edit-mode:
+      slot: 5
       material: BLAZE_ROD
       name: '&eEnter Edit Mode'
       lore:
         - '&7Click to enter edit mode - gives'
         - '&7hotbar tools for setting spawns'
         - '&7and bounds in-world'
+    delete:
+      slot: 7
+      material: BARRIER
+      name: '&cDelete Instance'
+      lore:
+        - '&7Click to permanently delete this instance'
+    bounds1:
+      slot: 10
+      material: LAPIS_LAZULI
+      name: '&bSet Bounds Corner 1'
+      lore:
+        - '&7Currently: &f{bounds1}'
+        - ''
+        - '&7Left click to set corner 1 to'
+        - '&7your current location'
+        - ''
+        - '&7Right click to teleport to'
+        - '&7currently set corner'
+    bounds2:
+      slot: 12
+      material: LAPIS_LAZULI
+      name: '&bSet Bounds Corner 2'
+      lore:
+        - '&7Currently: &f{bounds2}'
+        - ''
+        - '&7Left click to set corner 2 to'
+        - '&7your current location'
+        - ''
+        - '&7Right click to teleport to'
+        - '&7currently set corner'
 
 # Manage what kits are allowed in an arena
 arena-kit:
@@ -190,6 +268,13 @@ kit-main:
 # config template can express). Clicking an entry shows that player's wins.
 stats-leaderboard:
   title: '&8Top Duelists'
+  rows: 6
+
+# Paginated menu listing every duel currently being played. Clicking an entry
+# starts spectating that duel. Entry items are built in code (player heads with
+# live status and duration), so there is no 'entry' template here.
+spectate-matches:
+  title: '&8Live Duels'
   rows: 6
 
 # Paginated menu that lists all kits. Clicking a kit opens the kit-detail menu for that kit.

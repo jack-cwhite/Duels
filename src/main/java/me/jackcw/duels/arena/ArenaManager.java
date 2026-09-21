@@ -1,7 +1,6 @@
 package me.jackcw.duels.arena;
 
 import me.jackcw.jcore.storage.YamlRepository;
-import org.bukkit.Location;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -10,11 +9,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.IntPredicate;
 
+/**
+ * Owns arena templates - the policy an admin sets once and every registered
+ * {@link ArenaInstance} of that template shares (name, boundary behaviour,
+ * allowed kits, enabled/disabled).
+ *
+ * <p>None of that policy blocks a running match the way editing a spawn or a
+ * bounds corner would, so unlike {@link ArenaInstanceManager}, mutating a
+ * template is never refused because a match is in progress on one of its
+ * instances - {@code BoundaryEnforcer} already re-reads boundary mode live,
+ * for example. The one thing that is refused is deleting a template that
+ * still has instances registered against it: those rows would otherwise be
+ * orphaned, pointing at an {@code arenaId} that no longer exists.
+ */
 public final class ArenaManager
 {
     private final YamlRepository<Arena> repository;
     private final Map<Integer, Arena> arenas = new HashMap<>();
-    private IntPredicate activeCheck = id -> false;
+    private IntPredicate hasInstancesCheck = id -> false;
 
     public ArenaManager(YamlRepository<Arena> repository)
     {
@@ -24,14 +36,14 @@ public final class ArenaManager
             arenas.put(arena.getId(), arena);
     }
 
-    public void setActiveCheck(IntPredicate activeCheck)
+    public void setHasInstancesCheck(IntPredicate hasInstancesCheck)
     {
-        this.activeCheck = activeCheck != null ? activeCheck : id -> false;
+        this.hasInstancesCheck = hasInstancesCheck != null ? hasInstancesCheck : id -> false;
     }
 
-    public boolean isActive(int id)
+    public boolean hasInstances(int id)
     {
-        return activeCheck.test(id);
+        return hasInstancesCheck.test(id);
     }
 
     public Arena createArena(String name)
@@ -52,7 +64,7 @@ public final class ArenaManager
         if (arena == null)
             return ArenaMutationResult.notFound();
 
-        if (activeCheck.test(id))
+        if (hasInstancesCheck.test(id))
             return ArenaMutationResult.inUse();
 
         arenas.remove(id);
@@ -68,9 +80,6 @@ public final class ArenaManager
         if (arena == null)
             return ArenaMutationResult.notFound();
 
-        if (activeCheck.test(id))
-            return ArenaMutationResult.inUse();
-
         arena.setName(name);
         save(arena);
 
@@ -84,56 +93,7 @@ public final class ArenaManager
         if (arena == null)
             return ArenaMutationResult.notFound();
 
-        if (activeCheck.test(id))
-            return ArenaMutationResult.inUse();
-
         arena.setEnabled(!arena.isEnabled());
-        save(arena);
-
-        return ArenaMutationResult.success(arena);
-    }
-
-    public ArenaMutationResult setSpawn(int id, int spawnNumber, Location location)
-    {
-        if (spawnNumber != 1 && spawnNumber != 2)
-            throw new IllegalArgumentException("Spawn number must be 1 or 2");
-
-        Arena arena = arenas.get(id);
-
-        if (arena == null)
-            return ArenaMutationResult.notFound();
-
-        if (activeCheck.test(id))
-            return ArenaMutationResult.inUse();
-
-        if (spawnNumber == 1)
-            arena.setSpawn1(location);
-        else
-            arena.setSpawn2(location);
-
-        save(arena);
-
-        return ArenaMutationResult.success(arena);
-    }
-
-    public ArenaMutationResult setBoundsCorner(int id, int corner, Location location)
-    {
-        if (corner != 1 && corner != 2)
-            throw new IllegalArgumentException("Bounds corner must be 1 or 2");
-
-        Arena arena = arenas.get(id);
-
-        if (arena == null)
-            return ArenaMutationResult.notFound();
-
-        if (activeCheck.test(id))
-            return ArenaMutationResult.inUse();
-
-        if (corner == 1)
-            arena.setBoundsCorner1(location);
-        else
-            arena.setBoundsCorner2(location);
-
         save(arena);
 
         return ArenaMutationResult.success(arena);
@@ -145,9 +105,6 @@ public final class ArenaManager
 
         if (arena == null)
             return ArenaMutationResult.notFound();
-
-        if (activeCheck.test(id))
-            return ArenaMutationResult.inUse();
 
         arena.setBoundaryMode(mode);
         arena.setGraceSeconds(graceSeconds);
@@ -162,9 +119,6 @@ public final class ArenaManager
 
         if (arena == null)
             return ArenaMutationResult.notFound();
-
-        if (activeCheck.test(arenaId))
-            return ArenaMutationResult.inUse();
 
         if (arena.isKitAllowed(kitId))
             arena.disallowKit(kitId);

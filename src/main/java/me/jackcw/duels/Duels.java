@@ -11,9 +11,12 @@ import me.jackcw.duels.kit.KitSerializer;
 import me.jackcw.duels.listener.ArenaEditListener;
 import me.jackcw.duels.listener.MatchListener;
 import me.jackcw.duels.listener.PlayerStateListener;
+import me.jackcw.duels.listener.SpectatorListener;
 import me.jackcw.duels.match.MatchManager;
 import me.jackcw.duels.menu.admin.*;
 import me.jackcw.duels.menu.admin.arena.ArenaDetailMenu;
+import me.jackcw.duels.menu.admin.arena.ArenaInstanceDetailMenu;
+import me.jackcw.duels.menu.admin.arena.ArenaInstanceListMenu;
 import me.jackcw.duels.menu.admin.arena.ArenaKitMenu;
 import me.jackcw.duels.menu.admin.arena.ArenaListMenu;
 import me.jackcw.duels.menu.admin.arena.ArenaMainMenu;
@@ -24,7 +27,9 @@ import me.jackcw.duels.menu.admin.kit.KitMainMenu;
 import me.jackcw.duels.menu.user.KitSelectorMenu;
 import me.jackcw.duels.menu.user.KitViewMenu;
 import me.jackcw.duels.menu.user.LeaderboardMenu;
+import me.jackcw.duels.menu.user.SpectateMenu;
 import me.jackcw.duels.player.PlayerStateManager;
+import me.jackcw.duels.spectator.SpectatorManager;
 import me.jackcw.duels.stats.MatchRecord;
 import me.jackcw.duels.stats.MatchRecordSerializer;
 import me.jackcw.duels.stats.StatsManager;
@@ -43,16 +48,20 @@ public class Duels extends JavaPlugin
 
     private DuelsSettings settings;
     private ArenaManager arenaManager;
+    private ArenaInstanceManager arenaInstanceManager;
     private ArenaAllocator arenaAllocator;
     private ArenaEditManager arenaEditManager;
     private BoundaryEnforcer boundaryEnforcer;
+    private BlockChangeRollbackStrategy arenaResetStrategy;
     private KitManager kitManager;
     private ChallengeManager challengeManager;
     private MatchManager matchManager;
     private PlayerStateManager playerStateManager;
+    private SpectatorManager spectatorManager;
     private StatsManager statsManager;
 
     private YamlRepository<Arena> arenaRepository;
+    private YamlRepository<ArenaInstance> arenaInstanceRepository;
     private YamlRepository<Kit> kitRepository;
 
     private AdminMainMenu adminMainMenu;
@@ -60,6 +69,8 @@ public class Duels extends JavaPlugin
     private ArenaListMenu arenaListMenu;
     private ArenaKitMenu arenaKitMenu;
     private ArenaDetailMenu arenaDetailMenu;
+    private ArenaInstanceListMenu arenaInstanceListMenu;
+    private ArenaInstanceDetailMenu arenaInstanceDetailMenu;
     private KitMainMenu kitMainMenu;
     private KitListMenu kitListMenu;
     private KitDetailMenu kitDetailMenu;
@@ -67,6 +78,7 @@ public class Duels extends JavaPlugin
     private KitViewMenu kitViewMenu;
     private KitSelectorMenu kitSelectorMenu;
     private LeaderboardMenu leaderboardMenu;
+    private SpectateMenu spectateMenu;
 
     @Override
     public void onEnable()
@@ -90,6 +102,12 @@ public class Duels extends JavaPlugin
     {
         if (matchManager != null)
             matchManager.shutdown(isServerStopping());
+
+        // After the matches, which eject their own spectators - this catches
+        // anyone left over, such as a spectator of a match that has already
+        // been cleaned up.
+        if (spectatorManager != null)
+            spectatorManager.shutdown(isServerStopping());
 
         if (boundaryEnforcer != null)
             boundaryEnforcer.shutdown();
@@ -117,6 +135,11 @@ public class Duels extends JavaPlugin
         return arenaManager;
     }
 
+    public ArenaInstanceManager getArenaInstanceManager()
+    {
+        return arenaInstanceManager;
+    }
+
     public ArenaAllocator getArenaAllocator()
     {
         return arenaAllocator;
@@ -130,6 +153,11 @@ public class Duels extends JavaPlugin
     public BoundaryEnforcer getBoundaryEnforcer()
     {
         return boundaryEnforcer;
+    }
+
+    public ArenaResetStrategy getArenaResetStrategy()
+    {
+        return arenaResetStrategy;
     }
 
     public KitManager getKitManager()
@@ -177,6 +205,16 @@ public class Duels extends JavaPlugin
         return arenaDetailMenu;
     }
 
+    public ArenaInstanceListMenu getArenaInstanceListMenu()
+    {
+        return arenaInstanceListMenu;
+    }
+
+    public ArenaInstanceDetailMenu getArenaInstanceDetailMenu()
+    {
+        return arenaInstanceDetailMenu;
+    }
+
     public KitMainMenu getKitMainMenu()
     {
         return kitMainMenu;
@@ -207,6 +245,16 @@ public class Duels extends JavaPlugin
         return leaderboardMenu;
     }
 
+    public SpectateMenu getSpectateMenu()
+    {
+        return spectateMenu;
+    }
+
+    public SpectatorManager getSpectatorManager()
+    {
+        return spectatorManager;
+    }
+
     public boolean isServerStopping()
     {
         try
@@ -222,6 +270,7 @@ public class Duels extends JavaPlugin
     private void initializeSerializers()
     {
         jCore.serializers().register(Arena.class, new ArenaSerializer(jCore.serializers()));
+        jCore.serializers().register(ArenaInstance.class, new ArenaInstanceSerializer(jCore.serializers()));
         jCore.serializers().register(Kit.class, new KitSerializer(jCore.serializers()));
         jCore.serializers().register(MatchRecord.class, new MatchRecordSerializer());
     }
@@ -232,8 +281,16 @@ public class Duels extends JavaPlugin
                 jCore.files().yaml("arenas.yml"), jCore.serializers(), "arenas", Arena.class, Arena::getId
         );
 
+        arenaInstanceRepository = new YamlRepository<>(
+                jCore.files().yaml("arena-instances.yml"), jCore.serializers(), "instances", ArenaInstance.class, ArenaInstance::getId
+        );
+
         kitRepository = new YamlRepository<>(
                 jCore.files().yaml("kits.yml"), jCore.serializers(), "kits", Kit.class, Kit::getId
+        );
+
+        ArenaInstanceMigrator.migrate(
+                jCore.files().yaml("arenas.yml"), arenaInstanceRepository, jCore.serializers(), getLogger()
         );
     }
 
@@ -245,7 +302,9 @@ public class Duels extends JavaPlugin
         jCore.menus().configure(menusFile);
 
         arenaKitMenu = new ArenaKitMenu(this);
-        arenaDetailMenu = new ArenaDetailMenu(this, arenaKitMenu);
+        arenaInstanceDetailMenu = new ArenaInstanceDetailMenu(this);
+        arenaInstanceListMenu = new ArenaInstanceListMenu(this, arenaInstanceDetailMenu);
+        arenaDetailMenu = new ArenaDetailMenu(this, arenaKitMenu, arenaInstanceListMenu, arenaInstanceDetailMenu);
         arenaListMenu = new ArenaListMenu(this, arenaDetailMenu);
         arenaMainMenu = new ArenaMainMenu(this, arenaListMenu);
 
@@ -256,6 +315,7 @@ public class Duels extends JavaPlugin
         kitViewMenu = new KitViewMenu(this);
         kitSelectorMenu = new KitSelectorMenu(this, kitViewMenu);
         leaderboardMenu = new LeaderboardMenu(this);
+        spectateMenu = new SpectateMenu(this);
 
         adminMainMenu = new AdminMainMenu(this, arenaMainMenu, kitMainMenu);
     }
@@ -264,15 +324,22 @@ public class Duels extends JavaPlugin
     {
         kitManager = new KitManager(kitRepository);
         arenaManager = new ArenaManager(arenaRepository);
-        arenaAllocator = new StaticArenaAllocator(arenaManager);
+        arenaInstanceManager = new ArenaInstanceManager(arenaInstanceRepository);
+        arenaAllocator = new StaticArenaAllocator(arenaManager, arenaInstanceManager);
         arenaEditManager = new ArenaEditManager(this);
         challengeManager = new ChallengeManager(jCore.tasks(), settings, new ChallengeExpiryHandler(jCore.messages())::onExpire);
         playerStateManager = new PlayerStateManager(jCore.files().yaml("playerstates.yml", true), jCore.serializers());
         statsManager = new StatsManager(this);
         matchManager = new MatchManager(this);
-        boundaryEnforcer = new BoundaryEnforcer(this);
 
-        arenaManager.setActiveCheck(arenaAllocator::isAllocated);
+        // Ordering matters: SpectatorManager reads MatchManager, and
+        // BoundaryEnforcer resolves spectators through SpectatorManager.
+        spectatorManager = new SpectatorManager(this, jCore.files().yaml("spectators.yml"));
+        boundaryEnforcer = new BoundaryEnforcer(this);
+        arenaResetStrategy = new BlockChangeRollbackStrategy(this);
+
+        arenaManager.setHasInstancesCheck(arenaInstanceManager::hasInstances);
+        arenaInstanceManager.setActiveCheck(arenaAllocator::isAllocated);
     }
 
     private void registerEvents()
@@ -280,6 +347,8 @@ public class Duels extends JavaPlugin
         getServer().getPluginManager().registerEvents(new PlayerStateListener(this), this);
         getServer().getPluginManager().registerEvents(new MatchListener(this), this);
         getServer().getPluginManager().registerEvents(new ArenaEditListener(this), this);
+        getServer().getPluginManager().registerEvents(new SpectatorListener(this), this);
+        getServer().getPluginManager().registerEvents(arenaResetStrategy, this);
     }
 
     private void registerCommands()

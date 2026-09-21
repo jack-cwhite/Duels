@@ -21,6 +21,7 @@ public final class Match
     private final Location player2Location;
     private final List<Kit> availableKits;
     private final StateMachine<MatchState> state;
+    private final long startedAt;
     private final Map<UUID, Kit> selectedKits = new HashMap<>();
     private final Map<UUID, Integer> appliedKits = new HashMap<>();
     private Countdown countdown;
@@ -34,6 +35,7 @@ public final class Match
         this.player2Location = player2Location;
         this.availableKits = availableKits.stream().map(Kit::copy).toList();
         this.state = buildStateMachine();
+        this.startedAt = System.currentTimeMillis();
     }
 
     private static StateMachine<MatchState> buildStateMachine()
@@ -82,6 +84,13 @@ public final class Match
     public ArenaInstance getArenaInstance()
     {
         return arenaInstance;
+    }
+
+    // Wall-clock rather than a tick count so it stays meaningful across lag
+    // spikes; only ever used to show viewers how long a duel has been running.
+    public long getStartedAt()
+    {
+        return startedAt;
     }
 
     public List<Kit> getAvailableKits()

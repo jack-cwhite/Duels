@@ -1,19 +1,21 @@
 package me.jackcw.duels.arena;
 
 import me.jackcw.duels.kit.Kit;
-import org.bukkit.Location;
 
 import java.util.Set;
 import java.util.TreeSet;
 
+/**
+ * A duel template: policy that applies to every physical copy of this arena.
+ *
+ * <p>Spawns and bounds are not here - they are a property of a specific place
+ * in the world, so they live on {@link ArenaInstance}, the registered copies
+ * of this template. A template with zero instances is simply not usable yet.
+ */
 public final class Arena
 {
     private final int id;
     private String name;
-    private Location spawn1;
-    private Location spawn2;
-    private Location boundsCorner1;
-    private Location boundsCorner2;
     private BoundaryMode boundaryMode = BoundaryMode.SOFT_RETURN;
     private int graceSeconds;
     private final Set<Integer> disallowedKitIds = new TreeSet<>();
@@ -41,51 +43,6 @@ public final class Arena
         this.name = name;
     }
 
-    public Location getSpawn1()
-    {
-        return spawn1;
-    }
-
-    public void setSpawn1(Location spawn1)
-    {
-        this.spawn1 = spawn1;
-    }
-
-    public Location getSpawn2()
-    {
-        return spawn2;
-    }
-
-    public void setSpawn2(Location spawn2)
-    {
-        this.spawn2 = spawn2;
-    }
-
-    public Location getBoundsCorner1()
-    {
-        return boundsCorner1;
-    }
-
-    public void setBoundsCorner1(Location boundsCorner1)
-    {
-        this.boundsCorner1 = boundsCorner1;
-    }
-
-    public Location getBoundsCorner2()
-    {
-        return boundsCorner2;
-    }
-
-    public void setBoundsCorner2(Location boundsCorner2)
-    {
-        this.boundsCorner2 = boundsCorner2;
-    }
-
-    public boolean hasBounds()
-    {
-        return boundsCorner1 != null && boundsCorner2 != null;
-    }
-
     public BoundaryMode getBoundaryMode()
     {
         return boundaryMode;
@@ -109,11 +66,6 @@ public final class Arena
     public void setEnabled(boolean enabled)
     {
         this.enabled = enabled;
-    }
-
-    public boolean isReady()
-    {
-        return spawn1 != null && spawn2 != null;
     }
 
     public boolean isKitAllowed(Kit kit)

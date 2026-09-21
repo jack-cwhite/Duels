@@ -9,7 +9,10 @@ import me.jackcw.duels.match.MatchManager;
 import me.jackcw.duels.match.MatchState;
 import me.jackcw.duels.menu.user.KitSelectorMenu;
 import me.jackcw.duels.menu.user.LeaderboardMenu;
+import me.jackcw.duels.menu.user.SpectateMenu;
 import me.jackcw.duels.message.Message;
+import me.jackcw.duels.spectator.SpectateResult;
+import me.jackcw.duels.spectator.SpectatorManager;
 import me.jackcw.jcore.command.ArgumentTypes;
 import me.jackcw.jcore.command.CommandBuilder;
 import me.jackcw.jcore.command.CommandContext;
@@ -27,6 +30,8 @@ public final class DuelCommand
     private final MatchManager matchManager;
     private final KitSelectorMenu kitSelectorMenu;
     private final LeaderboardMenu leaderboardMenu;
+    private final SpectateMenu spectateMenu;
+    private final SpectatorManager spectatorManager;
     private final MessageManager messageManager;
     private final DuelsSettings settings;
     private final MenuManager menus;
@@ -37,6 +42,8 @@ public final class DuelCommand
         this.matchManager = plugin.getMatchManager();
         this.kitSelectorMenu = plugin.getKitSelectorMenu();
         this.leaderboardMenu = plugin.getLeaderboardMenu();
+        this.spectateMenu = plugin.getSpectateMenu();
+        this.spectatorManager = plugin.getSpectatorManager();
         this.messageManager = plugin.core().messages();
         this.settings = plugin.getSettings();
         this.menus = plugin.core().menus();
@@ -52,6 +59,13 @@ public final class DuelCommand
                 .playerOnly()
                 .optionalArgument("player", ArgumentTypes.player())
                 .executes(this::handleDuel)
+                .child(
+                        CommandBuilder.command("challenge")
+                                .description("Challenge another player to a duel, even if their name matches a subcommand")
+                                .usage("/duel challenge <player>")
+                                .playerOnly()
+                                .argument("player", ArgumentTypes.player())
+                                .executes(this::handleDuel))
                 .child(
                         CommandBuilder.command("accept")
                                 .description("Accept a pending duel challenge")
@@ -70,6 +84,22 @@ public final class DuelCommand
                                 .usage("/duel kit")
                                 .playerOnly()
                                 .executes(this::openKitSelector))
+                .child(
+                        CommandBuilder.command("spectate")
+                                .description("Watch a live duel")
+                                .usage("/duel spectate [player]")
+                                .permission("duels.spectate")
+                                .alias("watch")
+                                .playerOnly()
+                                .optionalArgument("player", ArgumentTypes.player())
+                                .executes(this::spectateDuel))
+                .child(
+                        CommandBuilder.command("leave")
+                                .description("Stop spectating a duel")
+                                .usage("/duel leave")
+                                .permission("duels.spectate")
+                                .playerOnly()
+                                .executes(this::leaveSpectating))
                 .child(
                         CommandBuilder.command("top")
                                 .description("View the top duelists by wins")
@@ -199,6 +229,66 @@ public final class DuelCommand
 
         if (settings.removeOutstandingChallenges())
             challengeManager.removeAll(sender.getUniqueId(), challenger.getUniqueId());
+    }
+
+    /**
+     * With no argument this opens the live-match list, which is both the
+     * discoverable entry point and the only sensible answer to "spectate what?".
+     */
+    private void spectateDuel(CommandContext context)
+    {
+        Player sender = context.getPlayer();
+
+        if (!context.has("player"))
+        {
+            menus.open(sender, () -> spectateMenu.open(sender));
+            return;
+        }
+
+        Player target = context.get("player");
+
+        if (target.getUniqueId().equals(sender.getUniqueId()))
+        {
+            messageManager.send(sender, Message.SPECTATE_CANNOT_SELF);
+            return;
+        }
+
+        Match match = matchManager.getMatch(target.getUniqueId());
+
+        if (match == null)
+        {
+            messageManager.send(sender, Message.SPECTATE_TARGET_NOT_IN_MATCH, "player", target.getName());
+            return;
+        }
+
+        SpectateResult result = spectatorManager.start(sender, match);
+
+        if (result != SpectateResult.SUCCESS)
+        {
+            messageManager.send(sender, SpectateMenu.messageFor(result));
+            return;
+        }
+
+        messageManager.send(sender, Message.SPECTATE_STARTED, "player", target.getName());
+    }
+
+    private void leaveSpectating(CommandContext context)
+    {
+        Player sender = context.getPlayer();
+
+        if (!spectatorManager.isSpectating(sender.getUniqueId()))
+        {
+            messageManager.send(sender, Message.SPECTATE_NOT_SPECTATING);
+            return;
+        }
+
+        if (!spectatorManager.stop(sender.getUniqueId()))
+        {
+            messageManager.send(sender, Message.SPECTATE_TELEPORT_FAILED);
+            return;
+        }
+
+        messageManager.send(sender, Message.SPECTATE_STOPPED);
     }
 
     private void openKitSelector(CommandContext context)

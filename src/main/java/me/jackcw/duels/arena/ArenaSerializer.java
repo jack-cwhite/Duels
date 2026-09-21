@@ -2,7 +2,6 @@ package me.jackcw.duels.arena;
 
 import me.jackcw.jcore.serialization.RepositorySerializer;
 import me.jackcw.jcore.serialization.SerializerManager;
-import org.bukkit.Location;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -12,7 +11,7 @@ import java.util.Set;
 
 public final class ArenaSerializer implements RepositorySerializer<Arena>
 {
-    private static final Set<String> FIELDS = Set.of("name", "spawn1", "spawn2", "boundsCorner1", "boundsCorner2", "boundaryMode", "graceSeconds", "disallowedKits", "enabled");
+    private static final Set<String> FIELDS = Set.of("name", "boundaryMode", "graceSeconds", "disallowedKits", "enabled");
     private final SerializerManager serializerManager;
 
     public ArenaSerializer(SerializerManager serializerManager)
@@ -29,10 +28,6 @@ public final class ArenaSerializer implements RepositorySerializer<Arena>
         Map<String, Object> data = new LinkedHashMap<>();
 
         data.put("name", arena.getName());
-        data.put("spawn1", serializerManager.serialize(arena.getSpawn1()));
-        data.put("spawn2", serializerManager.serialize(arena.getSpawn2()));
-        data.put("boundsCorner1", serializerManager.serialize(arena.getBoundsCorner1()));
-        data.put("boundsCorner2", serializerManager.serialize(arena.getBoundsCorner2()));
         data.put("boundaryMode", arena.getBoundaryMode().name());
         data.put("graceSeconds", arena.getGraceSeconds());
         data.put("disallowedKits", new ArrayList<>(arena.getDisallowedKitIds()));
@@ -55,11 +50,6 @@ public final class ArenaSerializer implements RepositorySerializer<Arena>
             throw new IllegalArgumentException("Expected a non-empty arena name");
 
         Arena arena = new Arena(id, name);
-
-        arena.setSpawn1(serializerManager.deserialize(map.get("spawn1"), Location.class));
-        arena.setSpawn2(serializerManager.deserialize(map.get("spawn2"), Location.class));
-        arena.setBoundsCorner1(serializerManager.deserialize(map.get("boundsCorner1"), Location.class));
-        arena.setBoundsCorner2(serializerManager.deserialize(map.get("boundsCorner2"), Location.class));
 
         if (map.get("boundaryMode") instanceof String boundaryMode)
         {

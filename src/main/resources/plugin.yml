@@ -21,6 +21,9 @@ permissions:
   duels.duel:
     description: Challenge, accept, deny, view stats, and manage your own duels
     default: true
+  duels.spectate:
+    description: Watch live duels
+    default: true
   duels.admin:
     description: Full access to every Duels admin command
     default: op

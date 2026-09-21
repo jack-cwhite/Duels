@@ -59,12 +59,12 @@ public final class ArenaEditManager
         this.toolSlots = resolveToolSlots(toolsSection, plugin.getLogger());
     }
 
-    public void start(Player player, Arena arena)
+    public void start(Player player, ArenaInstance instance)
     {
         if (isEditing(player))
             end(player);
 
-        ArenaEditSession session = new ArenaEditSession(player, arena);
+        ArenaEditSession session = new ArenaEditSession(player, instance);
         sessions.put(player.getUniqueId(), session);
 
         giveTools(player);
@@ -83,13 +83,13 @@ public final class ArenaEditManager
     private void tickBoundsParticles(ArenaEditSession session)
     {
         Player player = getPlayer(session.getPlayerUuid());
-        Arena arena = plugin.getArenaManager().getArena(session.getArenaId());
+        ArenaInstance instance = plugin.getArenaInstanceManager().getInstance(session.getInstanceId());
 
-        if (player == null || !player.isOnline() || arena == null || !arena.hasBounds())
+        if (player == null || !player.isOnline() || instance == null || !instance.hasBounds())
             return;
 
-        Location corner1 = arena.getBoundsCorner1();
-        Location corner2 = arena.getBoundsCorner2();
+        Location corner1 = instance.getBoundsCorner1();
+        Location corner2 = instance.getBoundsCorner2();
         World world = corner1.getWorld();
 
         if (!world.equals(player.getWorld()))

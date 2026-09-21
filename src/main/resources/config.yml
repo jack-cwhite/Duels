@@ -23,3 +23,16 @@ enable-grace-period: true
 
 # How long (in seconds) the grace period lasts, if enabled above. Must be at least 1.
 grace-period-seconds: 5
+
+# After a match ends, block changes made inside the arena's bounds while it was
+# in progress are automatically reverted before the arena can be reused. This
+# caps how many changes are tracked per match - past this limit, further
+# changes are simply not tracked (the match still ends normally, but the arena
+# may be left partially changed). Must be at least 1.
+arena-reset-max-tracked-block-changes: 4000
+
+# How many of those tracked changes are reverted per server tick when a match
+# ends. Reverting them all in a single tick can cause a noticeable stutter on
+# arenas with a lot of destruction, so the work is spread out instead. Must be
+# at least 1.
+arena-reset-blocks-per-tick: 64

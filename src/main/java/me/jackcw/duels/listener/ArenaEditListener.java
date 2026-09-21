@@ -1,12 +1,12 @@
 package me.jackcw.duels.listener;
 
 import me.jackcw.duels.Duels;
-import me.jackcw.duels.arena.Arena;
 import me.jackcw.duels.arena.ArenaEditManager;
 import me.jackcw.duels.arena.ArenaEditSession;
 import me.jackcw.duels.arena.ArenaEditTool;
-import me.jackcw.duels.arena.ArenaManager;
-import me.jackcw.duels.arena.ArenaMutationResult;
+import me.jackcw.duels.arena.ArenaInstance;
+import me.jackcw.duels.arena.ArenaInstanceManager;
+import me.jackcw.duels.arena.ArenaInstanceMutationResult;
 import me.jackcw.duels.message.Message;
 import me.jackcw.jcore.message.MessageManager;
 import org.bukkit.Location;
@@ -29,14 +29,14 @@ public final class ArenaEditListener implements Listener
 {
     private final Duels plugin;
     private final ArenaEditManager arenaEditManager;
-    private final ArenaManager arenaManager;
+    private final ArenaInstanceManager arenaInstanceManager;
     private final MessageManager messageManager;
 
     public ArenaEditListener(Duels plugin)
     {
         this.plugin = plugin;
         this.arenaEditManager = plugin.getArenaEditManager();
-        this.arenaManager = plugin.getArenaManager();
+        this.arenaInstanceManager = plugin.getArenaInstanceManager();
         this.messageManager = plugin.core().messages();
     }
 
@@ -144,19 +144,19 @@ public final class ArenaEditListener implements Listener
         }
 
         ArenaEditSession session = arenaEditManager.getSession(player);
-        Arena arena = arenaManager.getArena(session.getArenaId());
+        ArenaInstance instance = arenaInstanceManager.getInstance(session.getInstanceId());
 
-        if (arena == null)
+        if (instance == null)
         {
             arenaEditManager.end(player);
-            messageManager.send(player, Message.ARENA_NOT_FOUND, "id", session.getArenaId());
+            messageManager.send(player, Message.ARENA_INSTANCE_NOT_FOUND, "id", session.getInstanceId());
             return;
         }
 
         if (right)
-            handleTeleport(player, arena, tool);
+            handleTeleport(player, instance, tool);
         else
-            handleSet(player, arena, tool);
+            handleSet(player, instance, tool);
     }
 
     @EventHandler
@@ -168,14 +168,14 @@ public final class ArenaEditListener implements Listener
             arenaEditManager.end(player);
     }
 
-    private void handleTeleport(Player player, Arena arena, ArenaEditTool tool)
+    private void handleTeleport(Player player, ArenaInstance instance, ArenaEditTool tool)
     {
         Location location = switch (tool)
         {
-            case SPAWN_1 -> arena.getSpawn1();
-            case SPAWN_2 -> arena.getSpawn2();
-            case BOUNDS_CORNER_1 -> arena.getBoundsCorner1();
-            case BOUNDS_CORNER_2 -> arena.getBoundsCorner2();
+            case SPAWN_1 -> instance.getSpawn1();
+            case SPAWN_2 -> instance.getSpawn2();
+            case BOUNDS_CORNER_1 -> instance.getBoundsCorner1();
+            case BOUNDS_CORNER_2 -> instance.getBoundsCorner2();
             case EXIT -> null;
         };
 
@@ -186,19 +186,19 @@ public final class ArenaEditListener implements Listener
         }
 
         if (tool == ArenaEditTool.SPAWN_1 || tool == ArenaEditTool.SPAWN_2)
-            messageManager.send(player, Message.ARENA_SPAWN_NOT_SET, "spawn", toolNumber(tool), "id", arena.getId());
+            messageManager.send(player, Message.ARENA_SPAWN_NOT_SET, "spawn", toolNumber(tool), "id", instance.getId());
         else
-            messageManager.send(player, Message.ARENA_BOUNDS_NOT_SET, "corner", toolNumber(tool), "id", arena.getId());
+            messageManager.send(player, Message.ARENA_BOUNDS_NOT_SET, "corner", toolNumber(tool), "id", instance.getId());
     }
 
-    private void handleSet(Player player, Arena arena, ArenaEditTool tool)
+    private void handleSet(Player player, ArenaInstance instance, ArenaEditTool tool)
     {
-        ArenaMutationResult result = switch (tool)
+        ArenaInstanceMutationResult result = switch (tool)
         {
-            case SPAWN_1 -> arenaManager.setSpawn(arena.getId(), 1, player.getLocation());
-            case SPAWN_2 -> arenaManager.setSpawn(arena.getId(), 2, player.getLocation());
-            case BOUNDS_CORNER_1 -> arenaManager.setBoundsCorner(arena.getId(), 1, player.getLocation());
-            case BOUNDS_CORNER_2 -> arenaManager.setBoundsCorner(arena.getId(), 2, player.getLocation());
+            case SPAWN_1 -> arenaInstanceManager.setSpawn(instance.getId(), 1, player.getLocation());
+            case SPAWN_2 -> arenaInstanceManager.setSpawn(instance.getId(), 2, player.getLocation());
+            case BOUNDS_CORNER_1 -> arenaInstanceManager.setBoundsCorner(instance.getId(), 1, player.getLocation());
+            case BOUNDS_CORNER_2 -> arenaInstanceManager.setBoundsCorner(instance.getId(), 2, player.getLocation());
             case EXIT -> null;
         };
 
@@ -207,14 +207,14 @@ public final class ArenaEditListener implements Listener
 
         switch (result.status())
         {
-            case NOT_FOUND -> messageManager.send(player, Message.ARENA_NOT_FOUND, "id", arena.getId());
-            case IN_USE -> messageManager.send(player, Message.ARENA_IN_USE, "id", arena.getId());
+            case NOT_FOUND -> messageManager.send(player, Message.ARENA_INSTANCE_NOT_FOUND, "id", instance.getId());
+            case IN_USE -> messageManager.send(player, Message.ARENA_INSTANCE_IN_USE, "id", instance.getId());
             case SUCCESS ->
             {
                 if (tool == ArenaEditTool.SPAWN_1 || tool == ArenaEditTool.SPAWN_2)
-                    messageManager.send(player, Message.ARENA_SPAWN_SET, "spawn", toolNumber(tool), "id", arena.getId());
+                    messageManager.send(player, Message.ARENA_SPAWN_SET, "spawn", toolNumber(tool), "id", instance.getId());
                 else
-                    messageManager.send(player, Message.ARENA_BOUNDS_SET, "corner", toolNumber(tool), "id", arena.getId());
+                    messageManager.send(player, Message.ARENA_BOUNDS_SET, "corner", toolNumber(tool), "id", instance.getId());
             }
         }
     }

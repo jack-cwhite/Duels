@@ -6,5 +6,5 @@ public interface ArenaAllocator
 {
     Optional<ArenaInstance> allocate();
     void release(ArenaInstance instance);
-    boolean isAllocated(int arenaId);
+    boolean isAllocated(int instanceId);
 }

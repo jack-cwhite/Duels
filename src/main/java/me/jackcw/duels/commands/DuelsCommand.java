@@ -3,6 +3,9 @@ package me.jackcw.duels.commands;
 import me.jackcw.duels.Duels;
 import me.jackcw.duels.arena.Arena;
 import me.jackcw.duels.arena.ArenaEditManager;
+import me.jackcw.duels.arena.ArenaInstance;
+import me.jackcw.duels.arena.ArenaInstanceManager;
+import me.jackcw.duels.arena.ArenaInstanceMutationResult;
 import me.jackcw.duels.arena.ArenaManager;
 import me.jackcw.duels.arena.ArenaMutationResult;
 import me.jackcw.duels.arena.BoundaryMode;
@@ -33,6 +36,7 @@ import java.util.List;
 public final class DuelsCommand
 {
     private final ArenaManager arenaManager;
+    private final ArenaInstanceManager arenaInstanceManager;
     private final ArenaEditManager arenaEditManager;
     private final KitManager kitManager;
     private final MessageManager messageManager;
@@ -49,6 +53,7 @@ public final class DuelsCommand
     public DuelsCommand(Duels plugin)
     {
         this.arenaManager = plugin.getArenaManager();
+        this.arenaInstanceManager = plugin.getArenaInstanceManager();
         this.arenaEditManager = plugin.getArenaEditManager();
         this.kitManager = plugin.getKitManager();
         this.messageManager = plugin.core().messages();
@@ -74,7 +79,7 @@ public final class DuelsCommand
                 .child(
                         CommandBuilder.command("arena")
                                 .description("Manage arenas")
-                                .usage("/duels arena [id|create|delete|list|setspawn]")
+                                .usage("/duels arena [id|create|delete|list|instance]")
                                 .permission("duels.admin.arena")
                                 .alias("a")
                                 .optionalArgument("id", ArgumentTypes.integer())
@@ -111,16 +116,6 @@ public final class DuelsCommand
                                                 .playerOnly()
                                                 .executes(this::openArenaMenuOrDetail))
                                 .child(
-                                        CommandBuilder.command("setspawn")
-                                                .description("Set a spawn point for an arena")
-                                                .usage("/duels arena setspawn <id> <1|2>")
-                                                .permission("duels.admin.arena.setspawn")
-                                                .alias("s")
-                                                .playerOnly()
-                                                .argument("id", ArgumentTypes.integer())
-                                                .argument("spawn", ArgumentTypes.integer())
-                                                .executes(this::setSpawn))
-                                .child(
                                         CommandBuilder.command("rename")
                                                 .description("Rename an arena")
                                                 .usage("/duels arena rename <id> <name>")
@@ -136,15 +131,6 @@ public final class DuelsCommand
                                                 .argument("id", ArgumentTypes.integer())
                                                 .executes(this::toggleArena))
                                 .child(
-                                        CommandBuilder.command("bounds")
-                                                .description("Set a bounds corner for an arena")
-                                                .usage("/duels arena bounds <id> <1|2>")
-                                                .permission("duels.admin.arena.bounds")
-                                                .playerOnly()
-                                                .argument("id", ArgumentTypes.integer())
-                                                .argument("corner", ArgumentTypes.integer())
-                                                .executes(this::setBoundsCorner))
-                                .child(
                                         CommandBuilder.command("boundary")
                                                 .description("Set the out-of-bounds behaviour for an arena")
                                                 .usage("/duels arena boundary <id> <mode> [graceSeconds]")
@@ -154,21 +140,67 @@ public final class DuelsCommand
                                                 .optionalArgument("graceSeconds", ArgumentTypes.integer())
                                                 .executes(this::setBoundaryMode))
                                 .child(
-                                        CommandBuilder.command("editmode")
-                                                .description("Enter arena edit mode for an arena")
-                                                .usage("/duels arena editmode <id>")
-                                                .permission("duels.admin.arena.editmode")
-                                                .playerOnly()
-                                                .argument("id", ArgumentTypes.integer())
-                                                .executes(this::enterEditMode))
-                                .child(
                                         CommandBuilder.command("allowkit")
                                                 .description("Toggle whether a kit is allowed in an arena")
                                                 .usage("/duels arena allowkit <id> <kitId>")
                                                 .permission("duels.admin.arena.allowkit")
                                                 .argument("id", ArgumentTypes.integer())
                                                 .argument("kitId", ArgumentTypes.integer())
-                                                .executes(this::toggleArenaKit)))
+                                                .executes(this::toggleArenaKit))
+                                .child(
+                                        CommandBuilder.command("instance")
+                                                .description("Manage an arena's registered instances")
+                                                .usage("/duels arena instance [create|delete|list|setspawn|bounds|editmode]")
+                                                .permission("duels.admin.arena.instance")
+                                                .alias("i")
+                                                .child(
+                                                        CommandBuilder.command("create")
+                                                                .description("Register a new physical instance of an arena")
+                                                                .usage("/duels arena instance create <arenaId>")
+                                                                .permission("duels.admin.arena.instance.create")
+                                                                .argument("arenaId", ArgumentTypes.integer())
+                                                                .executes(this::createArenaInstance))
+                                                .child(
+                                                        CommandBuilder.command("delete")
+                                                                .description("Delete an arena instance")
+                                                                .usage("/duels arena instance delete <instanceId>")
+                                                                .permission("duels.admin.arena.instance.delete")
+                                                                .argument("instanceId", ArgumentTypes.integer())
+                                                                .executes(this::deleteArenaInstance))
+                                                .child(
+                                                        CommandBuilder.command("list")
+                                                                .description("List an arena's registered instances")
+                                                                .usage("/duels arena instance list <arenaId>")
+                                                                .permission("duels.admin.arena.instance.list")
+                                                                .argument("arenaId", ArgumentTypes.integer())
+                                                                .executes(this::listArenaInstances))
+                                                .child(
+                                                        CommandBuilder.command("setspawn")
+                                                                .description("Set a spawn point for an arena instance")
+                                                                .usage("/duels arena instance setspawn <instanceId> <1|2>")
+                                                                .permission("duels.admin.arena.instance.setspawn")
+                                                                .alias("s")
+                                                                .playerOnly()
+                                                                .argument("instanceId", ArgumentTypes.integer())
+                                                                .argument("spawn", ArgumentTypes.integer())
+                                                                .executes(this::setInstanceSpawn))
+                                                .child(
+                                                        CommandBuilder.command("bounds")
+                                                                .description("Set a bounds corner for an arena instance")
+                                                                .usage("/duels arena instance bounds <instanceId> <1|2>")
+                                                                .permission("duels.admin.arena.instance.bounds")
+                                                                .playerOnly()
+                                                                .argument("instanceId", ArgumentTypes.integer())
+                                                                .argument("corner", ArgumentTypes.integer())
+                                                                .executes(this::setInstanceBoundsCorner))
+                                                .child(
+                                                        CommandBuilder.command("editmode")
+                                                                .description("Enter arena edit mode for an arena instance")
+                                                                .usage("/duels arena instance editmode <instanceId>")
+                                                                .permission("duels.admin.arena.instance.editmode")
+                                                                .playerOnly()
+                                                                .argument("instanceId", ArgumentTypes.integer())
+                                                                .executes(this::enterInstanceEditMode))))
                 .child(
                         CommandBuilder.command("kit")
                                 .description("Manage kits")
@@ -350,45 +382,15 @@ public final class DuelsCommand
 
         for (Arena arena : arenas)
         {
-            String spawn1 = arena.getSpawn1() != null ? "set" : "not set";
-            String spawn2 = arena.getSpawn2() != null ? "set" : "not set";
-
             messageManager.send(
                     context.getSender(),
                     Message.ARENA_LIST_ENTRY,
                     "id", arena.getId(),
                     "name", arena.getName(),
-                    "spawn1", spawn1,
-                    "spawn2", spawn2,
-                    "ready", arena.isReady(),
-                    "available", arena.isEnabled()
-            );
-        }
-    }
-
-    private void setSpawn(CommandContext context)
-    {
-        int id = context.get("id");
-        int spawn = context.get("spawn");
-
-        if (spawn != 1 && spawn != 2)
-        {
-            messageManager.send(context.getSender(), Message.ARENA_INVALID_SPAWN, "spawn", spawn);
-            return;
-        }
-
-        Player player = context.getPlayer();
-        ArenaMutationResult result = arenaManager.setSpawn(id, spawn, player.getLocation());
-
-        switch (result.status())
-        {
-            case NOT_FOUND -> messageManager.send(context.getSender(), Message.ARENA_NOT_FOUND, "id", id);
-            case IN_USE -> messageManager.send(context.getSender(), Message.ARENA_IN_USE, "id", id);
-            case SUCCESS -> messageManager.send(
-                    context.getSender(),
-                    Message.ARENA_SPAWN_SET,
-                    "spawn", spawn,
-                    "id", id
+                    "instances", arenaInstanceManager.getInstancesForArena(arena.getId()).size(),
+                    "ready", arenaInstanceManager.countReady(arena.getId()),
+                    "free", arenaInstanceManager.countFree(arena.getId()),
+                    "enabled", arena.isEnabled()
             );
         }
     }
@@ -425,28 +427,6 @@ public final class DuelsCommand
         }
     }
 
-    private void setBoundsCorner(CommandContext context)
-    {
-        int id = context.get("id");
-        int corner = context.get("corner");
-
-        if (corner != 1 && corner != 2)
-        {
-            messageManager.send(context.getSender(), Message.ARENA_INVALID_BOUNDS_CORNER, "corner", corner);
-            return;
-        }
-
-        Player player = context.getPlayer();
-        ArenaMutationResult result = arenaManager.setBoundsCorner(id, corner, player.getLocation());
-
-        switch (result.status())
-        {
-            case NOT_FOUND -> messageManager.send(context.getSender(), Message.ARENA_NOT_FOUND, "id", id);
-            case IN_USE -> messageManager.send(context.getSender(), Message.ARENA_IN_USE, "id", id);
-            case SUCCESS -> messageManager.send(context.getSender(), Message.ARENA_BOUNDS_SET, "corner", corner, "id", id);
-        }
-    }
-
     private void setBoundaryMode(CommandContext context)
     {
         int id = context.get("id");
@@ -469,18 +449,128 @@ public final class DuelsCommand
         }
     }
 
-    private void enterEditMode(CommandContext context)
+    private void createArenaInstance(CommandContext context)
     {
-        int id = context.get("id");
-        Arena arena = arenaManager.getArena(id);
+        int arenaId = context.get("arenaId");
 
-        if (arena == null)
+        if (arenaManager.getArena(arenaId) == null)
         {
-            messageManager.send(context.getSender(), Message.ARENA_NOT_FOUND, "id", id);
+            messageManager.send(context.getSender(), Message.ARENA_NOT_FOUND, "id", arenaId);
             return;
         }
 
-        arenaEditManager.start(context.getPlayer(), arena);
+        ArenaInstance instance = arenaInstanceManager.createInstance(arenaId);
+        messageManager.send(context.getSender(), Message.ARENA_INSTANCE_CREATED, "id", instance.getId(), "arenaId", arenaId);
+    }
+
+    private void deleteArenaInstance(CommandContext context)
+    {
+        int instanceId = context.get("instanceId");
+        ArenaInstanceMutationResult result = arenaInstanceManager.deleteInstance(instanceId);
+
+        switch (result.status())
+        {
+            case NOT_FOUND -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_NOT_FOUND, "id", instanceId);
+            case IN_USE -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_IN_USE, "id", instanceId);
+            case SUCCESS -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_DELETED, "id", instanceId);
+        }
+    }
+
+    private void listArenaInstances(CommandContext context)
+    {
+        int arenaId = context.get("arenaId");
+
+        if (arenaManager.getArena(arenaId) == null)
+        {
+            messageManager.send(context.getSender(), Message.ARENA_NOT_FOUND, "id", arenaId);
+            return;
+        }
+
+        List<ArenaInstance> instances = arenaInstanceManager.getInstancesForArena(arenaId);
+
+        if (instances.isEmpty())
+        {
+            messageManager.send(context.getSender(), Message.NO_ARENAS);
+            return;
+        }
+
+        for (ArenaInstance instance : instances)
+        {
+            String spawn1 = instance.getSpawn1() != null ? "set" : "not set";
+            String spawn2 = instance.getSpawn2() != null ? "set" : "not set";
+
+            messageManager.send(
+                    context.getSender(),
+                    Message.ARENA_INSTANCE_LIST_ENTRY,
+                    "id", instance.getId(),
+                    "spawn1", spawn1,
+                    "spawn2", spawn2,
+                    "ready", instance.isReady()
+            );
+        }
+    }
+
+    private void setInstanceSpawn(CommandContext context)
+    {
+        int instanceId = context.get("instanceId");
+        int spawn = context.get("spawn");
+
+        if (spawn != 1 && spawn != 2)
+        {
+            messageManager.send(context.getSender(), Message.ARENA_INVALID_SPAWN, "spawn", spawn);
+            return;
+        }
+
+        Player player = context.getPlayer();
+        ArenaInstanceMutationResult result = arenaInstanceManager.setSpawn(instanceId, spawn, player.getLocation());
+
+        switch (result.status())
+        {
+            case NOT_FOUND -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_NOT_FOUND, "id", instanceId);
+            case IN_USE -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_IN_USE, "id", instanceId);
+            case SUCCESS -> messageManager.send(
+                    context.getSender(),
+                    Message.ARENA_SPAWN_SET,
+                    "spawn", spawn,
+                    "id", instanceId
+            );
+        }
+    }
+
+    private void setInstanceBoundsCorner(CommandContext context)
+    {
+        int instanceId = context.get("instanceId");
+        int corner = context.get("corner");
+
+        if (corner != 1 && corner != 2)
+        {
+            messageManager.send(context.getSender(), Message.ARENA_INVALID_BOUNDS_CORNER, "corner", corner);
+            return;
+        }
+
+        Player player = context.getPlayer();
+        ArenaInstanceMutationResult result = arenaInstanceManager.setBoundsCorner(instanceId, corner, player.getLocation());
+
+        switch (result.status())
+        {
+            case NOT_FOUND -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_NOT_FOUND, "id", instanceId);
+            case IN_USE -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_IN_USE, "id", instanceId);
+            case SUCCESS -> messageManager.send(context.getSender(), Message.ARENA_BOUNDS_SET, "corner", corner, "id", instanceId);
+        }
+    }
+
+    private void enterInstanceEditMode(CommandContext context)
+    {
+        int instanceId = context.get("instanceId");
+        ArenaInstance instance = arenaInstanceManager.getInstance(instanceId);
+
+        if (instance == null)
+        {
+            messageManager.send(context.getSender(), Message.ARENA_INSTANCE_NOT_FOUND, "id", instanceId);
+            return;
+        }
+
+        arenaEditManager.start(context.getPlayer(), instance);
     }
 
     private void toggleArenaKit(CommandContext context)

@@ -7,6 +7,7 @@ import me.jackcw.duels.kit.Kit;
 import me.jackcw.duels.kit.KitManager;
 import me.jackcw.duels.message.Message;
 import me.jackcw.duels.player.PlayerStateManager;
+import me.jackcw.duels.spectator.SpectatorManager;
 import me.jackcw.jcore.countdown.Countdown;
 import me.jackcw.jcore.message.MessageManager;
 import org.bukkit.Bukkit;
@@ -23,9 +24,13 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.util.Vector;
 
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public final class MatchManager
 {
+    private static final Logger LOGGER = Logger.getLogger(MatchManager.class.getName());
+
     private final ArenaManager arenaManager;
     private final ArenaAllocator arenaAllocator;
     private final KitManager kitManager;
@@ -121,6 +126,8 @@ public final class MatchManager
         if (match.getCountdown() != null)
             match.getCountdown().cancel();
 
+        ejectSpectators(match, false);
+
         MatchResult result = new MatchResult(
                 match.getArenaInstance().getArenaId(),
                 match.getPlayer1Id(),
@@ -131,17 +138,48 @@ public final class MatchManager
                 System.currentTimeMillis()
         );
 
-        plugin.getStatsManager().recordMatch(result);
+        // A stats-persistence failure must never stop the players being restored
+        // and the arena being released - recordMatch already durably logs the
+        // result itself on failure, so this is purely to stop that failure from
+        // breaking the rest of match cleanup.
+        try
+        {
+            plugin.getStatsManager().recordMatch(result);
+        }
+        catch (Exception e)
+        {
+            LOGGER.log(Level.SEVERE, "Failed to record match result; continuing match cleanup. "
+                    + "Result was: " + result, e);
+        }
 
         endParticipant(match, match.getPlayer1Id(), winnerId);
         endParticipant(match, match.getPlayer2Id(), winnerId);
 
-        arenaAllocator.release(match.getArenaInstance());
+        releaseArena(match);
     }
 
     public Match getMatch(UUID uuid)
     {
         return matches.get(uuid);
+    }
+
+    /**
+     * Every live match, once each.
+     *
+     * <p>The backing map is keyed by participant, so each match appears in it
+     * twice. {@code Match} deliberately does not override {@code equals}, so a
+     * {@code HashSet} deduplicates by identity - which is what is wanted here,
+     * since two separate matches in the same arena are still two matches.
+     *
+     * <p>{@code ENDED} matches are filtered out rather than assumed absent:
+     * {@link #endMatch} transitions the state before it unwinds the match, so
+     * there is a window in which a finished match is still reachable.
+     */
+    public List<Match> getActiveMatches()
+    {
+        return new HashSet<>(matches.values()).stream()
+                .filter(match -> match.getState() != MatchState.ENDED)
+                .toList();
     }
 
     public boolean selectKit(UUID playerId, Kit kit)
@@ -182,6 +220,8 @@ public final class MatchManager
         if (match.getCountdown() != null)
             match.getCountdown().cancel();
 
+        ejectSpectators(match, preservePlayerStates);
+
         if (preservePlayerStates)
         {
             forgetParticipant(match.getPlayer1Id());
@@ -193,7 +233,43 @@ public final class MatchManager
             restoreParticipant(match, match.getPlayer2Id(), null, false);
         }
 
-        arenaAllocator.release(match.getArenaInstance());
+        releaseArena(match);
+    }
+
+    /**
+     * Resolved lazily rather than in the constructor because
+     * {@code SpectatorManager} is built after this manager and needs it - the
+     * dependency only has to exist by the time a match actually ends.
+     */
+    private void ejectSpectators(Match match, boolean preserveForRestoreOnJoin)
+    {
+        SpectatorManager spectatorManager = plugin.getSpectatorManager();
+
+        if (spectatorManager != null)
+            spectatorManager.stopAll(match, preserveForRestoreOnJoin);
+    }
+
+    /**
+     * Resolved lazily for the same reason as {@link #ejectSpectators} -
+     * {@code ArenaResetStrategy} is built after this manager.
+     *
+     * <p>The instance is only handed back to the allocator once the reset
+     * strategy reports it is actually clean, since reverting a large number of
+     * block changes can take more than one tick and the instance must not be
+     * claimable by another match while that is still happening.
+     */
+    private void releaseArena(Match match)
+    {
+        ArenaInstance instance = match.getArenaInstance();
+        ArenaResetStrategy resetStrategy = plugin.getArenaResetStrategy();
+
+        if (resetStrategy == null)
+        {
+            arenaAllocator.release(instance);
+            return;
+        }
+
+        resetStrategy.reset(instance, () -> arenaAllocator.release(instance));
     }
 
     private void endParticipant(Match match, UUID playerId, UUID winnerId)

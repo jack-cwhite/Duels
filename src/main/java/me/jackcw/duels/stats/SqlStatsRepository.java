@@ -127,7 +127,14 @@ public final class SqlStatsRepository implements StatsRepository
             }
             catch (Exception e)
             {
-                LOGGER.log(Level.WARNING, "Could not record match result", e);
+                // This match's outcome is otherwise gone - nothing else durably
+                // records it if the database write fails, so every field the
+                // repository would have written is logged here for manual
+                // recovery instead of just the exception.
+                LOGGER.log(Level.SEVERE, "Could not record match result - data lost unless recovered manually: "
+                        + "arenaId=" + arenaId + ", player1Id=" + player1Id + ", player2Id=" + player2Id
+                        + ", winnerId=" + winnerId + ", kitId1=" + kitId1 + ", kitId2=" + kitId2
+                        + ", endedAt=" + endedAt, e);
             }
         });
     }
