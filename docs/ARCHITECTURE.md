@@ -20,6 +20,48 @@ JCore service (file, repository, task, database, message, menu)
 Paper / YAML / SQL
 ```
 
+## Deployment modes are a deliberate product requirement
+
+Duels is intended to support a range of server sizes without forcing every
+server to install or operate the infrastructure needed by the largest one.
+The deployment mode changes how arenas are supplied and how players are routed;
+it does not change the core match lifecycle.
+
+### Standalone Paper server with static arenas
+
+This is the simplest supported mode. An administrator manually builds and
+registers a finite set of `ArenaInstance` copies. `StaticArenaAllocator`
+claims one free copy for each match. No dynamic world, structure-pasting
+system, proxy, Redis instance, or external service is required.
+
+### Paper server with opt-in dynamic arena instances
+
+A server may configure particular arena templates for dynamic provisioning. If
+all existing copies are busy, Duels can create another physical copy in its
+dedicated arena world and expose it as a normal `ArenaInstance`. Static and
+dynamic templates can coexist, and the static path remains available for small
+servers or arenas that are easier to build by hand.
+
+This dynamic mode means creating arena copies inside one Paper server. It does
+not mean creating new Minecraft servers. The match, spectator, reset, and
+player-restoration systems should continue to work against the resulting
+`ArenaInstance` without knowing whether it was manually built or provisioned.
+
+### Paper backends behind a Velocity network
+
+Duels continues to run on the backend Paper servers, where Bukkit/Paper owns
+players, worlds, arenas, and matches. A future Velocity companion handles
+connection routing and player transfers; Velocity cannot call Bukkit APIs and
+is not a place to run `MatchManager`.
+
+The first network stage can use fixed backend servers, each with its own local
+static or dynamic arena instances. Shared statistics and later cross-server
+matchmaking are separate concerns and are introduced only when a real network
+deployment needs them. A standalone server must not need those services.
+
+The important invariant is therefore: deployment-specific allocation and
+routing sit at the boundary, while the local match lifecycle remains reusable.
+
 ## JCore's central object
 
 `JCore` is a facade: one object that creates and exposes the shared services for a plugin.
