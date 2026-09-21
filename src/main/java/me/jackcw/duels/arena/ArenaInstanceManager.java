@@ -54,6 +54,24 @@ public final class ArenaInstanceManager
         return instance;
     }
 
+    public ArenaInstance createProvisionedInstance(int arenaId, int slotIndex, int templateRevision, ArenaStructureSize structureSize)
+    {
+        int id = repository.reserveId();
+        ArenaInstance instance = ArenaInstance.provisioned(id, arenaId, slotIndex, templateRevision, structureSize);
+        repository.save(instance);
+        instances.put(id, instance);
+        return instance;
+    }
+
+    public void setDynamicState(ArenaInstance instance, DynamicArenaState state)
+    {
+        if (instance == null || !instance.isProvisioned())
+            throw new IllegalArgumentException("Only provisioned arena instances have a dynamic state");
+
+        instance.setDynamicState(state);
+        save(instance);
+    }
+
     public ArenaInstanceMutationResult deleteInstance(int id)
     {
         ArenaInstance instance = instances.get(id);
@@ -139,6 +157,16 @@ public final class ArenaInstanceManager
 
         result.sort(Comparator.comparingInt(ArenaInstance::getId));
 
+        return result;
+    }
+
+    public List<ArenaInstance> getProvisionedInstances()
+    {
+        List<ArenaInstance> result = new ArrayList<>();
+        for (ArenaInstance instance : instances.values())
+            if (instance.isProvisioned())
+                result.add(instance);
+        result.sort(Comparator.comparingInt(ArenaInstance::getId));
         return result;
     }
 

@@ -19,6 +19,11 @@ public final class ArenaInstance
     private Location spawn2;
     private Location boundsCorner1;
     private Location boundsCorner2;
+    private ArenaInstanceOrigin origin = ArenaInstanceOrigin.MANUAL;
+    private Integer dynamicSlotIndex;
+    private Integer templateRevision;
+    private ArenaStructureSize structureSize;
+    private DynamicArenaState dynamicState;
 
     public ArenaInstance(int id, int arenaId)
     {
@@ -34,6 +39,66 @@ public final class ArenaInstance
     public int getArenaId()
     {
         return arenaId;
+    }
+
+    public static ArenaInstance provisioned(int id, int arenaId, int slotIndex, int templateRevision, ArenaStructureSize structureSize)
+    {
+        ArenaInstance instance = new ArenaInstance(id, arenaId);
+        instance.configureProvisioned(slotIndex, templateRevision, structureSize, DynamicArenaState.PROVISIONING);
+        return instance;
+    }
+
+    public ArenaInstanceOrigin getOrigin()
+    {
+        return origin;
+    }
+
+    public boolean isProvisioned()
+    {
+        return origin == ArenaInstanceOrigin.PROVISIONED;
+    }
+
+    public Integer getDynamicSlotIndex()
+    {
+        return dynamicSlotIndex;
+    }
+
+    public Integer getTemplateRevision()
+    {
+        return templateRevision;
+    }
+
+    public ArenaStructureSize getStructureSize()
+    {
+        return structureSize;
+    }
+
+    public DynamicArenaState getDynamicState()
+    {
+        return dynamicState;
+    }
+
+    public void configureProvisioned(int slotIndex, int templateRevision, ArenaStructureSize structureSize, DynamicArenaState state)
+    {
+        if (slotIndex < 0 || templateRevision < 1 || structureSize == null || state == null)
+            throw new IllegalArgumentException("Provisioned arena metadata is invalid");
+
+        this.origin = ArenaInstanceOrigin.PROVISIONED;
+        this.dynamicSlotIndex = slotIndex;
+        this.templateRevision = templateRevision;
+        this.structureSize = structureSize;
+        this.dynamicState = state;
+    }
+
+    public void setDynamicState(DynamicArenaState state)
+    {
+        if (!isProvisioned())
+            throw new IllegalStateException("Manual arena instances do not have dynamic states");
+
+        if (state == null || !canTransition(dynamicState, state))
+            throw new IllegalArgumentException("Invalid dynamic arena state transition from " + dynamicState + " to " + state);
+
+        dynamicState = state;
     }
 
     public Location getSpawn1()
@@ -83,7 +148,7 @@ public final class ArenaInstance
 
     public boolean isReady()
     {
-        return spawn1 != null && spawn2 != null;
+        return spawn1 != null && spawn2 != null && (!isProvisioned() || dynamicState == DynamicArenaState.READY);
     }
 
     /**
@@ -108,5 +173,20 @@ public final class ArenaInstance
         return location.getX() >= minX && location.getX() <= maxX
                 && location.getY() >= minY && location.getY() <= maxY
                 && location.getZ() >= minZ && location.getZ() <= maxZ;
+    }
+
+    private static boolean canTransition(DynamicArenaState from, DynamicArenaState to)
+    {
+        if (from == to)
+            return true;
+
+        return switch (from)
+        {
+            case PROVISIONING -> to == DynamicArenaState.READY || to == DynamicArenaState.FAILED || to == DynamicArenaState.RETIRING;
+            case READY -> to == DynamicArenaState.DIRTY || to == DynamicArenaState.RETIRING || to == DynamicArenaState.FAILED;
+            case DIRTY -> to == DynamicArenaState.READY || to == DynamicArenaState.RETIRING || to == DynamicArenaState.FAILED;
+            case RETIRING -> to == DynamicArenaState.FAILED;
+            case FAILED -> to == DynamicArenaState.PROVISIONING || to == DynamicArenaState.RETIRING;
+        };
     }
 }
