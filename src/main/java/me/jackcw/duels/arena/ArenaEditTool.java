@@ -6,6 +6,8 @@ public enum ArenaEditTool
 {
     SPAWN_1(Material.LIME_DYE, "&aSpawn 1 (left: set, right: teleport)"),
     SPAWN_2(Material.LIGHT_BLUE_DYE, "&bSpawn 2 (left: set, right: teleport)"),
+    STRUCTURE_CORNER_1(Material.ORANGE_CONCRETE, "&6Structure Corner 1 (left: set, right: teleport)"),
+    STRUCTURE_CORNER_2(Material.YELLOW_CONCRETE, "&eStructure Corner 2 (left: set, right: teleport)"),
     BOUNDS_CORNER_1(Material.LIME_CONCRETE, "&aBounds Corner 1 (left: set, right: teleport)"),
     BOUNDS_CORNER_2(Material.LIGHT_BLUE_CONCRETE, "&bBounds Corner 2 (left: set, right: teleport)"),
     EXIT(Material.BARRIER, "&cExit Edit Mode");

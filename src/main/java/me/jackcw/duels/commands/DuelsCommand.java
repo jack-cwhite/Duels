@@ -3,11 +3,17 @@ package me.jackcw.duels.commands;
 import me.jackcw.duels.Duels;
 import me.jackcw.duels.arena.Arena;
 import me.jackcw.duels.arena.ArenaEditManager;
+import me.jackcw.duels.arena.ArenaEditSession;
 import me.jackcw.duels.arena.ArenaInstance;
 import me.jackcw.duels.arena.ArenaInstanceManager;
 import me.jackcw.duels.arena.ArenaInstanceMutationResult;
 import me.jackcw.duels.arena.ArenaManager;
 import me.jackcw.duels.arena.ArenaMutationResult;
+import me.jackcw.duels.arena.ArenaProvisioningMode;
+import me.jackcw.duels.arena.ArenaTemplateCaptureResult;
+import me.jackcw.duels.arena.ArenaTemplateDefinition;
+import me.jackcw.duels.arena.ArenaTemplateManager;
+import me.jackcw.duels.arena.ArenaTemplateStatus;
 import me.jackcw.duels.arena.BoundaryMode;
 import me.jackcw.duels.kit.Kit;
 import me.jackcw.duels.kit.KitManager;
@@ -38,6 +44,7 @@ public final class DuelsCommand
     private final ArenaManager arenaManager;
     private final ArenaInstanceManager arenaInstanceManager;
     private final ArenaEditManager arenaEditManager;
+    private final ArenaTemplateManager arenaTemplateManager;
     private final KitManager kitManager;
     private final MessageManager messageManager;
     private final MenuManager menus;
@@ -55,6 +62,7 @@ public final class DuelsCommand
         this.arenaManager = plugin.getArenaManager();
         this.arenaInstanceManager = plugin.getArenaInstanceManager();
         this.arenaEditManager = plugin.getArenaEditManager();
+        this.arenaTemplateManager = plugin.getArenaTemplateManager();
         this.kitManager = plugin.getKitManager();
         this.messageManager = plugin.core().messages();
         this.menus = plugin.core().menus();
@@ -139,6 +147,42 @@ public final class DuelsCommand
                                                 .argument("mode", ArgumentTypes.enumType(BoundaryMode.class))
                                                 .optionalArgument("graceSeconds", ArgumentTypes.integer())
                                                 .executes(this::setBoundaryMode))
+                                .child(
+                                        CommandBuilder.command("provisioning")
+                                                .description("Set whether an arena may provision copies on demand")
+                                                .usage("/duels arena provisioning <id> <STATIC|DYNAMIC>")
+                                                .permission("duels.admin.arena.provisioning")
+                                                .argument("id", ArgumentTypes.integer())
+                                                .argument("mode", ArgumentTypes.enumType(ArenaProvisioningMode.class))
+                                                .executes(this::setProvisioningMode))
+                                .child(
+                                        CommandBuilder.command("template")
+                                                .description("Capture and inspect an arena's dynamic template")
+                                                .usage("/duels arena template [capture|info|clear]")
+                                                .permission("duels.admin.arena.template")
+                                                .child(
+                                                        CommandBuilder.command("capture")
+                                                                .description("Capture from the current edit session's structure corners")
+                                                                .usage("/duels arena template capture <instanceId>")
+                                                                .permission("duels.admin.arena.template.capture")
+                                                                .playerOnly()
+                                                                .argument("instanceId", ArgumentTypes.integer())
+                                                                .executes(this::captureTemplate))
+                                                .child(
+                                                        CommandBuilder.command("info")
+                                                                .description("Show an arena's template status")
+                                                                .usage("/duels arena template info <arenaId>")
+                                                                .permission("duels.admin.arena.template.info")
+                                                                .argument("arenaId", ArgumentTypes.integer())
+                                                                .executes(this::templateInfo))
+                                                .child(
+                                                        CommandBuilder.command("clear")
+                                                                .description("Delete an unused captured template")
+                                                                .usage("/duels arena template clear <arenaId> confirm")
+                                                                .permission("duels.admin.arena.template.clear")
+                                                                .argument("arenaId", ArgumentTypes.integer())
+                                                                .argument("confirmation", ArgumentTypes.string())
+                                                                .executes(this::clearTemplate)))
                                 .child(
                                         CommandBuilder.command("allowkit")
                                                 .description("Toggle whether a kit is allowed in an arena")
@@ -447,6 +491,131 @@ public final class DuelsCommand
                     "grace", graceSeconds
             );
         }
+    }
+
+    private void setProvisioningMode(CommandContext context)
+    {
+        int id = context.get("id");
+        ArenaProvisioningMode mode = context.get("mode");
+        Arena arena = arenaManager.getArena(id);
+
+        if (arena == null)
+        {
+            messageManager.send(context.getSender(), Message.ARENA_NOT_FOUND, "id", id);
+            return;
+        }
+
+        if (mode == ArenaProvisioningMode.DYNAMIC && !arena.canProvisionDynamically())
+        {
+            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "capture a valid template first");
+            return;
+        }
+
+        arenaManager.setProvisioningMode(id, mode);
+        messageManager.send(context.getSender(), Message.ARENA_PROVISIONING_SET, "id", id, "mode", mode.name());
+    }
+
+    private void captureTemplate(CommandContext context)
+    {
+        Player player = context.getPlayer();
+        int instanceId = context.get("instanceId");
+        ArenaEditSession session = arenaEditManager.getSession(player);
+
+        if (session == null || session.getInstanceId() != instanceId)
+        {
+            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+                    "reason", "enter edit mode for instance #" + instanceId + " and set both structure corners");
+            return;
+        }
+
+        ArenaTemplateCaptureResult result = arenaTemplateManager.capture(
+                instanceId, session.getStructureCorner1(), session.getStructureCorner2()
+        );
+
+        if (result.status() != ArenaTemplateCaptureResult.Status.SUCCESS)
+        {
+            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", describeCaptureFailure(result.status()));
+            return;
+        }
+
+        ArenaTemplateDefinition template = result.template();
+        ArenaInstance instance = arenaInstanceManager.getInstance(instanceId);
+        messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURED,
+                "id", instance.getArenaId(), "revision", template.revision(),
+                "sizeX", template.size().x(), "sizeY", template.size().y(), "sizeZ", template.size().z());
+    }
+
+    private void templateInfo(CommandContext context)
+    {
+        int arenaId = context.get("arenaId");
+        Arena arena = arenaManager.getArena(arenaId);
+
+        if (arena == null)
+        {
+            messageManager.send(context.getSender(), Message.ARENA_NOT_FOUND, "id", arenaId);
+            return;
+        }
+
+        ArenaTemplateDefinition template = arena.getTemplateDefinition();
+        String revision = template == null ? "-" : Integer.toString(template.revision());
+        String size = template == null ? "-" : template.size().x() + "x" + template.size().y() + "x" + template.size().z();
+        messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_INFO,
+                "id", arenaId, "status", arena.getTemplateStatus().name(), "revision", revision, "size", size);
+    }
+
+    private void clearTemplate(CommandContext context)
+    {
+        int arenaId = context.get("arenaId");
+        String confirmation = context.get("confirmation");
+
+        if (!"confirm".equalsIgnoreCase(confirmation))
+        {
+            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+                    "reason", "repeat the command with 'confirm' to delete the saved template");
+            return;
+        }
+
+        Arena arena = arenaManager.getArena(arenaId);
+
+        if (arena == null)
+        {
+            messageManager.send(context.getSender(), Message.ARENA_NOT_FOUND, "id", arenaId);
+            return;
+        }
+
+        if (arena.getProvisioningMode() == ArenaProvisioningMode.DYNAMIC)
+        {
+            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+                    "reason", "switch the arena to STATIC before clearing its template");
+            return;
+        }
+
+        if (!arenaTemplateManager.clear(arenaId))
+        {
+            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "no captured template exists");
+            return;
+        }
+
+        messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CLEARED, "id", arenaId);
+    }
+
+    private static String describeCaptureFailure(ArenaTemplateCaptureResult.Status status)
+    {
+        return switch (status)
+        {
+            case ARENA_NOT_FOUND -> "the arena no longer exists";
+            case INSTANCE_NOT_FOUND -> "the arena instance no longer exists";
+            case INSTANCE_IN_USE -> "that instance is hosting a match";
+            case DYNAMIC_MODE_ACTIVE -> "switch the arena to STATIC before replacing its template";
+            case MISSING_CAPTURE_CORNERS -> "set both structure capture corners first";
+            case INSTANCE_NOT_READY -> "set both player spawns first";
+            case BOUNDS_NOT_SET -> "set both gameplay bounds corners first";
+            case WORLD_MISMATCH -> "the capture box, spawns, and bounds must be in one world";
+            case OUTSIDE_CAPTURE_REGION -> "the capture box must contain both spawns and both gameplay bounds corners";
+            case TOO_LARGE -> "the capture volume exceeds dynamic-arenas.max-template-volume";
+            case CAPTURE_FAILED -> "Paper could not save or verify the structure file; check the server log";
+            case SUCCESS -> "unknown";
+        };
     }
 
     private void createArenaInstance(CommandContext context)

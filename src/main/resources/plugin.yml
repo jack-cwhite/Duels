@@ -49,6 +49,8 @@ permissions:
       duels.admin.arena.boundary: true
       duels.admin.arena.editmode: true
       duels.admin.arena.allowkit: true
+      duels.admin.arena.provisioning: true
+      duels.admin.arena.template: true
   duels.admin.arena.create:
     description: Create arenas
     default: op
@@ -81,6 +83,25 @@ permissions:
     default: op
   duels.admin.arena.allowkit:
     description: Toggle whether a kit is allowed in an arena
+    default: op
+  duels.admin.arena.provisioning:
+    description: Set an arena's static or dynamic provisioning mode
+    default: op
+  duels.admin.arena.template:
+    description: Inspect and manage captured dynamic arena templates
+    default: op
+    children:
+      duels.admin.arena.template.capture: true
+      duels.admin.arena.template.info: true
+      duels.admin.arena.template.clear: true
+  duels.admin.arena.template.capture:
+    description: Capture a Paper structure template from an arena edit session
+    default: op
+  duels.admin.arena.template.info:
+    description: Inspect captured arena template metadata
+    default: op
+  duels.admin.arena.template.clear:
+    description: Remove an unused captured arena template
     default: op
   duels.admin.kit:
     description: Access the kit management menu and its subcommands

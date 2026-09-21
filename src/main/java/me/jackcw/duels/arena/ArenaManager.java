@@ -113,6 +113,19 @@ public final class ArenaManager
         return ArenaMutationResult.success(arena);
     }
 
+    public ArenaMutationResult setProvisioningMode(int id, ArenaProvisioningMode mode)
+    {
+        Arena arena = arenas.get(id);
+
+        if (arena == null)
+            return ArenaMutationResult.notFound();
+
+        arena.setProvisioningMode(mode);
+        save(arena);
+
+        return ArenaMutationResult.success(arena);
+    }
+
     public ArenaMutationResult toggleKitAllowed(int arenaId, int kitId)
     {
         Arena arena = arenas.get(arenaId);

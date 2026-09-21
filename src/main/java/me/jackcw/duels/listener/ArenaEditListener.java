@@ -154,9 +154,9 @@ public final class ArenaEditListener implements Listener
         }
 
         if (right)
-            handleTeleport(player, instance, tool);
+            handleTeleport(player, session, instance, tool);
         else
-            handleSet(player, instance, tool);
+            handleSet(player, session, instance, tool);
     }
 
     @EventHandler
@@ -168,12 +168,14 @@ public final class ArenaEditListener implements Listener
             arenaEditManager.end(player);
     }
 
-    private void handleTeleport(Player player, ArenaInstance instance, ArenaEditTool tool)
+    private void handleTeleport(Player player, ArenaEditSession session, ArenaInstance instance, ArenaEditTool tool)
     {
         Location location = switch (tool)
         {
             case SPAWN_1 -> instance.getSpawn1();
             case SPAWN_2 -> instance.getSpawn2();
+            case STRUCTURE_CORNER_1 -> session.getStructureCorner1();
+            case STRUCTURE_CORNER_2 -> session.getStructureCorner2();
             case BOUNDS_CORNER_1 -> instance.getBoundsCorner1();
             case BOUNDS_CORNER_2 -> instance.getBoundsCorner2();
             case EXIT -> null;
@@ -187,16 +189,30 @@ public final class ArenaEditListener implements Listener
 
         if (tool == ArenaEditTool.SPAWN_1 || tool == ArenaEditTool.SPAWN_2)
             messageManager.send(player, Message.ARENA_SPAWN_NOT_SET, "spawn", toolNumber(tool), "id", instance.getId());
+        else if (tool == ArenaEditTool.STRUCTURE_CORNER_1 || tool == ArenaEditTool.STRUCTURE_CORNER_2)
+            messageManager.send(player, Message.ARENA_STRUCTURE_CORNER_NOT_SET, "corner", toolNumber(tool));
         else
             messageManager.send(player, Message.ARENA_BOUNDS_NOT_SET, "corner", toolNumber(tool), "id", instance.getId());
     }
 
-    private void handleSet(Player player, ArenaInstance instance, ArenaEditTool tool)
+    private void handleSet(Player player, ArenaEditSession session, ArenaInstance instance, ArenaEditTool tool)
     {
+        if (tool == ArenaEditTool.STRUCTURE_CORNER_1 || tool == ArenaEditTool.STRUCTURE_CORNER_2)
+        {
+            if (tool == ArenaEditTool.STRUCTURE_CORNER_1)
+                session.setStructureCorner1(player.getLocation());
+            else
+                session.setStructureCorner2(player.getLocation());
+
+            messageManager.send(player, Message.ARENA_STRUCTURE_CORNER_SET, "corner", toolNumber(tool));
+            return;
+        }
+
         ArenaInstanceMutationResult result = switch (tool)
         {
             case SPAWN_1 -> arenaInstanceManager.setSpawn(instance.getId(), 1, player.getLocation());
             case SPAWN_2 -> arenaInstanceManager.setSpawn(instance.getId(), 2, player.getLocation());
+            case STRUCTURE_CORNER_1, STRUCTURE_CORNER_2 -> null;
             case BOUNDS_CORNER_1 -> arenaInstanceManager.setBoundsCorner(instance.getId(), 1, player.getLocation());
             case BOUNDS_CORNER_2 -> arenaInstanceManager.setBoundsCorner(instance.getId(), 2, player.getLocation());
             case EXIT -> null;
@@ -225,6 +241,8 @@ public final class ArenaEditListener implements Listener
         {
             case SPAWN_1, BOUNDS_CORNER_1 -> 1;
             case SPAWN_2, BOUNDS_CORNER_2 -> 2;
+            case STRUCTURE_CORNER_1 -> 1;
+            case STRUCTURE_CORNER_2 -> 2;
             case EXIT -> 0;
         };
     }

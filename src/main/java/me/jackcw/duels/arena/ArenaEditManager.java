@@ -33,6 +33,7 @@ public final class ArenaEditManager
     private static final long PARTICLE_PERIOD_TICKS = 10L;
     private static final double PARTICLE_STEP = 0.5;
     private static final Particle.DustOptions BOUNDS_DUST = new Particle.DustOptions(Color.AQUA, 1.0f);
+    private static final Particle.DustOptions STRUCTURE_DUST = new Particle.DustOptions(Color.ORANGE, 1.0f);
 
     private final Duels plugin;
 
@@ -125,11 +126,55 @@ public final class ArenaEditManager
             spawnBoundsParticle(player, world, maxX, minY, z);
             spawnBoundsParticle(player, world, maxX, maxY, z);
         }
+
+        if (session.getStructureCorner1() != null && session.getStructureCorner2() != null
+                && world.equals(session.getStructureCorner1().getWorld()) && world.equals(session.getStructureCorner2().getWorld()))
+            tickStructureParticles(player, session.getStructureCorner1(), session.getStructureCorner2());
     }
 
     private void spawnBoundsParticle(Player player, World world, double x, double y, double z)
     {
         player.spawnParticle(Particle.DUST, x, y, z, 1, 0, 0, 0, 0, BOUNDS_DUST);
+    }
+
+    private void tickStructureParticles(Player player, Location corner1, Location corner2)
+    {
+        World world = corner1.getWorld();
+        double minX = Math.min(corner1.getBlockX(), corner2.getBlockX());
+        double maxX = Math.max(corner1.getBlockX(), corner2.getBlockX());
+        double minY = Math.min(corner1.getBlockY(), corner2.getBlockY());
+        double maxY = Math.max(corner1.getBlockY(), corner2.getBlockY());
+        double minZ = Math.min(corner1.getBlockZ(), corner2.getBlockZ());
+        double maxZ = Math.max(corner1.getBlockZ(), corner2.getBlockZ());
+
+        for (double x = minX; x <= maxX; x += PARTICLE_STEP)
+        {
+            spawnStructureParticle(player, world, x, minY, minZ);
+            spawnStructureParticle(player, world, x, minY, maxZ);
+            spawnStructureParticle(player, world, x, maxY, minZ);
+            spawnStructureParticle(player, world, x, maxY, maxZ);
+        }
+
+        for (double y = minY; y <= maxY; y += PARTICLE_STEP)
+        {
+            spawnStructureParticle(player, world, minX, y, minZ);
+            spawnStructureParticle(player, world, minX, y, maxZ);
+            spawnStructureParticle(player, world, maxX, y, minZ);
+            spawnStructureParticle(player, world, maxX, y, maxZ);
+        }
+
+        for (double z = minZ; z <= maxZ; z += PARTICLE_STEP)
+        {
+            spawnStructureParticle(player, world, minX, minY, z);
+            spawnStructureParticle(player, world, minX, maxY, z);
+            spawnStructureParticle(player, world, maxX, minY, z);
+            spawnStructureParticle(player, world, maxX, maxY, z);
+        }
+    }
+
+    private void spawnStructureParticle(Player player, World world, double x, double y, double z)
+    {
+        player.spawnParticle(Particle.DUST, x, y, z, 1, 0, 0, 0, 0, STRUCTURE_DUST);
     }
 
     public void giveTools(Player player)

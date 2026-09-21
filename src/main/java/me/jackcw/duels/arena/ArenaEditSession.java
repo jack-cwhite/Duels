@@ -1,6 +1,7 @@
 package me.jackcw.duels.arena;
 
 import org.bukkit.entity.Player;
+import org.bukkit.Location;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -13,6 +14,8 @@ public final class ArenaEditSession
     private final ItemStack[] savedHotbar;
     private final ItemStack savedOffhand;
     private BukkitTask boundsParticleTask;
+    private Location structureCorner1;
+    private Location structureCorner2;
 
     public ArenaEditSession(Player player, ArenaInstance instance)
     {
@@ -54,5 +57,25 @@ public final class ArenaEditSession
     public ItemStack getSavedOffhand()
     {
          return savedOffhand;
+    }
+
+    public Location getStructureCorner1()
+    {
+        return structureCorner1;
+    }
+
+    public void setStructureCorner1(Location structureCorner1)
+    {
+        this.structureCorner1 = structureCorner1;
+    }
+
+    public Location getStructureCorner2()
+    {
+        return structureCorner2;
+    }
+
+    public void setStructureCorner2(Location structureCorner2)
+    {
+        this.structureCorner2 = structureCorner2;
     }
 }

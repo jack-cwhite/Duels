@@ -36,3 +36,9 @@ arena-reset-max-tracked-block-changes: 4000
 # arenas with a lot of destruction, so the work is spread out instead. Must be
 # at least 1.
 arena-reset-blocks-per-tick: 64
+
+# Optional dynamic arena provisioning uses saved Paper structure files. This
+# limit keeps an accidental huge capture from causing a lengthy server-thread
+# paste later; it is intentionally generous enough for normal PvP arenas.
+dynamic-arenas:
+  max-template-volume: 2000000

@@ -16,6 +16,7 @@ public final class DuelsSettings
     private final int gracePeriodSeconds;
     private final int arenaResetMaxTrackedBlockChanges;
     private final int arenaResetBlocksPerTick;
+    private final long dynamicArenaMaxTemplateVolume;
 
     public DuelsSettings(YamlFile config, Logger logger)
     {
@@ -53,6 +54,11 @@ public final class DuelsSettings
 
         this.arenaResetBlocksPerTick = readPositiveInt(
                 config, logger, "arena-reset-blocks-per-tick", 64,
+                "must be a whole number of at least 1"
+        );
+
+        this.dynamicArenaMaxTemplateVolume = readPositiveLong(
+                config, logger, "dynamic-arenas.max-template-volume", 2_000_000L,
                 "must be a whole number of at least 1"
         );
     }
@@ -97,6 +103,11 @@ public final class DuelsSettings
         return arenaResetBlocksPerTick;
     }
 
+    public long dynamicArenaMaxTemplateVolume()
+    {
+        return dynamicArenaMaxTemplateVolume;
+    }
+
     private static StatsStorageType readStatsStorage(YamlFile config, Logger logger)
     {
         Object value = config.getConfig().get("stats-storage");
@@ -134,6 +145,17 @@ public final class DuelsSettings
 
         if (raw instanceof Number number && number.intValue() > 0)
             return number.intValue();
+
+        logger.warning("config.yml '" + path + "' " + rule + "; got '" + raw + "', defaulting to " + fallback);
+        return fallback;
+    }
+
+    private static long readPositiveLong(YamlFile config, Logger logger, String path, long fallback, String rule)
+    {
+        Object raw = config.getConfig().get(path);
+
+        if (raw instanceof Number number && number.longValue() > 0)
+            return number.longValue();
 
         logger.warning("config.yml '" + path + "' " + rule + "; got '" + raw + "', defaulting to " + fallback);
         return fallback;
