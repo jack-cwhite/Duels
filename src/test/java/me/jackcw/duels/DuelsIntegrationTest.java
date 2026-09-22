@@ -9,6 +9,7 @@ import me.jackcw.duels.arena.ArenaStructureProvider;
 import me.jackcw.duels.arena.ArenaTemplateManager;
 import me.jackcw.duels.arena.ArenaTemplateCaptureResult;
 import me.jackcw.duels.arena.DynamicArenaState;
+import me.jackcw.duels.arena.DynamicArenaRecovery;
 import me.jackcw.duels.arena.ArenaProvisioningMode;
 import me.jackcw.duels.arena.BlockChangeRollbackStrategy;
 import me.jackcw.duels.challenge.Challenge;
@@ -26,6 +27,8 @@ import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -186,6 +189,35 @@ class DuelsIntegrationTest
         plugin.getArenaInstanceManager().setDynamicState(copy, DynamicArenaState.RETIRING);
         assertTrue(plugin.getArenaInstanceManager().deleteInstance(copy.getId()).isSuccess());
         assertTrue(plugin.getArenaInstanceManager().deleteInstance(source.getId()).isSuccess());
+    }
+
+    @Test
+    void exactDuplicateGeneratedSlotIsBackedUpAndRepairedWithoutClearingWorld() throws IOException
+    {
+        WorldMock world = server.addSimpleWorld("duplicate_slot_world");
+        Arena arena = plugin.getArenaManager().createArena("Duplicate", ArenaProvisioningMode.DYNAMIC);
+        ArenaInstance first = plugin.getArenaInstanceManager().createProvisionedInstance(
+                arena.getId(), 0, 1, new ArenaStructureSize(8, 8, 8));
+        ArenaInstance second = plugin.getArenaInstanceManager().createProvisionedInstance(
+                arena.getId(), 0, 1, new ArenaStructureSize(8, 8, 8));
+        for (ArenaInstance copy : List.of(first, second))
+        {
+            copy.setSpawn1(new Location(world, 1, 64, 1));
+            copy.setSpawn2(new Location(world, 6, 64, 6));
+            copy.setBoundsCorner1(new Location(world, 0, 63, 0));
+            copy.setBoundsCorner2(new Location(world, 7, 70, 7));
+            plugin.getArenaInstanceManager().setDynamicState(copy, DynamicArenaState.READY);
+        }
+
+        new DynamicArenaRecovery(plugin).recover();
+
+        assertNotNull(plugin.getArenaInstanceManager().getInstance(first.getId()));
+        assertNull(plugin.getArenaInstanceManager().getInstance(second.getId()));
+        assertTrue(plugin.getDynamicArenaSlotManager().isOccupied(0));
+        try (var files = Files.list(plugin.getDataFolder().toPath()))
+        {
+            assertTrue(files.anyMatch(path -> path.getFileName().toString().startsWith("arena-instances-before-duplicate-repair-")));
+        }
     }
 
     @Test
@@ -418,6 +450,25 @@ class DuelsIntegrationTest
 
         server.getScheduler().performTicks((plugin.getSettings().gracePeriodSeconds() + 1) * 20L);
         assertEquals(MatchState.IN_PROGRESS, match.getState());
+    }
+
+    @Test
+    void duelistCannotDamageBystander()
+    {
+        WorldMock world = server.addSimpleWorld("combat_isolation_world");
+        Arena arena = plugin.getArenaManager().createArena("Pit");
+        createReadyInstance(arena, world);
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+        PlayerMock charlie = addPlayer("Charlie");
+        Match match = plugin.getMatchManager().startMatch(alice, bob);
+        assertNotNull(match);
+        match.setState(MatchState.IN_PROGRESS);
+
+        EntityDamageByEntityEvent attack = new EntityDamageByEntityEvent(
+                alice, charlie, EntityDamageEvent.DamageCause.ENTITY_ATTACK, 3.0);
+        server.getPluginManager().callEvent(attack);
+        assertTrue(attack.isCancelled());
     }
 
     @Test

@@ -126,6 +126,11 @@ public final class DynamicArenaProvisioner
         if (instance == null || !instance.isProvisioned())
             return CompletableFuture.completedFuture(null);
 
+        if (instanceManager.hasDuplicateSlot(instance))
+            return CompletableFuture.failedFuture(new IllegalStateException(
+                    "Two generated-copy records claim slot " + instance.getDynamicSlotIndex()
+                            + "; resolve the duplicate before clearing either copy"));
+
         try
         {
             if (instance.getDynamicState() != DynamicArenaState.RETIRING)

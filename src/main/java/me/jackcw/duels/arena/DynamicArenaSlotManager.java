@@ -17,6 +17,7 @@ public final class DynamicArenaSlotManager
     private final Duels plugin;
     private final Set<Integer> reservedSlots = new HashSet<>();
     private final Set<Integer> occupiedSlots = new HashSet<>();
+    private boolean recoveryBlocked;
     private DynamicArenaLayout layout;
     private YamlFile layoutFile;
 
@@ -56,6 +57,8 @@ public final class DynamicArenaSlotManager
 
     public DynamicArenaSlot reserveNext()
     {
+        if (recoveryBlocked)
+            return null;
         DynamicArenaLayout current = getOrCreateLayout();
         for (int index = 0; index < current.maxSlots(); index++)
             if (!occupiedSlots.contains(index) && !reservedSlots.contains(index))
@@ -83,6 +86,7 @@ public final class DynamicArenaSlotManager
 
     public void reconstructOccupiedSlots(Collection<Integer> slotIndexes)
     {
+        recoveryBlocked = true;
         DynamicArenaLayout current = getOrCreateLayout();
         Set<Integer> reconstructed = new HashSet<>();
         for (int slotIndex : slotIndexes)
@@ -93,7 +97,10 @@ public final class DynamicArenaSlotManager
         }
         occupiedSlots.clear();
         occupiedSlots.addAll(reconstructed);
+        recoveryBlocked = false;
     }
+
+    public void blockProvisioning() { recoveryBlocked = true; }
 
     public boolean isOccupied(int slotIndex) { return occupiedSlots.contains(slotIndex); }
 

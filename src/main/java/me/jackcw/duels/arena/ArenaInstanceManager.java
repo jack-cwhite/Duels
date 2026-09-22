@@ -8,6 +8,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.IntPredicate;
 import java.util.logging.Logger;
 
@@ -258,6 +259,41 @@ public final class ArenaInstanceManager
                 result.add(instance);
         result.sort(Comparator.comparingInt(ArenaInstance::getId));
         return result;
+    }
+
+    /** Remove only a redundant persisted row; never clear its shared physical slot. */
+    public boolean discardIdenticalDuplicate(ArenaInstance survivor, ArenaInstance duplicate)
+    {
+        if (survivor == null || duplicate == null || survivor.getId() == duplicate.getId()
+                || instances.get(survivor.getId()) != survivor || instances.get(duplicate.getId()) != duplicate
+                || isActive(survivor.getId()) || isActive(duplicate.getId())
+                || !identicalReadyCopy(survivor, duplicate))
+            return false;
+        repository.delete(duplicate.getId());
+        instances.remove(duplicate.getId());
+        return true;
+    }
+
+    public static boolean identicalReadyCopy(ArenaInstance first, ArenaInstance second)
+    {
+        return first != null && second != null && first.isProvisioned() && second.isProvisioned()
+                && first.getDynamicState() == DynamicArenaState.READY
+                && second.getDynamicState() == DynamicArenaState.READY
+                && first.getArenaId() == second.getArenaId()
+                && Objects.equals(first.getDynamicSlotIndex(), second.getDynamicSlotIndex())
+                && Objects.equals(first.getTemplateRevision(), second.getTemplateRevision())
+                && Objects.equals(first.getStructureSize(), second.getStructureSize())
+                && Objects.equals(first.getSpawn1(), second.getSpawn1())
+                && Objects.equals(first.getSpawn2(), second.getSpawn2())
+                && Objects.equals(first.getBoundsCorner1(), second.getBoundsCorner1())
+                && Objects.equals(first.getBoundsCorner2(), second.getBoundsCorner2());
+    }
+
+    public boolean hasDuplicateSlot(ArenaInstance instance)
+    {
+        return instance != null && instance.isProvisioned() && getProvisionedInstances().stream()
+                .anyMatch(other -> other.getId() != instance.getId()
+                        && Objects.equals(other.getDynamicSlotIndex(), instance.getDynamicSlotIndex()));
     }
 
     /**

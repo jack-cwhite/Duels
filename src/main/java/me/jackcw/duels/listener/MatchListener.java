@@ -59,12 +59,17 @@ public final class MatchListener implements Listener
         if (!(event.getEntity() instanceof Player damaged))
             return;
 
+        Player attacker = event instanceof EntityDamageByEntityEvent damageByEntity ? resolveAttacker(damageByEntity.getDamager()) : null;
         Match match = matchManager.getMatch(damaged.getUniqueId());
 
+        // Isolation applies in both directions. A combatant may not hurt a
+        // bystander, even though the bystander is not present in matches.
         if (match == null)
+        {
+            if (attacker != null && matchManager.getMatch(attacker.getUniqueId()) != null)
+                event.setCancelled(true);
             return;
-
-        Player attacker = event instanceof EntityDamageByEntityEvent damageByEntity ? resolveAttacker(damageByEntity.getDamager()) : null;
+        }
 
         if (attacker == null)
             return;
