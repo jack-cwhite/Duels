@@ -1,0 +1,595 @@
+# Duels retest plan
+
+_Target: Paper 1.21.11, Java 21. Generated after the bounds-requirement,
+message-key, menu-navigation, edit-mode-layout, and template-cleanup fixes in
+an earlier session. This is now the single current manual acceptance suite -
+the older `IN_GAME_TEST_PLAN.md` it was generated from has been removed as
+superseded._
+
+Two groups of work here:
+
+1. **Part A** - items that behaved differently after the fixes from the
+   session this plan was generated in, so the old pass no longer reflected
+   current behaviour at the time.
+2. **Part B** - every item from section 15 onward (numbering carried over
+   from the retired plan) that was still unchecked at that point.
+
+Tick items here as you go.
+
+## Part A: retest - behaviour changed since the original pass
+
+### A1. Arena list wording (was section 3)
+
+- [X] STATIC arena list entries in the GUI still show "Playable copies /
+  ready / free" counts exactly as before.
+- [X] A DYNAMIC arena with no source shows "No build source registered yet"
+  instead of any copy counts.
+- [X]] A DYNAMIC arena with a source but no captured template shows "Source
+  set up, capture a template to enable matches".
+- [X]] A DYNAMIC arena with a captured template and generated copies shows
+  "X/Y generated copies ready" with a free count.
+- [X] `/duels arena list` (the text command) is unchanged and still reports
+  raw counts for every arena type - confirm this divergence from the GUI is
+  acceptable, not a regression.
+
+### A2. Bounds now required for new copies (was sections 3 and 6)
+
+- [X] A brand-new STATIC instance with both spawns set but no gameplay
+  bounds reports **not ready** (previously spawns alone were enough).
+- [X] Setting both gameplay bounds corners on that instance makes it ready,
+  with no other change needed.
+- [X] A brand-new DYNAMIC source with spawns but no bounds also reports not
+  ready, and capture is refused with a bounds-specific message before any
+  other capture check runs.
+- [X] On a data folder carried over from before this session, restart and
+  confirm the console logs one warning line per pre-existing boundless
+  instance (arena ID, instance ID, and a hint to add bounds) - and confirm
+  those same instances still allocate and host matches normally.
+
+### A3. Capture-failure message text (was section 6, and delete/retire/retry/adopt/convert/clear flows in sections 3, 16, 17)
+
+- [X] Trigger a real capture failure (missing corner, oversized region,
+  world mismatch) - the message should still read "Could not capture that
+  arena template: ...".
+- [X] Trigger a delete/retire/retry/adopt/convert/clear failure (e.g. delete
+  an arena that still has instances, retry a copy that isn't FAILED, convert
+  an arena with more than one copy) - each should now read "Cannot do that:
+  ..." with a reason specific to that action, not the capture-template
+  wording.
+
+### A4. Edit mode (was section 4)
+
+- [X] Clicking the Exit tool returns you to the instance/source detail menu
+  you were editing, not just to no GUI at all.
+- [X] The hotbar layout while editing is grouped: spawn 1, spawn 2, gap,
+  structure corner 1, structure corner 2, gap, bounds corner 1, bounds corner
+  2, exit - re-review this visually since the slot order changed.
+
+### A5. Template file cleanup (was sections 6 and 17)
+
+- [X] After retiring all generated copies of a DYNAMIC arena and successfully
+  recapturing its source, check `plugins/Duels/structures/` - only the
+  newest revision's `.nbt` file should remain; the previous revision's file
+  should be gone.
+
+## Part B: not yet run (main plan sections 15-24)
+
+### B1. Section 15 - Block rollback and debris cleanup
+
+- [X] Break original blocks, place new blocks, and detonate TNT inside bounds.
+- [X] TNT explosion and bed/respawn-anchor block explosion produce no
+  leftover debris drops inside the tracked arena.
+- [X] Blocks outside bounds are not reverted.
+- [X] A new match cannot enter the instance while batched rollback is running.
+- [X] A heavier rollback stays responsive; observe TPS/Spark for a visible
+  spike.
+- [X] An instance without bounds does not roll changes back (documented
+  limitation) - test this against a legacy-exempt boundless instance from
+  A2, not a newly created one (which cannot reach this state at all).
+- [X] `stop` during a damaged match and restart does not leave Duels in an
+  invalid allocation state.
+- [ ] **Reopened - gap found in live testing:** a lava/water source placed
+  with a bucket mid-duel was not rolled back, even though block
+  place/break/TNT changes were. Root cause: `BlockChangeRollbackStrategy`
+  only listened for `BlockPlaceEvent`/`BlockBreakEvent`/explosion events;
+  bucket placement and removal fire `PlayerBucketEmptyEvent`/
+  `PlayerBucketFillEvent` instead, which were never tracked. Fixed by adding
+  handlers for both, using the same `track()` path. Retest: place lava and
+  water with a bucket mid-duel (both a dynamic and a static arena), end the
+  match, confirm both are gone after rollback; also scoop a liquid back up
+  with a bucket mid-duel and confirm it's restored afterward.
+- [ ] **Reopened - second gap found alongside the above:** a redstone torch
+  occasionally survived rollback as a dropped item instead of being restored
+  as a block, specifically after a TNT explosion destroyed the block it was
+  mounted on. Root cause: a block detaching from lost support (not a direct
+  player break) fires neither `BlockBreakEvent` nor an explosion event, so
+  its state change was never tracked and its item drop was never suppressed
+  the way explosion drops are. Fixed by adding a `BlockDropItemEvent`
+  handler that tracks the block's state and clears the drop. Retest:
+  detonate TNT next to a wall-mounted torch (or other attached block -
+  redstone dust, a sign, a lever) mid-duel and confirm after rollback the
+  block is back in place with no dropped item nearby.
+
+### B2. Section 16 - Dynamic provisioning and selection
+
+- [X] Recapturing the source while generated copies exist is refused without
+  changing the saved template.
+- [X] P1/P2 see "Preparing arena..." while their first copy is generated;
+  P3/P4 see it when a second copy is needed.
+- [X] `dynamic-layout.yml` is created on first generation, not source
+  capture, with frozen geometry and world UUID.
+- [X] The configured dynamic void world is created and contains no normal
+  terrain.
+- [X] A new provisioned instance row is persisted as a distinct
+  instance/slot.
+- [X] Instance-list GUI identifies generated copies, slot, health state, and
+  whether each copy is ready.
+- [X] The copied arena includes every block and block entity inside capture
+  bounds.
+- [X] Decorative blocks outside gameplay bounds but inside capture bounds
+  are present.
+- [X] Blocks outside capture bounds are absent.
+- [X] Both relative spawns have correct position, yaw, and pitch.
+- [X] Gameplay bounds are correctly offset into the new slot.
+- [X] P3/P4 were not cleared or teleported before the paste succeeded.
+- [X] The selected DynamicArena never falls back to StaticArena.
+- [X] P1/P2 and P3/P4 play simultaneously in different generated copies,
+  with no cross-arena effects. Neither match enters the source world.
+- [X] Spectating, boundary handling, kit restrictions, results, and
+  restoration behave identically in the provisioned copy.
+
+### B3. Section 17 - Dynamic pooling, reset, and retirement
+
+- [X] Match damage in the provisioned copy rolls back before reuse.
+- [X] The next duel reuses the same provisioned instance/slot instead of
+  creating another.
+- [X] No player sees rollback or a partial template during reuse.
+- [X] A provisioned instance is marked unavailable while
+  allocated/resetting.
+- [X] `/duels arena instance delete <provisionedInstanceId>` is refused
+  while active.
+- [X] Deleting an idle provisioned instance marks it retiring, clears the
+  slot in bounded batches, then removes its persisted row.
+- [X] The same retirement via GUI confirmation clears the physical slot
+  before removing its record; an active copy cannot be retired via GUI.
+- [X] Another provision cannot use the slot until clearing finishes.
+- [X] Provisioning after retirement can reuse the now-vacant slot without
+  old blocks.
+- [X] Deleting the source is refused while its captured template or
+  generated copies exist; after retirement and template clear, deletion does
+  not erase the source's world blocks.
+
+### B4. Section 18 - Dynamic capacity and simultaneous preparation
+
+- [X] Two simultaneous dynamic requests reserve different slots.
+- [X] No two structures overlap, including their configured padding.
+- [X] When all dynamic slots are occupied, another selected challenge fails
+  cleanly with no player mutation.
+- [X] The failed challenge remains available if it has not expired.
+- [X] Changing slot width/length/padding/max after first use does not move
+  old slots. Note: verified by inspecting `dynamic-layout.yml` directly, not
+  a startup log - there is currently no runtime log line announcing that the
+  persisted layout is authoritative over `config.yml`; this is only
+  documented in code comments (`config.yml`, `DynamicArenaSettings`). Worth
+  a small follow-up to add an explicit startup log line for admin clarity.
+- [X] A template wider/longer than a slot is rejected without world
+  mutation. Covered via two separate checks: an oversized-volume capture is
+  refused at capture time (`TOO_LARGE`); a template whose width/length
+  exceeds the slot dimensions is accepted at capture but refused at
+  provision time (`TEMPLATE_UNAVAILABLE`, surfaced as the same generic
+  "No arenas are available right now" message) - both leave the world and
+  challenge untouched.
+
+### B5. Section 19 - Dynamic restart and failure recovery
+
+- [X] `stop` during a dynamic match; restart. The `DIRTY` instance is
+  rebuilt before becoming allocatable and players restore on login. Note: a
+  successful rebuild logs nothing to console (only a failed rebuild does) and
+  recovery runs before the tester can look, so `DIRTY` itself is only
+  observable by checking `arena-instances.yml` in the window between
+  killing/stopping and the next successful restart - confirmed correct via
+  server log timeline (accept -> DIRTY write -> disconnect -> silent
+  rebuild -> READY on next successful boot), not by catching the state live.
+- [X] Force-kill the Java process during a dynamic match; restart and verify
+  the same full-template rebuild, not only in-memory block rollback. Note: a
+  hard kill on Windows can leave the world-lock file held briefly, causing
+  one or more immediate restart attempts to fail with "another process has
+  locked a portion of the file" - this is a Windows/Paper artifact of the
+  kill itself, not a Duels bug; retrying the start after a few seconds
+  succeeds normally.
+- [X] Stop/kill during initial provisioning if timing permits; the
+  persisted `PROVISIONING` row is rebuilt before reuse.
+- [X] Stop during retirement; restart resumes clearing before freeing the
+  slot.
+- [X] Temporarily remove the referenced NBT file while the server is
+  stopped; restart leaves the instance quarantined/FAILED and does not
+  overlap its slot.
+- [X] Restore the file and run `/duels arena instance retry <instanceId>`;
+  the instance rebuilds and becomes ready.
+- [X] Instance-detail GUI retry works only for a FAILED provisioned copy and
+  reports success/failure without opening a broken copy to matches.
+- [X] Rename/remove the dynamic world folder while stopped; startup refuses
+  to create a replacement over the saved layout and logs a prominent
+  diagnostic. Note: this is not a graceful, caught diagnostic - the
+  `IllegalStateException` propagates out of `onEnable()` uncaught, so Paper
+  disables the whole Duels plugin and prints its standard stack trace; the
+  rest of the server and other plugins keep running fine.
+- [X] Restore the correct folder and world UUID; recovery resumes normally.
+- [X] A duplicate/out-of-range slot edited into `arena-instances.yml` is
+  quarantined by startup rather than allowed to overlap another instance.
+- [X] After all generated copies have been retired, the arena remains
+  DYNAMIC. A type switch while a source or template exists is refused.
+- [X] `template clear` requires literal `confirm`, and the GUI uses a
+  confirmation screen. Both refuse while generated copies remain, then
+  remove the saved metadata/file safely without changing arena type.
+
+### B6. Section 20 - Statistics and leaderboard
+
+- [X] YAML backend writes one match record per intended recorded duel.
+- [X] SQLite creates one match row and two participant rows per result.
+- [X] MySQL/MariaDB backend has the same row counts and no dialect errors,
+  if available. Tested against real MySQL and MariaDB containers (Docker).
+- [X] PostgreSQL backend has the same row counts and boolean queries work,
+  if available.
+- [X] `/duel top` loads asynchronously, displays correct ordering/win
+  totals, shows the viewer's record, and remains responsive with no records.
+  Note: a Mojang session-server timeout was observed in the console
+  (`Couldn't look up profile properties...`) while opening this menu - this
+  is Paper/authlib fetching a player-head skin texture for the leaderboard
+  item, not Duels code; it only affects that one head's cosmetic texture and
+  is expected on a test server with an unreliable path to Mojang.
+- [X] Statistics leaderboard visual layout reviewed after recorded matches.
+- [X] Restart preserves all records without duplication.
+- [X] Stop an external database during a result write: players restore and
+  the arena releases despite failure; one severe log entry contains the
+  complete recoverable result fields. Verified against MySQL: server was
+  stopped mid-match, the match still completed with both players restored
+  and the arena released, and exactly the expected SEVERE log line was
+  produced with all recoverable fields. The match result itself is
+  permanently lost in this scenario (by design, not retried) - flagged as a
+  later-priority roadmap item in `docs/ROADMAP.md`'s Deferred section rather
+  than something to fix now, since it never affects gameplay and is a rare
+  failure mode for a standalone server.
+- [X] Restore DB and restart; schema/migration runs once without
+  duplicate-index errors.
+
+### B7. Section 21 - Configuration, migration, and diagnostics
+
+- [X] Invalid stats backend, zero/invalid kit-selection time, negative
+  challenge expiry, bad pool size, and invalid dynamic numeric settings each
+  warn once and use the documented safe fallback. Note: found and fixed a
+  cosmetic typo in the two boolean-setting warnings ("deaulting" instead of
+  "defaulting") in `DuelsSettings.readValidBoolean`; re-verified with a bad
+  `enable-grace-period` value that the warning now reads "defaulting to
+  true" correctly.
+- [X] Legacy arena without `provisioningMode` loads as STATIC.
+- [X] Legacy instance without `origin` loads as MANUAL.
+- [X] A previously DYNAMIC arena with exactly one old MANUAL copy upgrades
+  it to SOURCE on startup, preserving its ID, spawns, bounds and template.
+  Verified: arena 2's sole legacy copy (instance 3, no `origin` key) was
+  auto-promoted at startup with `Migrated DYNAMIC arena #2 copy #3 to a
+  non-playable source`, and `arena-instances.yml` confirms `origin: SOURCE`
+  with spawns preserved verbatim.
+- [X] An old DYNAMIC arena with multiple manual copies does not silently mix
+  them into generated allocation; choose a source explicitly with
+  `/duels arena source adopt <copyId>` and resolve leftover legacy copies.
+  Verified: arena 3's two legacy copies (instances 4/5, no `origin` key)
+  were left un-promoted, with the expected startup warning `DYNAMIC arena #3
+  has multiple legacy manual copies; none will be playable`. Manual
+  `/duels arena source adopt` resolution not yet exercised in-game - noting
+  as still open if we want an explicit adopt-command walkthrough later.
+  Update: the adopt command itself was exercised while testing item 6 below
+  (`/duels arena source adopt 4` on arena 3's two-copy scenario) and behaved
+  correctly - promoted instance 4 to SOURCE, and a second adopt attempt (on
+  either 4 or 5) was correctly rejected with "only an idle legacy manual
+  copy of a DYNAMIC arena without a source can be adopted."
+- [X] Legacy inline arena spawns/bounds migrate once to an instance and do
+  not duplicate on the next restart. Found and fixed a real bug in the
+  process: `ArenaInstanceMigrator.migrate()` read `spawn1`/`spawn2`/
+  `boundsCorner1`/`boundsCorner2` directly off the raw `ConfigurationSection`
+  and handed them straight to `LocationSerializer.deserialize()`, which
+  requires a `java.util.Map`. Bukkit's YAML loader auto-nests map-shaped
+  values into a `ConfigurationSection` rather than a `Map`, so this crashed
+  plugin enable entirely with `IllegalArgumentException: Expected a map when
+  deserializing Location` the moment a real legacy-inline arena was loaded -
+  every other Location-loading path in the codebase goes through
+  `YamlFile.get(...)`, which does this conversion, but the migrator bypassed
+  it. Fixed by adding a public `YamlFile.resolve(Object)` helper that does
+  the same section-to-map conversion, and using it in the migrator. Verified
+  after the fix: first restart logged `Migrated arena #4's spawns/bounds to
+  new instance #6`, stripped the four legacy keys from arena 4's row in
+  `arenas.yml`, and created instance 6 in `arena-instances.yml`; a second
+  restart produced no re-migration log and no duplicate instance, confirming
+  the `contains("spawn1")` guard correctly no-ops once the keys are gone.
+- [X] Unknown arena/template/instance fields are rejected with a useful
+  warning, not silently discarded. Verified for instances: adding
+  `bogusField: true` to instance 1 produced `Skipping unreadable entry '1'
+  in repository at path 'instances': Unknown arena instance field
+  'bogusField'` at startup, naming the exact bad field, and the plugin
+  enabled normally otherwise. Not yet separately exercised for arena- or
+  template-level unknown fields, though `ArenaSerializer` and
+  `ArenaTemplate` loading use the same allowlist-rejection pattern as
+  `ArenaInstanceSerializer`.
+- [X] Corrupt arena, instance, kit, stats, and saved-player entries are
+  skipped or diagnosed without silently rewriting unrelated valid entries.
+  Verified via the same unknown-field test above: `YamlRepository` skips the
+  bad entry with a clear diagnostic and leaves it completely untouched on
+  disk (re-read `arena-instances.yml` after startup - instance 1's
+  `bogusField` and all its original data were still present verbatim, not
+  stripped or rewritten). Not separately exercised for kit/stats/
+  saved-player corruption, but they share the same `YamlRepository`
+  skip-and-log mechanism.
+- [X] Invalid menu material produces the configured error/barrier item and
+  names the exact config path in console. Verified by setting
+  `navigation.confirm.material` to `NOT_VALID`: console logged `[ItemStackParser]
+  Invalid item at 'navigation.confirm': 'NOT_VALID' is not a valid material.`
+  naming the exact path, and in-game the confirm button still showed as lime
+  wool rather than a barrier. Traced this to `MenuNavigationStyle.from()`
+  (JCore) - navigation "chrome" items (previous/next/back/confirm/cancel/
+  page-indicator) intentionally pass a working named-item fallback (e.g.
+  lime wool "Confirm") to `ItemStackParser.parseSafely`, rather than relying
+  on its generic barrier fallback, so a bad config value degrades to a
+  functional default instead of breaking the confirm button while still
+  diagnosing the bad path in console. This is correct, deliberate behavior,
+  not a bug - other, non-navigation menu items (e.g. arena/kit icons via
+  `parseSafely` with no fallback argument) do fall back to the generic
+  "Invalid menu item" barrier with path/error lore; not separately
+  re-exercised against a non-navigation item this round, but the mechanism
+  is identical and was already exercised structurally via code reading.
+  Also noted: the fallback confirm item kept the name "Confirm" but lost its
+  "&7Click to confirm." lore. This is expected, not a bug - the fallback is
+  `MenuNavigationStyle`'s own hardcoded `namedItem(Material.LIME_WOOL,
+  "&aConfirm")` (JCore, sets only a display name), not a re-read of the rest
+  of the valid keys around the broken `material` value in `menus.yml`'s
+  `navigation.confirm` section (which does define a `lore` list normally).
+  The fallback is a bare functional safety net, not a partial-recovery of
+  the surrounding config.
+- [X] **BUG FOUND, FIXED, AND LIVE-VERIFIED:** Static arenas still function
+  if the dynamic world/template files are unavailable. Originally verified
+  this did NOT hold.
+  A dynamic arena had already been provisioned on the test server earlier
+  this session, so `dynamic-layout.yml` had a persisted layout with a
+  `world-id`. Renaming the `duels_dynamic_arenas` world folder away and
+  restarting produced:
+  ```
+  java.lang.IllegalStateException: Dynamic arena world 'duels_dynamic_arenas'
+  is missing; refusing to recreate it over an ambiguous layout
+          at DynamicArenaWorldManager.getOrCreateWorld(DynamicArenaWorldManager.java:27)
+          at Duels.initializeManagers(Duels.java:445)
+          at Duels.onEnable(Duels.java:99)
+  ```
+  This propagates uncaught out of `onEnable()`, so Bukkit disables the
+  entire plugin - `initializeMenus()`, `registerCommands()`, and
+  `registerEvents()` never run. Every static arena, every command, every
+  menu goes down along with the dynamic ones, even though only the dynamic
+  arena world was actually missing. `getOrCreateWorld()` is only invoked at
+  startup when `DynamicArenaSlotManager.hasPersistedLayout()` is true (i.e.
+  a dynamic arena has been provisioned at least once before), so a server
+  that has never used dynamic arenas is unaffected - but once dynamic
+  arenas have been used even once, losing that world folder takes the
+  whole plugin down on every subsequent restart until it's restored.
+  Missing optional third-party integrations (Vault/PlaceholderAPI/
+  WorldEdit) are a non-issue since none are currently wired up as runtime
+  dependencies in Duels V1 (only a forward-looking comment in
+  `ArenaStructureProvider.java`; `plugin.yml` declares no
+  `softdepend`/`depend` entries) - so that half of this item is trivially
+  satisfied.
+
+  **Fix applied** (`Duels.java`, `initializeManagers()`): the eager
+  `dynamicArenaWorldManager.getOrCreateWorld()` call made at startup (only
+  reached when `hasPersistedLayout()` is true) is now wrapped in a
+  `try { ... } catch (RuntimeException exception)` that logs a `SEVERE`
+  message - "Could not load the dynamic arena world; dynamic arenas will be
+  unavailable until this is resolved and the server is restarted. Static
+  arenas are unaffected." plus the exception - and then lets `onEnable()`
+  continue normally instead of propagating. `DynamicArenaProvisioner`
+  already wrapped its own `getOrCreateWorld()` calls in `provision()` and
+  `rebuild()` with a `catch (RuntimeException)` that fails the operation
+  and marks the instance `FAILED` rather than crashing, so no further
+  hardening was needed there - only the one eager startup call was
+  uncaught. Dynamic-arena instance records that reference the missing
+  world will still fail to deserialize, but that's the existing
+  `YamlRepository` skip-and-log mechanism already verified in item 8
+  ("Skipping unreadable entry ... in repository at path 'instances'") -
+  not a crash, just those specific records becoming unavailable until the
+  world is restored.
+
+  Built and packaged successfully (`mvn -o install -DskipTests` in JCore,
+  then `mvn -o compile` / `mvn -o package -DskipTests` in Duels;
+  `target/Duels-1.0-SNAPSHOT-shaded.jar` produced with no errors), but
+  **not yet re-verified live**. Next step: copy the new shaded jar onto
+  the test server (replacing `plugins/Duels.jar`), leave the
+  `duels_dynamic_arenas` world folder renamed/missing exactly as it was for
+  the failing test above, restart, and confirm the console now shows a
+  `SEVERE` warning instead of a crash, with Duels enabling fully - test a
+  static arena (e.g. arena `1`) works normally for an actual duel, and that
+  commands/menus all respond. Once confirmed, check this item off and
+  rename the `duels_dynamic_arenas` folder back (or reprovision a dynamic
+  arena) to restore the test server to its prior working state.
+
+  **Re-test attempt received but inconclusive:** a console log was pasted
+  after the fix was built, but it is byte-for-byte identical to the
+  pre-fix crash log above (same timestamps, same stack trace referencing
+  `Duels.java:445`/`onEnable(Duels.java:99)`). Since the fix moved the
+  `getOrCreateWorld()` call inside a try/catch, that exact crash can no
+  longer propagate out of `onEnable()` once the new jar is actually
+  running - so this result means either the old log was pasted again by
+  mistake, or `plugins/Duels.jar` on the test server was not actually
+  replaced with the freshly built `target/Duels-1.0-SNAPSHOT-shaded.jar`
+  before this restart. **Next step when resuming:** confirm the jar in
+  `plugins/` has today's timestamp/size matching
+  `target/Duels-1.0-SNAPSHOT-shaded.jar` (copy it over again if unsure),
+  then restart with the `duels_dynamic_arenas` world folder still missing
+  and re-paste the console output.
+
+  **Root cause of the inconclusive result, found:** `pom.xml`'s
+  `maven-antrun-plugin` execution (`copy-to-test-server`, bound to the
+  `package` phase) auto-copies `target/Duels-1.0-SNAPSHOT.jar` straight to
+  `C:\Users\jncwh\OneDrive\Desktop\Test Server\plugins` on every successful
+  `mvn package` - no manual copy needed. But a manual `mvn clean package`
+  run (e.g. via IntelliJ's Maven tool window, without `-DskipTests`) hits 9
+  pre-existing, unrelated `DuelsIntegrationTest` failures (arena
+  allocation/match-state assertions returning null - not caused by this
+  session's changes; `DuelsIntegrationTest.java` and
+  `StaticArenaAllocator.java` have no uncommitted diffs) and Maven aborts
+  *before* reaching the `shade`/`antrun` phases - so the jar is silently
+  never rebuilt or redeployed, and the test server keeps running whatever
+  was there before. This is almost certainly why the "re-test" showed the
+  identical pre-fix crash log. Rebuilding with `-DskipTests` (as this
+  session's builds have all done) succeeds and deploys correctly - the jar
+  in the test server's `plugins/` folder was confirmed to now have a fresh
+  `2026-09-23 00:50` timestamp after the latest build. **Always add
+  `-DskipTests` when rebuilding until those 9 integration test failures are
+  separately investigated and fixed** - otherwise the auto-deploy silently
+  no-ops.
+
+  **The 9 failures were fixed, not test-suite scope creep:** root cause was
+  that `ArenaInstance.isReady()` was changed (uncommitted work predating
+  this session) to also require `hasBounds() || !boundsRequired`, but
+  `boundsRequired` defaults to `true` for any freshly-constructed instance
+  and is only ever cleared by `ArenaInstanceSerializer` when deserializing a
+  legacy on-disk record with no `boundsRequired` key. The shared test
+  helper `createReadyInstance()` and the inline `built` instance in
+  `dynamicSourceIsNeverAllocatedAsAPlayableCopy` predated that change and
+  only set spawns, never bounds, so their instances were silently never
+  ready. Fixed by giving `createReadyInstance()` and `built` real bounds
+  (harmless - tests that set their own custom bounds afterward just
+  overwrite them). `spectatingAnArenaWithoutBoundsIsRefused` was the one
+  genuine exception - it intentionally tests the no-bounds case - so instead
+  of adding bounds it now explicitly clears them and calls
+  `instance.exemptFromBoundsRequirement()` (the same public method the
+  serializer uses for legacy grandfathering) so the test honestly exercises
+  "a legitimately bounds-exempt instance with no bounds" rather than
+  accidentally relying on an unready instance. `mvn -o test` now passes
+  45/45 (33/33 in `DuelsIntegrationTest`), and `mvn -o clean package`
+  (without `-DskipTests`) succeeds and auto-deploys cleanly again.
+
+  **Live re-verification, confirmed working:** re-ran with the
+  `duels_dynamic_arenas` folder still renamed/missing. Console now shows:
+  ```
+  [ERROR]: [Duels] Could not load the dynamic arena world; dynamic arenas
+  will be unavailable until this is resolved and the server is restarted.
+  Static arenas are unaffected.
+  java.lang.IllegalStateException: Dynamic arena world 'duels_dynamic_arenas'
+  is missing; refusing to recreate it over an ambiguous layout
+          at DynamicArenaWorldManager.getOrCreateWorld(DynamicArenaWorldManager.java:27)
+          at Duels.initializeManagers(Duels.java:453)
+          at Duels.onEnable(Duels.java:100)
+  ```
+  The line numbers (453/100, shifted by exactly the try/catch added) confirm
+  this is genuinely the fixed build running, not a stale jar. `onEnable()`
+  continued past the failure - the legacy-bounds warning for instance #5
+  logged afterward, Multiverse/Duels both finished enabling, and the server
+  reached `Done (20.688s)!` with no crash. Dynamic arenas are unavailable as
+  intended; static arenas, commands, and menus are expected to work normally
+  (not yet separately re-confirmed with an actual static duel on this run,
+  but nothing in `initializeMenus()`/`registerCommands()`/`registerEvents()`
+  was skipped, per the successful full startup). Restore the
+  `duels_dynamic_arenas` folder name and restart to bring dynamic arenas
+  back before continuing to other B7 items.
+- [X] Missing optional integrations do not prevent Duels from enabling.
+- [X] Static arenas still function if the dynamic world/template files are
+  unavailable.
+- [X] An arena instance record saved before this session (no
+  `boundsRequired` key) loads without error and is treated as
+  bounds-exempt - see A2 above for the matching behavioural check.
+
+### B8. Section 22 - Long-session and shutdown sanity
+
+- [ ] Run several sequential and simultaneous static/dynamic duels for at
+  least 20-30 minutes; memory, entity count, loaded chunks, and task count
+  do not continually grow after matches finish.
+- [ ] No projectiles, dropped items, temporary effects, spectators, pending
+  players, countdowns, or edit sessions remain after their owning flow ends.
+- [ ] Normal `stop` produces no scheduler/plugin-disabled exceptions.
+- [ ] Restart with no active match produces no unnecessary recovery work.
+- [ ] Console remains free of unexpected repeated warnings throughout the
+  suite.
+
+### B9. Section 23 - GUI and navigation review as you go
+
+- [X] Titles fit; actions are visually grouped; colours and lore are
+  readable.
+- [X] No raw placeholders or unexpected error/barrier items appear.
+- [X] Every Back button is on its own bottom row in the default layouts; no
+  regular action sits beside it. Previous/Next/Confirm/Cancel work
+  correctly.
+- [X] Confirmation and chat-input prompts return to the expected parent.
+- [X] Paginate long arena, kit and match lists; entries and page controls
+  work.
+- [X] Shift-click, number keys, drag, offhand swap, double-click and
+  Q/drop cannot steal or inject menu items.
+- [X] Note any screen that feels cluttered or has misleading text, even if
+  the underlying action works.
+
+### B10. Section 24 - Final acceptance record
+
+- [ ] Automated tests pass immediately before the manual run.
+- [ ] Duels shaded package builds successfully.
+- [ ] All required sections above pass on the target Paper build.
+- [ ] Optional external-database/capacity tests are either passed or
+  explicitly marked BLOCKED with the missing environment recorded.
+- [ ] Every GUI has visual notes, even if the note is "looks good; no
+  change."
+- [ ] Every failure has a reproducible bug note (see Part C below for the
+  template this plan now uses, since `docs/IN_GAME_TEST_PLAN.md` no longer
+  exists).
+- [ ] Any remaining Phase 4B GUI/UX issues are collected for the hardening
+  plan before beginning Phase 5.
+
+## Part C: new fixes from this session, not covered by the original numbering
+
+These three items don't map onto any section 15-24 heading - they're genuine
+bugs found through live play this session, outside anything the original
+plan was written to check. Each needs its own live retest before B10 can be
+signed off.
+
+- [ ] **Environmental deaths now end the match before the real death/respawn
+  screen is reached, the same way a PvP kill already does.** Previously,
+  `MatchListener.onEntityDamage` only pre-emptively cancelled fatal damage
+  and called `matchManager.endMatch(...)` when it could resolve an
+  `attacker` from an `EntityDamageByEntityEvent`; environmental damage (lava,
+  drowning, fall, fire, void, starvation - anything with no attacking
+  entity) fell through an early `return` and let the player actually die and
+  hit the vanilla respawn screen, even though cleanup, win/loss recording,
+  and state restoration all still ran correctly afterward via
+  `onPlayerDeath`. Fixed by only using the attacker to decide bystander
+  isolation (an invalid PvP target), not to gate whether fatal damage gets
+  intercepted at all - a null attacker is now treated as a normal fatal hit
+  that ends the match in the opponent's favour. Retest: die to lava, then
+  separately to drowning, in an active duel, and confirm in both cases you
+  never see the vanilla death/respawn screen - the match should just end and
+  award the win to the opponent, identical to a PvP kill.
+- [ ] **Player-state restore now reapplies gamemode/flight before anything
+  else, to reduce the chance of ending up stuck in Survival after a duel.**
+  Reported symptom: after some duels, a player who started the duel in
+  Creative and flying would be restored into Survival instead, occasionally
+  causing a fatal fall since they were left mid-air with no flight. Root
+  cause was never confirmed via a stack trace (the old logging only kept
+  `e.getMessage()`, not the full exception, so a prior partial-restore
+  failure - if that's what happened - was never diagnosable). Two changes
+  went in: `PlayerState.apply()` (JCore) now restores gamemode, allowFlight,
+  flying, and both speeds as the very first thing it does, before inventory,
+  teleport, or anything else that could throw and leave a partial restore in
+  place; and `PlayerStateManager.restore()`'s catch block now logs the full
+  exception via `LOGGER.log(Level.WARNING, ..., e)` instead of just its
+  message, so if this happens again the real cause will actually be visible
+  in the console. Retest: play several duels starting from Creative +
+  flying, and specifically try to reproduce whatever was different about the
+  duels that previously failed (if you can recall anything - abnormal match
+  end, disconnect, environmental death, etc.) - confirm gamemode and flight
+  are correctly restored every time. If it still fails even once, the fix
+  didn't address the real cause and the new logging should show a stack
+  trace this time - paste it for follow-up.
+- [ ] **TNT damage in Survival - unconfirmed, needs a clean retest.**
+  Originally reported as "can't damage myself or other players with TNT in
+  duels." The leading suspicion was Creative-mode immunity (vanilla gives
+  zero damage from any source in Creative, and the pasted log showed
+  frequent `/gamemode creative` toggling) rather than an actual Duels bug -
+  `TNTPrimed#getSource()` is confirmed correct for player-ignited TNT per
+  Paper's javadoc, so `resolveAttacker`'s TNT branch is not a suspect. This
+  was never conclusively retested: confirm both players are in Survival for
+  the whole exchange, light the TNT with flint and steel, and confirm it
+  deals real damage to both self and opponent. Note whether the TNT was
+  lit with flint and steel or triggered another way (redstone, fire), since
+  that changes which `resolveAttacker` branch is exercised.

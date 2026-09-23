@@ -1784,3 +1784,15 @@ the roadmap has one place tracking all deferred work:
   happened.
 - Testcontainers MySQL/MariaDB/PostgreSQL integration tests - blocked on Docker
   availability in this environment, not a design decision.
+- Durable retry/buffering for `SqlStatsRepository.recordMatch` - currently a DB outage
+  during the async result write loses that one match's stats permanently (logged as a
+  single SEVERE entry with the full recoverable fields, but never retried). Verified
+  during B6 retesting (2026-09-22): players are still restored and the arena still
+  releases normally regardless, so this never cascades into gameplay-affecting failure -
+  it only affects that one match's persisted record. Closing this gap would require a
+  persistent local retry queue that survives a full plugin/server restart, dedup logic so
+  a later-recovered DB doesn't double-count, and a bound on retry duration - real,
+  ongoing complexity for a failure mode that's both rare on a standalone server (the DB
+  going down in the exact seconds around match-end) and more likely to matter once
+  network/multi-server work (Phase 9) makes DB availability more load-bearing. Revisit
+  then rather than building it ahead of need.
