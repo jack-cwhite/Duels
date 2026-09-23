@@ -66,6 +66,7 @@ public final class DuelCommand
                 .alias("fight")
                 .playerOnly()
                 .optionalArgument("player", ArgumentTypes.player())
+                .optionalArgument("arenaId", ArgumentTypes.integer())
                 .executes(this::handleDuel)
                 .child(
                         CommandBuilder.command("challenge")

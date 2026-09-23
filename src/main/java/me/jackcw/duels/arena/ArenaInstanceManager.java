@@ -28,13 +28,36 @@ public final class ArenaInstanceManager
     private final Map<Integer, ArenaInstance> instances = new HashMap<>();
     private IntPredicate activeCheck = id -> false;
 
-    public ArenaInstanceManager(YamlRepository<ArenaInstance> repository, ArenaManager arenaManager)
+    public ArenaInstanceManager(YamlRepository<ArenaInstance> repository, ArenaManager arenaManager, Logger logger)
     {
         this.repository = repository;
         this.arenaManager = arenaManager;
 
         for (ArenaInstance instance : repository.findAll())
             instances.put(instance.getId(), instance);
+
+        warnAboutLegacyBoundlessInstances(logger);
+    }
+
+    /**
+     * Instances saved before bounds became mandatory for new copies keep
+     * working without them, but an admin should still be nudged to close the
+     * gap - a boundless copy silently skips rollback, spectating and
+     * out-of-bounds enforcement.
+     */
+    private void warnAboutLegacyBoundlessInstances(Logger logger)
+    {
+        for (ArenaInstance instance : instances.values())
+        {
+            if (instance.isBoundsRequired() || instance.hasBounds())
+                continue;
+
+            logger.warning("Arena instance #" + instance.getId() + " (arena #" + instance.getArenaId()
+                    + ") has no gameplay bounds set. It predates the bounds requirement so it will keep "
+                    + "hosting matches, but without bounds it cannot support rollback, spectating or "
+                    + "out-of-bounds protection. Set bounds for it in /duels arena instance bounds "
+                    + instance.getId() + " <1|2> when convenient.");
+        }
     }
 
     public void setActiveCheck(IntPredicate activeCheck)

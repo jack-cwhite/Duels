@@ -80,11 +80,11 @@ public final class ArenaTemplateManager
         if (corner1 == null || corner2 == null)
             return ArenaTemplateCaptureResult.failure(ArenaTemplateCaptureResult.Status.MISSING_CAPTURE_CORNERS);
 
-        if (!instance.isReady())
-            return ArenaTemplateCaptureResult.failure(ArenaTemplateCaptureResult.Status.INSTANCE_NOT_READY);
-
         if (!instance.hasBounds())
             return ArenaTemplateCaptureResult.failure(ArenaTemplateCaptureResult.Status.BOUNDS_NOT_SET);
+
+        if (!instance.isReady())
+            return ArenaTemplateCaptureResult.failure(ArenaTemplateCaptureResult.Status.INSTANCE_NOT_READY);
 
         World world = corner1.getWorld();
 
@@ -146,8 +146,26 @@ public final class ArenaTemplateManager
             return ArenaTemplateCaptureResult.failure(ArenaTemplateCaptureResult.Status.CAPTURE_FAILED);
         }
 
+        ArenaTemplateDefinition previous = arena.getTemplateDefinition();
         arena.setTemplateDefinition(template);
         arenaManager.save(arena);
+
+        // Capture already refused while any provisioned copy exists (see the
+        // TEMPLATE_IN_USE check above), so nothing can still be pointing at
+        // the previous revision's file - safe to delete it here rather than
+        // leaving every past revision on disk forever.
+        if (previous != null && !previous.fileName().equals(template.fileName()))
+        {
+            try
+            {
+                Files.deleteIfExists(getStructurePath(previous));
+            }
+            catch (IOException exception)
+            {
+                plugin.getLogger().log(Level.WARNING, "Failed to delete superseded arena template " + previous.fileName(), exception);
+            }
+        }
+
         return ArenaTemplateCaptureResult.success(template);
     }
 
@@ -186,26 +204,42 @@ public final class ArenaTemplateManager
         }
     }
 
+    /**
+     * Client-reported position is float-precision, so a foot location that is
+     * conceptually on a block boundary (e.g. 64.0) can arrive as 63.999997.
+     * A small tolerance before flooring absorbs that drift without risking a
+     * false match across an intentionally different block.
+     */
+    private static final double BLOCK_COORD_EPSILON = 1.0e-3;
+
+    private static int blockCoordinate(double value)
+    {
+        return (int) Math.floor(value + BLOCK_COORD_EPSILON);
+    }
+
     private static Location minimumCorner(World world, Location first, Location second)
     {
         return new Location(world,
-                Math.min(first.getBlockX(), second.getBlockX()),
-                Math.min(first.getBlockY(), second.getBlockY()),
-                Math.min(first.getBlockZ(), second.getBlockZ()));
+                Math.min(blockCoordinate(first.getX()), blockCoordinate(second.getX())),
+                Math.min(blockCoordinate(first.getY()), blockCoordinate(second.getY())),
+                Math.min(blockCoordinate(first.getZ()), blockCoordinate(second.getZ())));
     }
 
     private static Location maximumCorner(World world, Location first, Location second)
     {
         return new Location(world,
-                Math.max(first.getBlockX(), second.getBlockX()),
-                Math.max(first.getBlockY(), second.getBlockY()),
-                Math.max(first.getBlockZ(), second.getBlockZ()));
+                Math.max(blockCoordinate(first.getX()), blockCoordinate(second.getX())),
+                Math.max(blockCoordinate(first.getY()), blockCoordinate(second.getY())),
+                Math.max(blockCoordinate(first.getZ()), blockCoordinate(second.getZ())));
     }
 
     private static boolean contains(Location minimum, Location maximum, Location location)
     {
-        return location.getBlockX() >= minimum.getBlockX() && location.getBlockX() <= maximum.getBlockX()
-                && location.getBlockY() >= minimum.getBlockY() && location.getBlockY() <= maximum.getBlockY()
-                && location.getBlockZ() >= minimum.getBlockZ() && location.getBlockZ() <= maximum.getBlockZ();
+        int x = blockCoordinate(location.getX());
+        int y = blockCoordinate(location.getY());
+        int z = blockCoordinate(location.getZ());
+        return x >= minimum.getBlockX() && x <= maximum.getBlockX()
+                && y >= minimum.getBlockY() && y <= maximum.getBlockY()
+                && z >= minimum.getBlockZ() && z <= maximum.getBlockZ();
     }
 }

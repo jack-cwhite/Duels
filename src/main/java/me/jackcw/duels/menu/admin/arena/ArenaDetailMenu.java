@@ -10,6 +10,7 @@ import me.jackcw.duels.arena.ArenaProvisioningMode;
 import me.jackcw.duels.arena.ArenaTemplateDefinition;
 import me.jackcw.duels.arena.ArenaTemplateManager;
 import me.jackcw.duels.arena.BoundaryMode;
+import me.jackcw.duels.arena.DynamicArenaProvisioner;
 import me.jackcw.duels.message.Message;
 import me.jackcw.jcore.menu.MenuContext;
 import me.jackcw.jcore.menu.ConfiguredMenu;
@@ -21,6 +22,7 @@ import org.bukkit.entity.Player;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 public final class ArenaDetailMenu
 {
@@ -28,6 +30,7 @@ public final class ArenaDetailMenu
     private final ArenaManager arenaManager;
     private final ArenaInstanceManager arenaInstanceManager;
     private final ArenaTemplateManager templateManager;
+    private final DynamicArenaProvisioner provisioner;
     private final MessageManager messageManager;
     private final ArenaKitMenu arenaKitMenu;
     private final ArenaInstanceListMenu arenaInstanceListMenu;
@@ -39,6 +42,7 @@ public final class ArenaDetailMenu
         this.arenaManager = plugin.getArenaManager();
         this.arenaInstanceManager = plugin.getArenaInstanceManager();
         this.templateManager = plugin.getArenaTemplateManager();
+        this.provisioner = plugin.getDynamicArenaProvisioner();
         this.messageManager = plugin.core().messages();
         this.arenaKitMenu = arenaKitMenu;
         this.arenaInstanceListMenu = arenaInstanceListMenu;
@@ -107,6 +111,12 @@ public final class ArenaDetailMenu
                     if (current == null)
                         return;
 
+                    if (current.getProvisioningMode() == ArenaProvisioningMode.DYNAMIC)
+                    {
+                        openCascadeDeleteConfirm(player, arenaId, current, context);
+                        return;
+                    }
+
                     if (isInUse(player, arenaId, context))
                         return;
 
@@ -157,8 +167,11 @@ public final class ArenaDetailMenu
                         ArenaInstance instance = arenaInstanceManager.createInstance(arenaId);
                         messageManager.send(player, Message.ARENA_INSTANCE_CREATED, "id", instance.getId(), "arenaId", arenaId);
                         context.openChild(() -> arenaInstanceDetailMenu.open(player, instance.getId()));
-                    })
-                    .item("convert", context -> convert(player, arenaId, context));
+                    });
+
+            List<ArenaInstance> copies = arenaInstanceManager.getInstancesForArena(arenaId);
+            if (copies.size() == 1 && !copies.getFirst().isProvisioned())
+                menu.item("convert", context -> convert(player, arenaId, context));
         }
         else
         {
@@ -191,7 +204,7 @@ public final class ArenaDetailMenu
         }
         catch (IllegalStateException e)
         {
-            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", e.getMessage());
+            messageManager.send(player, Message.ARENA_OPERATION_FAILED, "reason", e.getMessage());
             context.reopen();
         }
     }
@@ -201,7 +214,7 @@ public final class ArenaDetailMenu
         List<ArenaInstance> copies = arenaInstanceManager.getInstancesForArena(arenaId);
         if (copies.size() != 1 || copies.getFirst().isProvisioned())
         {
-            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+            messageManager.send(player, Message.ARENA_OPERATION_FAILED,
                     "reason", "conversion needs exactly one idle hand-built copy; other static arenas should be recreated as DYNAMIC");
             context.reopen();
             return;
@@ -224,7 +237,7 @@ public final class ArenaDetailMenu
                     }
                     else
                     {
-                        messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+                        messageManager.send(player, Message.ARENA_OPERATION_FAILED,
                                 "reason", "the copy changed or is in use; conversion did not occur");
                         confirmContext.back();
                     }
@@ -242,7 +255,7 @@ public final class ArenaDetailMenu
         {
             if (template == null)
             {
-                messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "no captured template exists");
+                messageManager.send(player, Message.ARENA_OPERATION_FAILED, "reason", "no captured template exists");
                 context.reopen();
                 return;
             }
@@ -254,7 +267,7 @@ public final class ArenaDetailMenu
                         if (templateManager.clear(arenaId))
                             messageManager.send(player, Message.ARENA_TEMPLATE_CLEARED, "id", arenaId);
                         else
-                            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "template is in use; retire generated copies first");
+                            messageManager.send(player, Message.ARENA_OPERATION_FAILED, "reason", "template is in use; retire generated copies first");
                         confirmContext.back();
                     }).open(player));
             return;
@@ -371,6 +384,92 @@ public final class ArenaDetailMenu
         messageManager.send(player, Message.ARENA_IN_USE, "id", arenaId);
         context.reopen();
         return true;
+    }
+
+    /**
+     * DYNAMIC arenas differ from STATIC ones: their generated copies are
+     * disposable slots, not hand-built structures, so it is safe to retire
+     * every copy, delete the source and remove the arena in one confirmed
+     * step instead of forcing an admin to clear each copy manually first.
+     */
+    private boolean anyInstanceActive(int arenaId)
+    {
+        for (ArenaInstance instance : arenaInstanceManager.getInstancesForArena(arenaId))
+            if (arenaInstanceManager.isActive(instance.getId()))
+                return true;
+
+        return false;
+    }
+
+    private void openCascadeDeleteConfirm(Player player, int arenaId, Arena current, MenuContext context)
+    {
+        if (anyInstanceActive(arenaId))
+        {
+            messageManager.send(player, Message.ARENA_IN_USE, "id", arenaId);
+            context.reopen();
+            return;
+        }
+
+        long copyCount = arenaInstanceManager.getInstancesForArena(arenaId).stream()
+                .filter(ArenaInstance::isProvisioned)
+                .count();
+
+        context.openChild(() -> menus.confirm()
+                .title("&8Delete Dynamic Arena?")
+                .description(List.of(
+                        "&cDelete arena '" + current.getName() + "'?",
+                        "&c" + copyCount + " generated " + (copyCount == 1 ? "copy" : "copies") + " will be retired",
+                        "&cand cleared, then the build source and arena deleted.",
+                        "&cThis cannot be undone."
+                ))
+                .onConfirm(confirmContext -> runCascadeDelete(player, arenaId, confirmContext))
+                .open(player));
+    }
+
+    private void runCascadeDelete(Player player, int arenaId, MenuContext confirmContext)
+    {
+        if (anyInstanceActive(arenaId))
+        {
+            messageManager.send(player, Message.ARENA_IN_USE, "id", arenaId);
+            confirmContext.back();
+            return;
+        }
+
+        List<ArenaInstance> copies = arenaInstanceManager.getInstancesForArena(arenaId).stream()
+                .filter(ArenaInstance::isProvisioned)
+                .toList();
+
+        CompletableFuture<Void> chain = CompletableFuture.completedFuture(null);
+        for (ArenaInstance copy : copies)
+            chain = chain.thenCompose(ignored -> provisioner.retire(copy));
+
+        chain.whenComplete((ignored, failure) ->
+        {
+            if (failure != null)
+            {
+                messageManager.send(player, Message.ARENA_OPERATION_FAILED, "reason", "retiring generated copies failed; check the server log");
+                return;
+            }
+
+            templateManager.clear(arenaId);
+
+            ArenaInstance source = arenaInstanceManager.getSource(arenaId);
+            if (source != null)
+                arenaInstanceManager.deleteInstance(source.getId());
+
+            ArenaMutationResult result = arenaManager.deleteArena(arenaId);
+
+            switch (result.status())
+            {
+                case NOT_FOUND -> messageManager.send(player, Message.ARENA_NOT_FOUND, "id", arenaId);
+                case IN_USE -> messageManager.send(player, Message.ARENA_OPERATION_FAILED,
+                        "reason", "the arena still has registered instances after cascading delete; check the server log");
+                case SUCCESS -> messageManager.send(player, Message.ARENA_DELETED, "id", arenaId);
+            }
+        });
+
+        if (!confirmContext.back(2))
+            player.closeInventory();
     }
 
     private Component prompt(Message key)

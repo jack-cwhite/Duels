@@ -101,9 +101,7 @@ arena-list:
     lore:
       - '&7ID: &f{id}'
       - '&7Type: &f{mode}'
-      - '&7Playable copies: &f{instances}'
-      - '&7Ready: &f{ready}'
-      - '&7Free right now: &f{free}'
+      - '&7{status}'
       - '&7Enabled: {enabled}'
       - '&eClick to manage'
 
@@ -180,9 +178,13 @@ arena-detail:
       material: STRUCTURE_BLOCK
       name: '&6Convert to Dynamic'
       lore:
-        - '&7Only for an arena with exactly one'
-        - '&7idle hand-built copy.'
-        - '&7That copy becomes its build source.'
+        - '&7Turns this arena into a DYNAMIC one:'
+        - '&7one build source is captured as a'
+        - '&7template, then copies are generated'
+        - '&7and rebuilt automatically instead of'
+        - '&7being hand-placed.'
+        - '&7Your one copy becomes that source -'
+        - '&7its spawns, bounds and blocks stay.'
         - '&eClick to review and confirm.'
 
 arena-dynamic-detail:
@@ -268,7 +270,7 @@ arena-generated-list:
 
 # Menu for managing a specific arena instance's spawns and bounds.
 arena-instance-detail:
-  title: '&8Build Source #{id}'
+  title: '&8Build Source #{id} &7(Arena #{arenaId})'
   rows: 4
   items:
     spawn1:
@@ -276,6 +278,8 @@ arena-instance-detail:
       material: EMERALD
       name: '&aSet Spawn 1'
       lore:
+        - '&7Currently: &f{spawn1}'
+        - ''
         - '&7Left Click to set spawn 1 to'
         - '&7your current location'
         - ''
@@ -286,6 +290,8 @@ arena-instance-detail:
       material: EMERALD
       name: '&aSet Spawn 2'
       lore:
+        - '&7Currently: &f{spawn2}'
+        - ''
         - '&7Left Click to set spawn 2 to'
         - '&7your current location'
         - ''
@@ -364,15 +370,15 @@ arena-instance-detail:
       lore:
         - '&7Origin: &f{origin}'
         - '&7State: &f{health}'
-        - '&7Both spawns: required to play.'
-        - '&7Gameplay bounds: for spectator confinement,'
-        - '&7boundary rules and block rollback.'
+        - '&7Spawns: {spawnsStatus}'
+        - '&7Gameplay bounds: {boundsStatus}'
+        - '&7(for spectator confinement, boundary'
+        - '&7rules and block rollback)'
         - '&7Structure corners: temporary capture draft'
         - '&7only needed for a dynamic template.'
-        - '&eClick for current status'
 
 arena-static-instance-detail:
-  title: '&8Hand-built Copy #{id}'
+  title: '&8Hand-built Copy #{id} &7(Arena #{arenaId})'
   rows: 3
   items:
     spawn1:
@@ -380,6 +386,7 @@ arena-static-instance-detail:
       material: EMERALD
       name: '&aSet Spawn 1'
       lore:
+        - '&7Currently: &f{spawn1}'
         - '&7Left click: set to your location'
         - '&7Right click: teleport there'
     spawn2:
@@ -387,6 +394,7 @@ arena-static-instance-detail:
       material: EMERALD
       name: '&aSet Spawn 2'
       lore:
+        - '&7Currently: &f{spawn2}'
         - '&7Left click: set to your location'
         - '&7Right click: teleport there'
     bounds1:
@@ -410,10 +418,10 @@ arena-static-instance-detail:
       material: BOOK
       name: '&bCopy Setup'
       lore:
-        - '&7Spawns: required to play.'
-        - '&7Gameplay bounds: spectators,'
-        - '&7boundary rules and rollback.'
-        - '&eClick for status'
+        - '&7Spawns: {spawnsStatus}'
+        - '&7Gameplay bounds: {boundsStatus}'
+        - '&7(spectators, boundary rules'
+        - '&7and block rollback)'
     edit-mode:
       slot: 12
       material: BLAZE_ROD
@@ -426,7 +434,7 @@ arena-static-instance-detail:
       name: '&cDelete Copy'
 
 arena-generated-detail:
-  title: '&8Generated Copy #{id}'
+  title: '&8Generated Copy #{id} &7(Arena #{arenaId})'
   rows: 2
   items:
     setup-status:
@@ -435,7 +443,12 @@ arena-generated-detail:
       name: '&bCopy Status'
       lore:
         - '&7State: &f{health}'
-        - '&eClick for details'
+        - '&7Spawns: {spawnsStatus}'
+        - '&7Gameplay bounds: {boundsStatus}'
+      alternate-name: '&bCopy Status'
+      alternate-lore:
+        - '&7State: &a{health}'
+        - '&7Spawns and bounds are set from the template.'
     retry:
       slot: 4
       material: RECOVERY_COMPASS

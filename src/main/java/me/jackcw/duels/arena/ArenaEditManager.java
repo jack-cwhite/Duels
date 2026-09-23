@@ -244,7 +244,7 @@ public final class ArenaEditManager
         {
             ArenaEditTool tool = entry.getKey();
             if (instance != null && !instance.isSource()
-                    && (tool == ArenaEditTool.STRUCTURE_CORNER_1 || tool == ArenaEditTool.STRUCTURE_CORNER_2))
+                    && (tool == ArenaEditTool.STRUCTURE_CORNER_1 || tool == ArenaEditTool.STRUCTURE_CORNER_2 || tool == ArenaEditTool.CAPTURE))
                 continue;
             inventory.setItem(entry.getValue(), createToolItem(tool));
         }

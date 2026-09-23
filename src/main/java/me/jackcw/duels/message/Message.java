@@ -61,6 +61,7 @@ public enum Message implements MessageKey
     ARENA_STRUCTURE_CORNER_NOT_SET("admin.arena-structure-corner-not-set"),
     ARENA_TEMPLATE_CAPTURED("admin.arena-template-captured"),
     ARENA_TEMPLATE_CAPTURE_FAILED("admin.arena-template-capture-failed"),
+    ARENA_OPERATION_FAILED("admin.arena-operation-failed"),
     ARENA_TEMPLATE_INFO("admin.arena-template-info"),
     ARENA_TEMPLATE_CLEARED("admin.arena-template-cleared"),
     ARENA_PROVISIONING_SET("admin.arena-provisioning-set"),

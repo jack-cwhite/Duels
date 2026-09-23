@@ -9,11 +9,15 @@
 # a warning is logged on startup.
 #
 # The tool keys (spawn-1, spawn-2, structure-corner-1, structure-corner-2,
-# bounds-corner-1, bounds-corner-2, exit) are
+# bounds-corner-1, bounds-corner-2, capture, exit) are
 # fixed - they are how the plugin knows what each item does. Renaming or
 # deleting a key does not remove the tool; it falls back to a built-in default
-# item in the next free slot. Any key that is not one of the five above is
+# item in the next free slot. Any key that is not one of the ones above is
 # ignored, with a warning naming it, so typos are easy to spot.
+#
+# structure-corner-1/2 and capture only ever appear for a DYNAMIC arena's
+# build source - they are removed from the hotbar entirely for every other
+# instance, since only a source has a structure to capture.
 #
 # material, name and lore accept anything the plugin's other item configs
 # accept. If an item fails to parse, that tool falls back to its built-in
@@ -27,7 +31,7 @@ tools:
       - '&7Left click &8- &7set to where you stand'
       - '&7Right click &8- &7teleport to it'
   spawn-2:
-    slot: 2
+    slot: 1
     material: LIGHT_BLUE_DYE
     name: '&bSpawn 2'
     lore:
@@ -41,21 +45,28 @@ tools:
       - '&7Left click &8- &7set the capture corner'
       - '&7Right click &8- &7teleport to it'
   structure-corner-2:
-    slot: 5
+    slot: 4
     material: YELLOW_CONCRETE
     name: '&eStructure Corner 2'
     lore:
       - '&7Left click &8- &7set the capture corner'
       - '&7Right click &8- &7teleport to it'
+  capture:
+    slot: 5
+    material: WRITABLE_BOOK
+    name: '&6Capture Structure'
+    lore:
+      - '&7Left click &8- &7save the blocks'
+      - '&7inside both structure corners'
   bounds-corner-1:
-    slot: 4
+    slot: 6
     material: LIME_CONCRETE
     name: '&aBounds Corner 1'
     lore:
       - '&7Left click &8- &7set to where you stand'
       - '&7Right click &8- &7teleport to it'
   bounds-corner-2:
-    slot: 6
+    slot: 7
     material: LIGHT_BLUE_CONCRETE
     name: '&bBounds Corner 2'
     lore:

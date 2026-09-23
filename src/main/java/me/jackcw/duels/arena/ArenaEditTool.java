@@ -10,6 +10,7 @@ public enum ArenaEditTool
     STRUCTURE_CORNER_2(Material.YELLOW_CONCRETE, "&eStructure Corner 2 (left: set, right: teleport)"),
     BOUNDS_CORNER_1(Material.LIME_CONCRETE, "&aBounds Corner 1 (left: set, right: teleport)"),
     BOUNDS_CORNER_2(Material.LIGHT_BLUE_CONCRETE, "&bBounds Corner 2 (left: set, right: teleport)"),
+    CAPTURE(Material.WRITABLE_BOOK, "&6Capture Structure (left: save)"),
     EXIT(Material.BARRIER, "&cExit Edit Mode");
 
     private final Material material;

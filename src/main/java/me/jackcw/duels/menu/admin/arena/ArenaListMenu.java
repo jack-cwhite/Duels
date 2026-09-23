@@ -1,8 +1,11 @@
 package me.jackcw.duels.menu.admin.arena;
 
 import me.jackcw.duels.Duels;
+import me.jackcw.duels.arena.Arena;
+import me.jackcw.duels.arena.ArenaInstance;
 import me.jackcw.duels.arena.ArenaInstanceManager;
 import me.jackcw.duels.arena.ArenaManager;
+import me.jackcw.duels.arena.ArenaProvisioningMode;
 import me.jackcw.jcore.menu.MenuManager;
 import org.bukkit.entity.Player;
 
@@ -39,9 +42,7 @@ public final class ArenaListMenu
                             "arena-name", arena.getName(),
                             "mode", arena.getProvisioningMode().name(),
                             "id", arena.getId(),
-                            "instances", instances,
-                            "ready", ready + "/" + instances,
-                            "free", free,
+                            "status", describeStatus(arena, instances, ready, free),
                             "enabled", arena.isEnabled() ? "&aYes" : "&cNo");
                 })
                 .onClick((context, arena) -> context.openChild(() -> arenaDetailMenu.open(player, arena)))
@@ -52,5 +53,27 @@ public final class ArenaListMenu
     public void open(Player player)
     {
         open(player, 0);
+    }
+
+    /**
+     * A STATIC arena's playable-copy counts are the whole story, so they stay
+     * front and centre. A DYNAMIC arena's counts are meaningless until it has
+     * a build source and a captured template - until then, what an admin
+     * actually needs to know is which of those two setup steps is missing.
+     */
+    private String describeStatus(Arena arena, int instances, int ready, int free)
+    {
+        if (arena.getProvisioningMode() != ArenaProvisioningMode.DYNAMIC)
+            return "Playable copies: &f" + instances + " &7(&a" + ready + " ready&7, &b" + free + " free&7)";
+
+        ArenaInstance source = arenaInstanceManager.getSource(arena.getId());
+
+        if (source == null)
+            return "&cNo build source registered yet";
+
+        if (arena.getTemplateDefinition() == null)
+            return "&eSource set up &7- &ecapture a template to enable matches";
+
+        return "&f" + ready + "/" + instances + " &7generated copies ready (&b" + free + " free&7)";
     }
 }

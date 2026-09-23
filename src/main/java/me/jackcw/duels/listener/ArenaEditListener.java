@@ -7,6 +7,9 @@ import me.jackcw.duels.arena.ArenaEditTool;
 import me.jackcw.duels.arena.ArenaInstance;
 import me.jackcw.duels.arena.ArenaInstanceManager;
 import me.jackcw.duels.arena.ArenaInstanceMutationResult;
+import me.jackcw.duels.arena.ArenaTemplateCaptureResult;
+import me.jackcw.duels.arena.ArenaTemplateDefinition;
+import me.jackcw.duels.arena.ArenaTemplateManager;
 import me.jackcw.duels.message.Message;
 import me.jackcw.jcore.message.MessageManager;
 import org.bukkit.Location;
@@ -30,6 +33,7 @@ public final class ArenaEditListener implements Listener
     private final Duels plugin;
     private final ArenaEditManager arenaEditManager;
     private final ArenaInstanceManager arenaInstanceManager;
+    private final ArenaTemplateManager templateManager;
     private final MessageManager messageManager;
 
     public ArenaEditListener(Duels plugin)
@@ -37,6 +41,7 @@ public final class ArenaEditListener implements Listener
         this.plugin = plugin;
         this.arenaEditManager = plugin.getArenaEditManager();
         this.arenaInstanceManager = plugin.getArenaInstanceManager();
+        this.templateManager = plugin.getArenaTemplateManager();
         this.messageManager = plugin.core().messages();
     }
 
@@ -138,8 +143,10 @@ public final class ArenaEditListener implements Listener
 
         if (tool == ArenaEditTool.EXIT)
         {
+            int instanceId = arenaEditManager.getSession(player).getInstanceId();
             arenaEditManager.end(player);
             messageManager.send(player, Message.ARENA_EDIT_MODE_EXITED);
+            plugin.getArenaInstanceDetailMenu().open(player, instanceId);
             return;
         }
 
@@ -153,7 +160,8 @@ public final class ArenaEditListener implements Listener
             return;
         }
 
-        if (!instance.isSource() && (tool == ArenaEditTool.STRUCTURE_CORNER_1 || tool == ArenaEditTool.STRUCTURE_CORNER_2))
+        if (!instance.isSource() && (tool == ArenaEditTool.STRUCTURE_CORNER_1 || tool == ArenaEditTool.STRUCTURE_CORNER_2
+                || tool == ArenaEditTool.CAPTURE))
             return;
 
         if (right)
@@ -174,6 +182,9 @@ public final class ArenaEditListener implements Listener
 
     private void handleTeleport(Player player, ArenaEditSession session, ArenaInstance instance, ArenaEditTool tool)
     {
+        if (tool == ArenaEditTool.CAPTURE)
+            return;
+
         Location location = switch (tool)
         {
             case SPAWN_1 -> instance.getSpawn1();
@@ -182,7 +193,7 @@ public final class ArenaEditListener implements Listener
             case STRUCTURE_CORNER_2 -> session.getStructureCorner2();
             case BOUNDS_CORNER_1 -> instance.getBoundsCorner1();
             case BOUNDS_CORNER_2 -> instance.getBoundsCorner2();
-            case EXIT -> null;
+            case CAPTURE, EXIT -> null;
         };
 
         if (location != null)
@@ -212,11 +223,17 @@ public final class ArenaEditListener implements Listener
             return;
         }
 
+        if (tool == ArenaEditTool.CAPTURE)
+        {
+            performCapture(player, instance);
+            return;
+        }
+
         ArenaInstanceMutationResult result = switch (tool)
         {
             case SPAWN_1 -> arenaInstanceManager.setSpawn(instance.getId(), 1, player.getLocation());
             case SPAWN_2 -> arenaInstanceManager.setSpawn(instance.getId(), 2, player.getLocation());
-            case STRUCTURE_CORNER_1, STRUCTURE_CORNER_2 -> null;
+            case STRUCTURE_CORNER_1, STRUCTURE_CORNER_2, CAPTURE -> null;
             case BOUNDS_CORNER_1 -> arenaInstanceManager.setBoundsCorner(instance.getId(), 1, player.getLocation());
             case BOUNDS_CORNER_2 -> arenaInstanceManager.setBoundsCorner(instance.getId(), 2, player.getLocation());
             case EXIT -> null;
@@ -228,7 +245,7 @@ public final class ArenaEditListener implements Listener
         switch (result.status())
         {
             case NOT_FOUND -> messageManager.send(player, Message.ARENA_INSTANCE_NOT_FOUND, "id", instance.getId());
-            case IN_USE -> messageManager.send(player, Message.ARENA_INSTANCE_IN_USE, "id", instance.getId());
+            case IN_USE -> messageManager.send(player, Message.ARENA_INSTANCE_IN_USE, "id", instance.getId(), "arenaId", instance.getArenaId());
             case SUCCESS ->
             {
                 if (tool == ArenaEditTool.SPAWN_1 || tool == ArenaEditTool.SPAWN_2)
@@ -239,6 +256,24 @@ public final class ArenaEditListener implements Listener
         }
     }
 
+    private void performCapture(Player player, ArenaInstance instance)
+    {
+        ArenaTemplateCaptureResult result = templateManager.capture(instance.getId(),
+                arenaEditManager.getStructureCorner(player, instance.getId(), 1),
+                arenaEditManager.getStructureCorner(player, instance.getId(), 2));
+
+        if (result.status() == ArenaTemplateCaptureResult.Status.SUCCESS)
+        {
+            ArenaTemplateDefinition template = result.template();
+            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURED,
+                    "id", instance.getArenaId(), "revision", template.revision(),
+                    "sizeX", template.size().x(), "sizeY", template.size().y(), "sizeZ", template.size().z());
+        }
+        else
+            messageManager.send(player, Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+                    "reason", ArenaTemplateCaptureResult.describeFailure(result.status()));
+    }
+
     private int toolNumber(ArenaEditTool tool)
     {
         return switch (tool)
@@ -247,7 +282,7 @@ public final class ArenaEditListener implements Listener
             case SPAWN_2, BOUNDS_CORNER_2 -> 2;
             case STRUCTURE_CORNER_1 -> 1;
             case STRUCTURE_CORNER_2 -> 2;
-            case EXIT -> 0;
+            case CAPTURE, EXIT -> 0;
         };
     }
 }

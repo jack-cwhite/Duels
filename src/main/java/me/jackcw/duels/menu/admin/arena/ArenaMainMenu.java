@@ -12,6 +12,8 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.entity.Player;
 
+import java.util.List;
+
 public final class ArenaMainMenu
 {
     private final MenuManager menus;
@@ -49,7 +51,10 @@ public final class ArenaMainMenu
         {
             Arena arena = arenaManager.createArena(name, mode);
             messageManager.send(player, Message.ARENA_CREATED, "name", name, "id", arena.getId());
-            context.openChild(() -> arenaDetailMenu.open(player, arena.getId()));
+            menus.openPath(player, List.of(
+                    () -> arenaListMenu.open(player),
+                    () -> arenaDetailMenu.open(player, arena.getId())
+            ));
         }, () ->
         {
             messageManager.send(player, Message.MENU_INPUT_CANCELLED);

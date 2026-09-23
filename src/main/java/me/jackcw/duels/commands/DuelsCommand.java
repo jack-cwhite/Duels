@@ -540,7 +540,7 @@ public final class DuelsCommand
         }
         if (arena.getProvisioningMode() != ArenaProvisioningMode.DYNAMIC || arenaInstanceManager.getSource(arenaId) != null)
         {
-            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+            messageManager.send(context.getSender(), Message.ARENA_OPERATION_FAILED,
                     "reason", "only a DYNAMIC arena without a source can create one");
             return;
         }
@@ -551,7 +551,7 @@ public final class DuelsCommand
         }
         catch (IllegalStateException exception)
         {
-            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", exception.getMessage());
+            messageManager.send(context.getSender(), Message.ARENA_OPERATION_FAILED, "reason", exception.getMessage());
         }
     }
 
@@ -569,7 +569,7 @@ public final class DuelsCommand
                 || instance.getOrigin() != me.jackcw.duels.arena.ArenaInstanceOrigin.MANUAL
                 || arenaInstanceManager.getSource(arena.getId()) != null || arenaInstanceManager.isActive(instanceId))
         {
-            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+            messageManager.send(context.getSender(), Message.ARENA_OPERATION_FAILED,
                     "reason", "only an idle legacy manual copy of a DYNAMIC arena without a source can be adopted");
             return;
         }
@@ -584,7 +584,7 @@ public final class DuelsCommand
         int sourceId = context.get("sourceInstanceId");
         if (!arenaInstanceManager.convertToDynamicSource(arenaId, sourceId))
         {
-            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+            messageManager.send(context.getSender(), Message.ARENA_OPERATION_FAILED,
                     "reason", "conversion needs exactly one idle hand-built copy of a STATIC arena; nothing was changed");
             return;
         }
@@ -605,7 +605,7 @@ public final class DuelsCommand
 
         ArenaMutationResult result = arenaManager.setProvisioningMode(id, mode);
         if (result.status() == ArenaMutationResult.Status.IN_USE)
-            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+            messageManager.send(context.getSender(), Message.ARENA_OPERATION_FAILED,
                     "reason", "arena type is fixed once setup begins; use the explicit one-copy conversion for existing arenas");
         else
             messageManager.send(context.getSender(), Message.ARENA_PROVISIONING_SET, "id", id, "mode", mode.name());
@@ -666,7 +666,7 @@ public final class DuelsCommand
 
         if (!"confirm".equalsIgnoreCase(confirmation))
         {
-            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+            messageManager.send(context.getSender(), Message.ARENA_OPERATION_FAILED,
                     "reason", "repeat the command with 'confirm' to delete the saved template");
             return;
         }
@@ -681,7 +681,7 @@ public final class DuelsCommand
 
         if (!arenaTemplateManager.clear(arenaId))
         {
-            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+            messageManager.send(context.getSender(), Message.ARENA_OPERATION_FAILED,
                     "reason", "retire generated copies first, or no captured template exists");
             return;
         }
@@ -702,7 +702,7 @@ public final class DuelsCommand
 
         if (arena.getProvisioningMode() != ArenaProvisioningMode.STATIC)
         {
-            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+            messageManager.send(context.getSender(), Message.ARENA_OPERATION_FAILED,
                     "reason", "DYNAMIC arenas have one source, not hand-built playable instances; use /duels arena source create " + arenaId);
             return;
         }
@@ -719,15 +719,15 @@ public final class DuelsCommand
         {
             if (arenaInstanceManager.isActive(instanceId))
             {
-                messageManager.send(context.getSender(), Message.ARENA_INSTANCE_IN_USE, "id", instanceId);
+                messageManager.send(context.getSender(), Message.ARENA_INSTANCE_IN_USE, "id", instanceId, "arenaId", instance.getArenaId());
                 return;
             }
             dynamicArenaProvisioner.retire(instance).whenComplete((ignored, throwable) ->
             {
                 if (throwable == null)
-                    messageManager.send(context.getSender(), Message.ARENA_INSTANCE_DELETED, "id", instanceId);
+                    messageManager.send(context.getSender(), Message.ARENA_INSTANCE_DELETED, "id", instanceId, "arenaId", instance.getArenaId());
                 else
-                    messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "retirement cleanup failed; check the server log");
+                    messageManager.send(context.getSender(), Message.ARENA_OPERATION_FAILED, "reason", "retirement cleanup failed; check the server log");
             });
             return;
         }
@@ -740,12 +740,14 @@ public final class DuelsCommand
             case IN_USE ->
             {
                 if (instance != null && instance.isSource())
-                    messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED,
+                    messageManager.send(context.getSender(), Message.ARENA_OPERATION_FAILED,
                             "reason", "clear the captured template and retire generated copies before deleting this source");
                 else
-                    messageManager.send(context.getSender(), Message.ARENA_INSTANCE_IN_USE, "id", instanceId);
+                    messageManager.send(context.getSender(), Message.ARENA_INSTANCE_IN_USE, "id", instanceId,
+                            "arenaId", instance != null ? instance.getArenaId() : -1);
             }
-            case SUCCESS -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_DELETED, "id", instanceId);
+            case SUCCESS -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_DELETED, "id", instanceId,
+                    "arenaId", instance != null ? instance.getArenaId() : -1);
         }
     }
 
@@ -760,7 +762,7 @@ public final class DuelsCommand
         }
         if (!instance.isProvisioned() || instance.getDynamicState() != DynamicArenaState.FAILED)
         {
-            messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "only a failed provisioned instance can be retried");
+            messageManager.send(context.getSender(), Message.ARENA_OPERATION_FAILED, "reason", "only a failed provisioned instance can be retried");
             return;
         }
 
@@ -769,7 +771,7 @@ public final class DuelsCommand
             if (throwable == null && result.status() == me.jackcw.duels.arena.DynamicArenaProvisionResult.Status.SUCCESS)
                 messageManager.send(context.getSender(), Message.ARENA_INSTANCE_REBUILT, "id", instanceId);
             else
-                messageManager.send(context.getSender(), Message.ARENA_TEMPLATE_CAPTURE_FAILED, "reason", "retry failed; check the server log");
+                messageManager.send(context.getSender(), Message.ARENA_OPERATION_FAILED, "reason", "retry failed; check the server log");
         });
     }
 
@@ -800,6 +802,7 @@ public final class DuelsCommand
                     context.getSender(),
                     Message.ARENA_INSTANCE_LIST_ENTRY,
                     "id", instance.getId(),
+                    "arenaId", arenaId,
                     "spawn1", spawn1,
                     "spawn2", spawn2,
                     "origin", instance.getOrigin().name(),
@@ -820,12 +823,14 @@ public final class DuelsCommand
         }
 
         Player player = context.getPlayer();
+        ArenaInstance existing = arenaInstanceManager.getInstance(instanceId);
         ArenaInstanceMutationResult result = arenaInstanceManager.setSpawn(instanceId, spawn, player.getLocation());
 
         switch (result.status())
         {
             case NOT_FOUND -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_NOT_FOUND, "id", instanceId);
-            case IN_USE -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_IN_USE, "id", instanceId);
+            case IN_USE -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_IN_USE, "id", instanceId,
+                    "arenaId", existing != null ? existing.getArenaId() : -1);
             case SUCCESS -> messageManager.send(
                     context.getSender(),
                     Message.ARENA_SPAWN_SET,
@@ -847,12 +852,14 @@ public final class DuelsCommand
         }
 
         Player player = context.getPlayer();
+        ArenaInstance existing = arenaInstanceManager.getInstance(instanceId);
         ArenaInstanceMutationResult result = arenaInstanceManager.setBoundsCorner(instanceId, corner, player.getLocation());
 
         switch (result.status())
         {
             case NOT_FOUND -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_NOT_FOUND, "id", instanceId);
-            case IN_USE -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_IN_USE, "id", instanceId);
+            case IN_USE -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_IN_USE, "id", instanceId,
+                    "arenaId", existing != null ? existing.getArenaId() : -1);
             case SUCCESS -> messageManager.send(context.getSender(), Message.ARENA_BOUNDS_SET, "corner", corner, "id", instanceId);
         }
     }
