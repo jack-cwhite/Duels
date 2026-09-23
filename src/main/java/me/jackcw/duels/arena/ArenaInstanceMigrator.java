@@ -58,10 +58,10 @@ public final class ArenaInstanceMigrator
                 continue;
             }
 
-            Location spawn1 = serializerManager.deserialize(arenaSection.get("spawn1"), Location.class);
-            Location spawn2 = serializerManager.deserialize(arenaSection.get("spawn2"), Location.class);
-            Location boundsCorner1 = serializerManager.deserialize(arenaSection.get("boundsCorner1"), Location.class);
-            Location boundsCorner2 = serializerManager.deserialize(arenaSection.get("boundsCorner2"), Location.class);
+            Location spawn1 = serializerManager.deserialize(arenasFile.resolve(arenaSection.get("spawn1")), Location.class);
+            Location spawn2 = serializerManager.deserialize(arenasFile.resolve(arenaSection.get("spawn2")), Location.class);
+            Location boundsCorner1 = serializerManager.deserialize(arenasFile.resolve(arenaSection.get("boundsCorner1")), Location.class);
+            Location boundsCorner2 = serializerManager.deserialize(arenasFile.resolve(arenaSection.get("boundsCorner2")), Location.class);
 
             int instanceId = instanceRepository.reserveId();
             ArenaInstance instance = new ArenaInstance(instanceId, arenaId);

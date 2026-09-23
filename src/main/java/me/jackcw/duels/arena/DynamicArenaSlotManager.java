@@ -23,6 +23,17 @@ public final class DynamicArenaSlotManager
 
     public DynamicArenaSlotManager(Duels plugin) { this.plugin = plugin; }
 
+    /**
+     * True once a dynamic arena world has actually been provisioned before.
+     * Lets callers eagerly load that world before anything tries to deserialize
+     * instance records that reference it, instead of leaving Bukkit to load it
+     * lazily on first provision - which is too late for records already on disk.
+     */
+    public boolean hasPersistedLayout()
+    {
+        return plugin.core().files().yaml("dynamic-layout.yml").contains("version");
+    }
+
     public DynamicArenaLayout getOrCreateLayout()
     {
         if (layout != null)

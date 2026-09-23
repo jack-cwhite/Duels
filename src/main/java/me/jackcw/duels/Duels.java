@@ -40,7 +40,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.Bukkit;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.logging.Level;
 
 public class Duels extends JavaPlugin
 {
@@ -353,6 +355,7 @@ public class Duels extends JavaPlugin
         changed |= moveBackToOwnRow(file, "arena-detail", new int[] {0, 2, 4, 6, 8, 10, 12},
                 new String[] {"rename", "instances", "create-instance", "delete", "toggle-available", "kits", "boundary"});
         changed |= migrateInstanceDetailLayout(file);
+        changed |= migrateArenaListStatusLore(file);
 
         if (file.getConfig().getInt("kit-edit.items.save.slot", -1) == 51)
         {
@@ -400,15 +403,65 @@ public class Duels extends JavaPlugin
         return true;
     }
 
+    /**
+     * updateDefaults() only adds missing keys, so a saved file that already has
+     * arena-list.entry.lore keeps its old text forever - including the removed
+     * {instances}/{ready}/{free} placeholders - unless we replace it here.
+     */
+    private boolean migrateArenaListStatusLore(YamlFile file)
+    {
+        List<String> oldLore = List.of(
+                "&7ID: &f{id}",
+                "&7Type: &f{mode}",
+                "&7Playable copies: &f{instances}",
+                "&7Ready: &f{ready}",
+                "&7Free right now: &f{free}",
+                "&7Enabled: {enabled}",
+                "&eClick to manage");
+
+        if (!oldLore.equals(file.getConfig().getStringList("arena-list.entry.lore")))
+            return false;
+
+        file.getConfig().set("arena-list.entry.lore", List.of(
+                "&7ID: &f{id}",
+                "&7Type: &f{mode}",
+                "&7{status}",
+                "&7Enabled: {enabled}",
+                "&eClick to manage"));
+        return true;
+    }
+
     private void initializeManagers()
     {
         kitManager = new KitManager(kitRepository);
         arenaManager = new ArenaManager(arenaRepository);
-        arenaInstanceManager = new ArenaInstanceManager(arenaInstanceRepository, arenaManager);
-        arenaInstanceManager.migrateLegacyDynamicSources(getLogger());
-        arenaTemplateManager = new ArenaTemplateManager(this, new PaperArenaStructureProvider());
+
+        // Dynamic arena instance records store world-relative locations, so the
+        // dynamic arena world must already be loaded before we deserialize them
+        // below - otherwise YamlRepository can't resolve the world reference and
+        // silently drops the entry (and with it, that slot's occupancy). A
+        // missing/corrupt dynamic world must not take the rest of the plugin
+        // down with it: static arenas, commands and menus should still come up,
+        // with dynamic provisioning simply unavailable (and its instance
+        // records skipped-and-logged by YamlRepository) until it's restored.
         dynamicArenaSlotManager = new DynamicArenaSlotManager(this);
         dynamicArenaWorldManager = new DynamicArenaWorldManager(dynamicArenaSlotManager);
+        if (dynamicArenaSlotManager.hasPersistedLayout())
+        {
+            try
+            {
+                dynamicArenaWorldManager.getOrCreateWorld();
+            }
+            catch (RuntimeException exception)
+            {
+                getLogger().log(Level.SEVERE, "Could not load the dynamic arena world; dynamic arenas will be "
+                        + "unavailable until this is resolved and the server is restarted. Static arenas are unaffected.", exception);
+            }
+        }
+
+        arenaInstanceManager = new ArenaInstanceManager(arenaInstanceRepository, arenaManager, getLogger());
+        arenaInstanceManager.migrateLegacyDynamicSources(getLogger());
+        arenaTemplateManager = new ArenaTemplateManager(this, new PaperArenaStructureProvider());
         dynamicArenaProvisioner = new DynamicArenaProvisioner(this);
         arenaAllocator = new StaticArenaAllocator(arenaManager, arenaInstanceManager, dynamicArenaProvisioner);
         dynamicArenaRecovery = new DynamicArenaRecovery(this);

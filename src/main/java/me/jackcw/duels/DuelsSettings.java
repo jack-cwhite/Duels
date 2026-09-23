@@ -192,7 +192,7 @@ public final class DuelsSettings
         if (raw instanceof Boolean bool)
             return bool;
 
-        logger.warning("config.yml '" + path + "' " + rule + "; got '" + raw + "', deaulting to " + fallback);
+        logger.warning("config.yml '" + path + "' " + rule + "; got '" + raw + "', defaulting to " + fallback);
         return fallback;
     }
 
