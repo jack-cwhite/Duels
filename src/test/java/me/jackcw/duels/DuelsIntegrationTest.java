@@ -126,6 +126,8 @@ class DuelsIntegrationTest
         ArenaInstance source = plugin.getArenaInstanceManager().createSource(dynamicArena.getId());
         built.setSpawn1(new Location(world, 0, 64, 0));
         built.setSpawn2(new Location(world, 5, 64, 5));
+        built.setBoundsCorner1(new Location(world, -10, 60, -10));
+        built.setBoundsCorner2(new Location(world, 10, 70, 10));
         source.setSpawn1(new Location(world, 20, 64, 20));
         source.setSpawn2(new Location(world, 25, 64, 25));
         plugin.getArenaInstanceManager().save(built);
@@ -885,7 +887,11 @@ class DuelsIntegrationTest
     {
         WorldMock world = server.addSimpleWorld("no_bounds_world");
         Arena arena = plugin.getArenaManager().createArena("Unbounded");
-        createReadyInstance(arena, world);
+        ArenaInstance instance = createReadyInstance(arena, world);
+        instance.setBoundsCorner1(null);
+        instance.setBoundsCorner2(null);
+        instance.exemptFromBoundsRequirement();
+        plugin.getArenaInstanceManager().save(instance);
 
         Match match = plugin.getMatchManager().startMatch(addPlayer("Alice"), addPlayer("Bob"));
         assertNotNull(match);
@@ -943,6 +949,8 @@ class DuelsIntegrationTest
         ArenaInstance instance = plugin.getArenaInstanceManager().createInstance(arena.getId());
         plugin.getArenaInstanceManager().setSpawn(instance.getId(), 1, new Location(world, 0, 64, 0));
         plugin.getArenaInstanceManager().setSpawn(instance.getId(), 2, new Location(world, 10, 64, 10));
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 1, new Location(world, -50, 0, -50));
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 2, new Location(world, 50, 128, 50));
 
         return instance;
     }
