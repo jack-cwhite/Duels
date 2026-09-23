@@ -71,12 +71,14 @@ public final class MatchListener implements Listener
             return;
         }
 
-        if (attacker == null)
-            return;
-
-        boolean isSelf = damaged.getUniqueId().equals(attacker.getUniqueId());
-        boolean isOpponent = attacker.getUniqueId().equals(match.getOpponent(damaged.getUniqueId()));
-        boolean isInvalidTarget = !isSelf && !isOpponent;
+        // A null attacker means the damage is environmental (lava, drowning,
+        // fall, fire, void, starvation, ...) rather than PvP. That is still a
+        // death that should end the match in the opponent's favour - it is
+        // only the bystander-protection check below that needs another player
+        // to make sense of "invalid target".
+        boolean isSelf = attacker != null && damaged.getUniqueId().equals(attacker.getUniqueId());
+        boolean isOpponent = attacker != null && attacker.getUniqueId().equals(match.getOpponent(damaged.getUniqueId()));
+        boolean isInvalidTarget = attacker != null && !isSelf && !isOpponent;
         boolean isMatchNotInProgress = (match.getState() != MatchState.IN_PROGRESS);
 
         if (isInvalidTarget || isMatchNotInProgress)

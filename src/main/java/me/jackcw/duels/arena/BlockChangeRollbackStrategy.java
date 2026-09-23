@@ -10,9 +10,12 @@ import org.bukkit.block.BlockState;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockDropItemEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.player.PlayerBucketEmptyEvent;
+import org.bukkit.event.player.PlayerBucketFillEvent;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayDeque;
@@ -58,6 +61,40 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
     public void onBlockBreak(BlockBreakEvent event)
     {
         track(event.getBlock().getState());
+    }
+
+    /**
+     * Bucket placement/removal does not fire {@link BlockPlaceEvent} or
+     * {@link BlockBreakEvent} - Bukkit treats it as its own event family - so
+     * without these handlers a lava or water source placed mid-duel is simply
+     * never recorded and survives the rollback.
+     */
+    @EventHandler(ignoreCancelled = true)
+    public void onBucketEmpty(PlayerBucketEmptyEvent event)
+    {
+        track(event.getBlock().getState());
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onBucketFill(PlayerBucketFillEvent event)
+    {
+        track(event.getBlock().getState());
+    }
+
+    /**
+     * Covers blocks that break as a side effect of another change rather than
+     * from a direct {@link BlockBreakEvent} - most commonly an attached block
+     * (a torch, redstone dust, a sign) popping off after an explosion destroys
+     * whatever it was mounted on. Vanilla drops the item through this event
+     * without ever firing {@link BlockBreakEvent}, so both the state and the
+     * drop need handling here specifically, the same way {@link #trackExplosion}
+     * handles an explosion's own blocks.
+     */
+    @EventHandler(ignoreCancelled = true)
+    public void onBlockDropItem(BlockDropItemEvent event)
+    {
+        if (track(event.getBlockState()))
+            event.getItems().clear();
     }
 
     @EventHandler(ignoreCancelled = true)

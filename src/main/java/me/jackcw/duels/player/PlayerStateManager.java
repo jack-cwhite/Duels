@@ -11,6 +11,7 @@ import org.bukkit.entity.Player;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public final class PlayerStateManager
@@ -94,7 +95,7 @@ public final class PlayerStateManager
         }
         catch (RuntimeException e)
         {
-            LOGGER.warning("Could not restore saved player state for '" + player.getUniqueId() + "', leaving it saved for a later attempt: " + e.getMessage());
+            LOGGER.log(Level.WARNING, "Could not restore saved player state for '" + player.getUniqueId() + "', leaving it saved for a later attempt", e);
             return false;
         }
 
