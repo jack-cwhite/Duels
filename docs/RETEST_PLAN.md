@@ -496,15 +496,54 @@ Tick items here as you go.
 
 ### B8. Section 22 - Long-session and shutdown sanity
 
-- [ ] Run several sequential and simultaneous static/dynamic duels for at
+_Run on 2026-09-23 with 6 concurrent clients. Evidence:
+`logs/2026-09-23-8.log.gz` (the soak session, 03:10:29-03:55:29),
+`logs/2026-09-23-6.log.gz` (clean shutdown at 03:09:32), and the following
+startup in `latest.log` (2026-09-24 00:22)._
+
+- [X] Run several sequential and simultaneous static/dynamic duels for at
   least 20-30 minutes; memory, entity count, loaded chunks, and task count
-  do not continually grow after matches finish.
-- [ ] No projectiles, dropped items, temporary effects, spectators, pending
+  do not continually grow after matches finish. **45 minutes** of continuous
+  play (03:10:29-03:55:29), 6 clients, 69 challenge commands and 29 accepted
+  duels, plus spectating. Three `spark health` reports across the run:
+  TPS never dropped below 19.95 (`*20.0` for most of it), and memory went
+  650.6 MB -> 3.1 GB -> back down to 2.4 GB. That the figure came *down*
+  under continuing load is the meaningful result - a leak would show
+  monotonic growth across the run rather than a GC-recovered peak. Worst
+  single tick was 155 ms (inside a 1m window at 03:17) with TPS still 19.97,
+  consistent with a rollback batch or template paste rather than a stall.
+- [~] No projectiles, dropped items, temporary effects, spectators, pending
   players, countdowns, or edit sessions remain after their owning flow ends.
-- [ ] Normal `stop` produces no scheduler/plugin-disabled exceptions.
-- [ ] Restart with no active match produces no unnecessary recovery work.
-- [ ] Console remains free of unexpected repeated warnings throughout the
-  suite.
+  Not audited explicitly - no entity/task count was captured, and `spark
+  health` does not report those. Nothing in the log suggests a problem, and
+  spectating was exercised (2 sessions) and left cleanly, but this is an
+  inference from absence rather than a positive check. Worth one quick
+  targeted pass: after a duel ends, confirm entity count in the arena
+  returns to its pre-match value.
+- [X] Normal `stop` produces no scheduler/plugin-disabled exceptions.
+  Verified at 03:09:32: `Stopping server` -> `[Duels] Disabling Duels
+  v1.0-SNAPSHOT` -> Hikari `HikariPool-1 - Shutdown initiated/completed` ->
+  worlds saved -> clean pool termination. No scheduler warnings and no
+  "plugin tried to register task while disabled" style exceptions anywhere
+  in the disable sequence.
+- [X] Restart with no active match produces no unnecessary recovery work.
+  Verified on the 2026-09-24 00:22 startup: Duels enabled, dynamic world
+  loaded with `Loading 0 persistent chunks`, `Done (22.806s)!`, and no
+  rebuild/recovery/quarantine log lines at all.
+- [X] Console remains free of unexpected repeated warnings throughout the
+  suite. Across all 441 lines of the 45-minute soak log there is exactly one
+  `WARN` - Paper's own offline-mode banner - and zero exceptions, zero
+  stack traces, and zero Duels-emitted warnings.
+
+**Caveat on build version:** this soak ran against the jar built at 01:58 on
+2026-09-23, which predates the four fixes made later that night (bucket and
+detached-block rollback tracking, environmental-death interception,
+player-state restore ordering). Those fixes are narrow and none of them
+affect the stability/leak properties this section measures, so the soak
+result stands - but note that the soak log itself contains 6 `tried to swim
+in lava` and 4 `fell from a high place` entries, which are precisely the two
+bugs those fixes address. A full 45-minute re-soak is not needed; the Part C
+items below cover re-verifying the fixed behaviour directly.
 
 ### B9. Section 23 - GUI and navigation review as you go
 
