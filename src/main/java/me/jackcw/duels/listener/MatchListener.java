@@ -24,8 +24,6 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.event.entity.EntityExplodeEvent;
-import org.bukkit.event.entity.ExplosionPrimeEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent.RegainReason;
 import org.bukkit.event.entity.AreaEffectCloudApplyEvent;
@@ -66,17 +64,12 @@ public final class MatchListener implements Listener
         Player attacker = event instanceof EntityDamageByEntityEvent damageByEntity ? resolveAttacker(damageByEntity.getDamager()) : null;
         Match match = matchManager.getMatch(damaged.getUniqueId());
 
-        logExplosionDiagnostic(event, damaged, attacker, match);
-
         // Isolation applies in both directions. A combatant may not hurt a
         // bystander, even though the bystander is not present in matches.
         if (match == null)
         {
             if (attacker != null && matchManager.getMatch(attacker.getUniqueId()) != null)
-            {
-                logExplosionOutcome(event, "cancelled: combatant may not damage a bystander");
                 event.setCancelled(true);
-            }
             return;
         }
 
@@ -92,68 +85,17 @@ public final class MatchListener implements Listener
 
         if (isInvalidTarget || isMatchNotInProgress)
         {
-            logExplosionOutcome(event, isInvalidTarget ? "cancelled: attacker is not a participant in this match"
-                    : "cancelled: match state is " + match.getState());
             event.setCancelled(true);
             return;
         }
 
         if (damaged.getHealth() - event.getFinalDamage() > 0)
-        {
-            logExplosionOutcome(event, "allowed: non-fatal, damage applied normally");
             return;
-        }
 
-        logExplosionOutcome(event, "cancelled: fatal hit intercepted, ending match");
         event.setCancelled(true);
 
         matchManager.endMatch(match, match.getOpponent(damaged.getUniqueId()));
     }
-
-    /**
-     * Temporary diagnostics for a long-running "TNT does no damage in duels"
-     * report that three rounds of live testing failed to pin down. Explosion
-     * damage against a player is rare enough that logging every one is not
-     * meaningful spam, and the fields below distinguish the candidate causes
-     * that reasoning alone could not: Creative or invulnerability (no event
-     * would reach here at all, so absence of these lines is itself the
-     * answer), a damage value already reduced to nothing before Duels sees it,
-     * and Duels cancelling the event itself. Remove once the report is closed.
-     */
-    private void logExplosionDiagnostic(EntityDamageEvent event, Player damaged, Player attacker, Match match)
-    {
-        if (!shouldLogDamage(event))
-            return;
-
-        plugin.getLogger().info(String.format(
-                "[tnt-debug] %s cause=%s gamemode=%s invulnerable=%s health=%.2f raw=%.2f final=%.2f damager=%s attacker=%s match=%s",
-                damaged.getName(),
-                event.getCause(),
-                damaged.getGameMode(),
-                damaged.isInvulnerable(),
-                damaged.getHealth(),
-                event.getDamage(),
-                event.getFinalDamage(),
-                event instanceof EntityDamageByEntityEvent byEntity ? byEntity.getDamager().getType() : "none",
-                attacker != null ? attacker.getName() : "unresolved",
-                match != null ? match.getState() : "none"));
-    }
-
-    private void logExplosionOutcome(EntityDamageEvent event, String outcome)
-    {
-        if (shouldLogDamage(event))
-            plugin.getLogger().info("[tnt-debug] -> " + outcome);
-    }
-
-    // Widened from explosions only: the report now includes drowning and fire
-    // doing nothing either, and hunger never depleting, so the question is no
-    // longer about TNT specifically but about whether any damage at all
-    // reaches a duellist.
-    private boolean shouldLogDamage(EntityDamageEvent event)
-    {
-        return true;
-    }
-
 
     /**
      * Stops passive food-based healing for the duration of a duel.
@@ -180,13 +122,6 @@ public final class MatchListener implements Listener
         if (!(event.getEntity() instanceof Player player))
             return;
 
-        Match regainMatch = matchManager.getMatch(player.getUniqueId());
-
-        if (regainMatch != null)
-            plugin.getLogger().info(String.format(
-                    "[tnt-debug] regain: %s reason=%s amount=%.2f health=%.2f",
-                    player.getName(), event.getRegainReason(), event.getAmount(), player.getHealth()));
-
         if (event.getRegainReason() != RegainReason.SATIATED)
             return;
 
@@ -194,45 +129,6 @@ public final class MatchListener implements Listener
 
         if (match != null && match.getState() == MatchState.IN_PROGRESS)
             event.setCancelled(true);
-    }
-
-    /**
-     * Temporary upstream diagnostics for the TNT report. Two instrumented test
-     * sessions produced no explosion damage line at all, which narrows the
-     * cause to somewhere before {@link #onEntityDamage}: either the explosion
-     * never happens, or the damage event is cancelled by a lower-priority
-     * listener, or the server never raises one. These three probes separate
-     * those cases. Remove with the rest of the [tnt-debug] logging.
-     */
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
-    public void onEntityDamageProbe(EntityDamageEvent event)
-    {
-        if (event.getEntity() instanceof Player player)
-            plugin.getLogger().info(String.format(
-                    "[tnt-debug] LOWEST %s cause=%s cancelled=%s raw=%.2f final=%.2f",
-                    player.getName(), event.getCause(), event.isCancelled(),
-                    event.getDamage(), event.getFinalDamage()));
-    }
-
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
-    public void onExplosionPrimeProbe(ExplosionPrimeEvent event)
-    {
-        plugin.getLogger().info(String.format(
-                "[tnt-debug] prime: %s radius=%.2f fire=%s cancelled=%s world=%s at=%d,%d,%d",
-                event.getEntityType(), event.getRadius(), event.getFire(), event.isCancelled(),
-                event.getEntity().getWorld().getName(),
-                event.getEntity().getLocation().getBlockX(),
-                event.getEntity().getLocation().getBlockY(),
-                event.getEntity().getLocation().getBlockZ()));
-    }
-
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
-    public void onEntityExplodeProbe(EntityExplodeEvent event)
-    {
-        plugin.getLogger().info(String.format(
-                "[tnt-debug] explode: %s cancelled=%s yield=%.2f blocks=%d nearby-players=%s",
-                event.getEntityType(), event.isCancelled(), event.getYield(), event.blockList().size(),
-                event.getLocation().getNearbyPlayers(8).stream().map(Player::getName).toList()));
     }
 
     private Player resolveAttacker(Entity damager)

@@ -25,6 +25,8 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
 
 /**
  * The default, dependency-free {@link ArenaResetStrategy}: records every block
@@ -44,6 +46,11 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
     private final int blocksPerTick;
 
     private final Map<Integer, Deque<BlockState>> changesByInstanceId = new HashMap<>();
+
+    // Instances whose match has ended but whose rollback has not started yet.
+    // Changes landing in this window still belong to the match that caused
+    // them and must be recorded, or they survive the reset.
+    private final Set<Integer> resettingInstanceIds = new HashSet<>();
 
     public BlockChangeRollbackStrategy(Duels plugin)
     {
@@ -176,30 +183,54 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
         return trackedAny;
     }
 
+    /**
+     * Rolls the arena back, but not until the tick after it is asked to.
+     *
+     * <p>The delay exists because a match can end <em>during</em> the very
+     * event that changes the world. A fatal TNT hit is the case that exposed
+     * it: the damage is intercepted and {@code endMatch} runs immediately, and
+     * {@link EntityExplodeEvent} only fires afterwards - by which point the
+     * match is no longer {@code IN_PROGRESS}, so the crater's blocks were
+     * neither recorded nor yield-suppressed, and the arena kept the hole and
+     * the dropped items permanently. Waiting a tick means the explosion is
+     * tracked like any other, and the deque is not taken out of the map until
+     * that window has closed.
+     *
+     * <p>Provisioned arenas hid this, because pasting the template over the
+     * instance repairs anything this strategy missed. Hand-built arenas using
+     * block rollback did not.
+     */
     @Override
     public void reset(ArenaInstance instance, Runnable onComplete)
     {
-        Deque<BlockState> changes = changesByInstanceId.remove(instance.getId());
+        resettingInstanceIds.add(instance.getId());
 
-        if (changes == null || changes.isEmpty())
+        plugin.core().tasks().runSyncLater(() ->
         {
-            onComplete.run();
-            return;
-        }
+            resettingInstanceIds.remove(instance.getId());
 
-        BukkitTask[] taskHolder = new BukkitTask[1];
+            Deque<BlockState> changes = changesByInstanceId.remove(instance.getId());
 
-        taskHolder[0] = plugin.core().tasks().runSyncTimer(() ->
-        {
-            for (int i = 0; i < blocksPerTick && !changes.isEmpty(); i++)
-                changes.pop().update(true, false);
-
-            if (changes.isEmpty())
+            if (changes == null || changes.isEmpty())
             {
-                taskHolder[0].cancel();
                 onComplete.run();
+                return;
             }
-        }, 0L, 1L);
+
+            BukkitTask[] taskHolder = new BukkitTask[1];
+
+            taskHolder[0] = plugin.core().tasks().runSyncTimer(() ->
+            {
+                for (int i = 0; i < blocksPerTick && !changes.isEmpty(); i++)
+                    changes.pop().update(true, false);
+
+                if (changes.isEmpty())
+                {
+                    taskHolder[0].cancel();
+                    onComplete.run();
+                }
+            }, 0L, 1L);
+        }, 1L);
     }
 
     private boolean track(BlockState previousState)
@@ -222,6 +253,13 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
         return true;
     }
 
+    /**
+     * An instance is trackable while its match is running, and for the one
+     * tick between the match ending and the rollback starting. That second
+     * window is not a nicety: an explosion that kills a duellist fires its
+     * {@link EntityExplodeEvent} after {@code endMatch} has already run, and
+     * without this those blocks belong to no match and are left in the arena.
+     */
     private ArenaInstance resolveInProgressInstance(Location location)
     {
         for (Match match : matchManager.getActiveMatches())
@@ -232,6 +270,14 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
             ArenaInstance instance = match.getArenaInstance();
 
             if (instance.contains(location))
+                return instance;
+        }
+
+        for (int instanceId : resettingInstanceIds)
+        {
+            ArenaInstance instance = plugin.getArenaInstanceManager().getInstance(instanceId);
+
+            if (instance != null && instance.contains(location))
                 return instance;
         }
 

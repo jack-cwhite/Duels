@@ -624,6 +624,7 @@ class DuelsIntegrationTest
         assertNull(third);
 
         plugin.getMatchManager().endMatch(first, first.getPlayer1Id());
+        server.getScheduler().performTicks(2L);
 
         Match fourth = plugin.getMatchManager().startMatch(addPlayer("Grace"), addPlayer("Heidi"));
         assertNotNull(fourth);
@@ -693,7 +694,7 @@ class DuelsIntegrationTest
         assertEquals(Material.AIR, floor.getType());
 
         plugin.getMatchManager().endMatch(match, alice.getUniqueId());
-        server.getScheduler().performTicks(1L);
+        server.getScheduler().performTicks(2L);
 
         assertEquals(Material.STONE, floor.getType());
     }
@@ -752,7 +753,7 @@ class DuelsIntegrationTest
         assertEquals(1f, outOfBounds.getYield(), "explosions outside any arena must keep their normal drops");
 
         plugin.getMatchManager().endMatch(match, alice.getUniqueId());
-        server.getScheduler().performTicks(1L);
+        server.getScheduler().performTicks(2L);
 
         assertEquals(Material.STONE, inside.getType());
         assertEquals(Material.AIR, outside.getType(), "a change outside the bounds is not restored");
@@ -851,7 +852,7 @@ class DuelsIntegrationTest
 
         boolean[] firstCompleted = {false};
         strategy.reset(instance, () -> firstCompleted[0] = true);
-        server.getScheduler().performTicks(1L);
+        server.getScheduler().performTicks(2L);
 
         assertTrue(firstCompleted[0]);
         assertEquals(Material.STONE, floor.getType());
@@ -863,6 +864,7 @@ class DuelsIntegrationTest
 
         boolean[] secondCompleted = {false};
         strategy.reset(instance, () -> secondCompleted[0] = true);
+        server.getScheduler().performTicks(2L);
 
         assertTrue(secondCompleted[0]);
         assertEquals(Material.AIR, floor.getType());
