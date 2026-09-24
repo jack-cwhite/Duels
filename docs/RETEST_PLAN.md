@@ -616,16 +616,24 @@ items below cover re-verifying the fixed behaviour directly.
 - [x] Duels shaded package builds successfully. `mvn package` produced
   `Duels-1.0-SNAPSHOT.jar` with JCore shaded in and auto-deployed to the test
   server at 03:37 on 2026-09-24.
-- [ ] All required sections above pass on the target Paper build.
-- [ ] Optional external-database/capacity tests are either passed or
+- [x] All required sections above pass on the target Paper build. Confirmed by
+  Jack on 2026-09-24 after the final round of live testing on Paper 1.21.11.
+- [x] Optional external-database/capacity tests are either passed or
   explicitly marked BLOCKED with the missing environment recorded.
-- [ ] Every GUI has visual notes, even if the note is "looks good; no
-  change."
-- [ ] Every failure has a reproducible bug note (see Part C below for the
+  **BLOCKED:** the test server runs the YAML `StatsRepository` with no external
+  MySQL/MariaDB instance configured, so the SQL repository and the concurrent-
+  capacity scenarios were not exercised. Worth revisiting before any real
+  multi-server deployment, since the SQL path is the one a network would use.
+- [x] Every GUI has visual notes, even if the note is "looks good; no
+  change." Signed off by Jack as "looks good; no change" across the admin and
+  player menus exercised during this run.
+- [x] Every failure has a reproducible bug note (see Part C below for the
   template this plan now uses, since `docs/IN_GAME_TEST_PLAN.md` no longer
-  exists).
-- [ ] Any remaining Phase 4B GUI/UX issues are collected for the hardening
-  plan before beginning Phase 5.
+  exists). Every bug found this session is written up in Part C with its root
+  cause, the fix, and the console evidence that confirmed it.
+- [x] Any remaining Phase 4B GUI/UX issues are collected for the hardening
+  plan before beginning Phase 5. None outstanding - Jack confirmed the build is
+  good to move on from.
 
 ## Part C: new fixes from this session, not covered by the original numbering
 
