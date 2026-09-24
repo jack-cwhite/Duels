@@ -1,9 +1,10 @@
 # Arena Containment - In-Game Test Plan
 
-Verifies `ArenaContainmentGuard` (commit `20466ae`) and the lava bystander fix
-(`5348961`) on a live server. The integration tests cover the logic; this plan
-covers what MockBukkit cannot simulate - real fire spread, real liquid flow,
-real explosion radii, and whether the feedback actually feels right in chat.
+Verifies `ArenaContainmentGuard` (commit `20466ae`), the lava bystander fix
+(`5348961`) and block-aligned bounds corners, on a live server. The integration
+tests cover the logic; this plan covers what MockBukkit cannot simulate - real
+fire spread, real liquid flow, real explosion radii, and whether the feedback
+actually feels right in chat.
 
 ## Setup
 
@@ -105,29 +106,31 @@ Re-verifies `5348961`, which extended bystander protection beyond explosions.
 | 5.4 | A and B damage **each other** with lava and fire | Damage applies normally - combatants are not protected from each other. |
 | 5.5 | C takes lava damage somewhere unrelated, outside all bounds | Normal damage. The protection is geometric, not global. |
 
-## Known issue to expect during this run
+## Part 6 - Bounds corner selection
 
-**Bounds corners are not snapped to block coordinates.** `ArenaInstance.contains()`
-compares raw doubles against `Block.getLocation()`, which returns a block's
-minimum corner. A corner set from a standing position therefore excludes the
-whole min-side face of the box - roughly half a block in X and Z, and a full
-block in Y - while including the max side.
+Bounds corners are now block-aligned and selectable by clicking a block. Run
+this part **first** if possible: a mis-set box makes Parts 1 and 2 fail in ways
+that look like containment bugs.
 
-Symptom to watch for, and **not** a containment bug:
+Convention in edit mode is unchanged - **left-click sets, right-click teleports
+to** the corner the held tool marks.
 
-- Breaking or placing on the **lowest-X or lowest-Z wall**, or on the **floor**,
-  may be wrongly denied with the out-of-arena message while the player is
-  clearly inside the arena.
-- A player standing in that same sliver may get a spurious out-of-bounds
-  boundary warning.
-
-If Part 1 or Part 2 fails only along the min-X / min-Z / floor faces, that is
-this coordinate issue rather than the containment rule. `ArenaTemplateManager`
-already snaps correctly via `blockCoordinate(double)`; bounds need the same
-treatment. Fix separately and re-run the affected rows.
+| # | Action | Expected |
+|---|---|---|
+| 6.1 | Enter edit mode, hold the bounds corner 1 tool, **left-click a block** | Corner set to *that* block. Chat reports its coordinates. |
+| 6.2 | Set corner 2 by clicking the opposite block | Coordinates reported, plus a second line giving the box size in blocks. |
+| 6.3 | Check the reported size against the arena you built | Matches, counting both corner blocks - a box from X=10 to X=12 reads as 3 wide, not 2. |
+| 6.4 | **Right-click** the corner 1 tool | Teleports you standing in the middle of the corner block, not on its edge. |
+| 6.5 | Left-click **air** with a corner tool | Falls back to your own position - the old stand-here workflow still works. |
+| 6.6 | Stand on the arena floor, left-click air to set a corner, then check | Selects the block you are standing *in*, i.e. the air above the floor. The floor is **not** included. |
+| 6.7 | Now left-click the **floor block itself** | Floor is included. Reported Y is one lower than 6.6. |
+| 6.8 | Set a corner with a spawn tool instead | Still uses your exact position **and facing** - spawns deliberately ignore the clicked block. |
+| 6.9 | Break a block on the **lowest-X wall**, the **lowest-Z wall** and the **floor** during a live match | All allowed, and all restored at match end. This is the face the old raw-coordinate comparison wrongly excluded. |
+| 6.10 | Stand hard against the lowest-X wall during a match | No spurious out-of-bounds warning. |
+| 6.11 | Load a server whose arenas were configured **before** this change | Bounds still work, and 6.9/6.10 pass without re-setting any corners. No migration is required. |
 
 ## Sign-off
 
-Containment is verified when Parts 1, 2, 3, 4 and 5 all pass, with Part 3
-weighted most heavily - a containment feature that leaks into ordinary world
-behaviour is worse than the problem it solves.
+Containment is verified when Parts 1 through 6 all pass, with Part 3 weighted
+most heavily - a containment feature that leaks into ordinary world behaviour is
+worse than the problem it solves.

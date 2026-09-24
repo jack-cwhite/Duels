@@ -1211,4 +1211,134 @@ class DuelsIntegrationTest
                 true
         );
     }
+
+    /**
+     * The bug this replaced was a coordinate-system mismatch: bounds were
+     * compared as raw doubles, but callers pass a mix of player positions (a
+     * point anywhere inside a block) and {@code Block.getLocation()} (that
+     * block's minimum corner). A box set from a standing position therefore
+     * excluded its own minimum face while including its maximum one.
+     */
+    @Test
+    void boundsIncludeBothCornerBlocksWhenSetFromAStandingPosition()
+    {
+        WorldMock world = server.addSimpleWorld("bounds_snapping_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        ArenaInstance instance = createReadyInstance(arena, world);
+
+        // Exactly what a standing admin produces: centred in the block on X/Z,
+        // and feet resting on top of the block below on Y.
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 1, new Location(world, 10.5, 64.0, 10.5));
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 2, new Location(world, 50.5, 80.0, 50.5));
+
+        assertTrue(instance.contains(world.getBlockAt(10, 64, 10).getLocation()),
+                "the block the admin stood in when setting corner 1 must be inside the bounds");
+        assertTrue(instance.contains(world.getBlockAt(50, 80, 50).getLocation()),
+                "the block the admin stood in when setting corner 2 must be inside the bounds");
+
+        assertFalse(instance.contains(world.getBlockAt(9, 64, 10).getLocation()),
+                "one block beyond the minimum corner is still outside");
+        assertFalse(instance.contains(world.getBlockAt(51, 80, 50).getLocation()),
+                "one block beyond the maximum corner is still outside");
+
+        assertTrue(instance.contains(new Location(world, 10.1, 64.0, 10.9)),
+                "a player anywhere within the corner block is inside the bounds");
+    }
+
+    /**
+     * The floor is deliberately not included by standing on it - standing on a
+     * block puts the player in the block above. Documented as a test because it
+     * is a design decision rather than an oversight: the alternative, silently
+     * extending the box a block downwards, makes the volume asymmetric and
+     * unpredictable. Admins include the floor by clicking it instead.
+     */
+    @Test
+    void standingOnTheFloorSelectsTheBlockAboveItNotTheFloor()
+    {
+        WorldMock world = server.addSimpleWorld("bounds_floor_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        ArenaInstance instance = createReadyInstance(arena, world);
+
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 1, new Location(world, 10.5, 64.0, 10.5));
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 2, new Location(world, 50.5, 80.0, 50.5));
+
+        assertFalse(instance.contains(world.getBlockAt(20, 63, 20).getLocation()),
+                "the floor block the admin was standing on is below the selected corner");
+
+        // Clicking the floor block instead is what an admin does to include it,
+        // and is what the edit tool now passes through.
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 1, world.getBlockAt(10, 63, 10).getLocation());
+
+        assertTrue(instance.contains(world.getBlockAt(20, 63, 20).getLocation()),
+                "clicking the floor block includes the floor");
+    }
+
+    /**
+     * Corners are stored block-aligned rather than at the position they were set
+     * from, so a corner identifies a block. Without this, "teleport me to corner
+     * 1" returned the admin to wherever they were standing, which stops being
+     * the corner as soon as a corner can be set by clicking a distant block.
+     */
+    @Test
+    void boundsCornersAreStoredBlockAligned()
+    {
+        WorldMock world = server.addSimpleWorld("bounds_storage_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        ArenaInstance instance = createReadyInstance(arena, world);
+
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 1, new Location(world, 10.7, 64.0, -10.3, 90f, 45f));
+
+        Location stored = instance.getBoundsCorner1();
+
+        assertEquals(10, stored.getBlockX());
+        assertEquals(64, stored.getBlockY());
+        assertEquals(-11, stored.getBlockZ(), "flooring, not truncation - a point at -10.3 is inside block -11");
+        assertEquals(10.0, stored.getX(), "the stored value is the block, not the position it was set from");
+        assertEquals(0f, stored.getYaw(), "a corner marks a position, not a direction to face");
+    }
+
+    /**
+     * The size readout is the feedback that actually catches a mis-set corner,
+     * so the arithmetic needs to be inclusive of both corner blocks: a box from
+     * block 10 to block 12 is three blocks wide, not two.
+     */
+    @Test
+    void boundsSizeCountsBothCornerBlocks()
+    {
+        WorldMock world = server.addSimpleWorld("bounds_size_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        ArenaInstance instance = createReadyInstance(arena, world);
+
+        assertNotNull(instance.getBoundsSize(), "createReadyInstance sets bounds");
+
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 1, new Location(world, 10.5, 64.0, 10.5));
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 2, new Location(world, 12.5, 64.0, 20.5));
+
+        ArenaStructureSize size = instance.getBoundsSize();
+
+        assertEquals(3, size.x());
+        assertEquals(1, size.y());
+        assertEquals(11, size.z());
+    }
+
+    /**
+     * Snapping happens when comparing as well as when storing, so an arena
+     * configured before corners were block-aligned picks up the fix on load
+     * rather than needing a migration. Setting the corner directly on the
+     * instance bypasses the manager, which is how a deserialized legacy record
+     * arrives.
+     */
+    @Test
+    void arenasSavedBeforeCornersWereAlignedStillGetTheFullBox()
+    {
+        WorldMock world = server.addSimpleWorld("bounds_legacy_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        ArenaInstance instance = createReadyInstance(arena, world);
+
+        instance.setBoundsCorner1(new Location(world, 10.5, 64.0, 10.5));
+        instance.setBoundsCorner2(new Location(world, 50.5, 80.0, 50.5));
+
+        assertTrue(instance.contains(world.getBlockAt(10, 64, 10).getLocation()),
+                "a legacy half-block corner must still include its own corner block");
+    }
 }

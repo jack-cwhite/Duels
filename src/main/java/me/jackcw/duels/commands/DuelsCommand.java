@@ -2,6 +2,7 @@ package me.jackcw.duels.commands;
 
 import me.jackcw.duels.Duels;
 import me.jackcw.duels.arena.Arena;
+import me.jackcw.duels.arena.ArenaBoundsFeedback;
 import me.jackcw.duels.arena.ArenaEditManager;
 import me.jackcw.duels.arena.ArenaEditSession;
 import me.jackcw.duels.arena.ArenaInstance;
@@ -860,7 +861,7 @@ public final class DuelsCommand
             case NOT_FOUND -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_NOT_FOUND, "id", instanceId);
             case IN_USE -> messageManager.send(context.getSender(), Message.ARENA_INSTANCE_IN_USE, "id", instanceId,
                     "arenaId", existing != null ? existing.getArenaId() : -1);
-            case SUCCESS -> messageManager.send(context.getSender(), Message.ARENA_BOUNDS_SET, "corner", corner, "id", instanceId);
+            case SUCCESS -> ArenaBoundsFeedback.sendCornerSet(messageManager, player, result.instance(), corner);
         }
     }
 

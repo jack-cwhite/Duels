@@ -238,10 +238,17 @@ public final class ArenaInstanceManager
         if (activeCheck.test(id) || instance.isProvisioned())
             return ArenaInstanceMutationResult.inUse();
 
+        // Stored block-aligned rather than as the raw position given, because a
+        // bounds corner identifies a block, not a point. Keeping the caller's
+        // exact position would also make "teleport me to corner 1" return the
+        // admin to wherever they stood when setting it, which stopped being the
+        // corner once corners could be set by clicking a distant block.
+        Location snapped = BlockCoordinates.snapToBlock(location);
+
         if (corner == 1)
-            instance.setBoundsCorner1(location);
+            instance.setBoundsCorner1(snapped);
         else
-            instance.setBoundsCorner2(location);
+            instance.setBoundsCorner2(snapped);
 
         save(instance);
 

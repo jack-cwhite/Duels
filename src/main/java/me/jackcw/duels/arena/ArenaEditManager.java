@@ -76,16 +76,25 @@ public final class ArenaEditManager
         return draft(player, instanceId).corners[corner - 1];
     }
 
+    /**
+     * Block-aligned on the way in, matching bounds corners. {@link
+     * ArenaTemplateManager} already reduced these to block coordinates when
+     * capturing, so this changes no captured output - it makes the stored draft
+     * agree with what the capture will actually use, so the corner an admin
+     * teleports back to is the corner the template will be cut from.
+     */
     public void setStructureCorner(Player player, int instanceId, int corner, Location location)
     {
-        draft(player, instanceId).corners[corner - 1] = location.clone();
+        Location snapped = BlockCoordinates.snapToBlock(location);
+
+        draft(player, instanceId).corners[corner - 1] = snapped;
         ArenaEditSession session = getSession(player);
         if (session != null && session.getInstanceId() == instanceId)
         {
             if (corner == 1)
-                session.setStructureCorner1(location.clone());
+                session.setStructureCorner1(snapped.clone());
             else
-                session.setStructureCorner2(location.clone());
+                session.setStructureCorner2(snapped.clone());
         }
     }
 

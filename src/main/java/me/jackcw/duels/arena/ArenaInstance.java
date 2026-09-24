@@ -187,22 +187,84 @@ public final class ArenaInstance
      * <p>Returns {@code false} if bounds are not set, or if the location is in
      * a different world to the bounds - a location cannot be "inside" a box
      * that has no defined extent, or that is defined in another world.
+     *
+     * <p>The comparison is made in whole-block coordinates, so the box is a
+     * volume of blocks and both corner blocks are inside it. Comparing raw
+     * coordinates instead looked equivalent but was not: callers pass a mix of
+     * player positions (a point anywhere within a block) and
+     * {@code Block.getLocation()} (that block's minimum corner), so a box set
+     * from a standing position excluded its own minimum face - about half a
+     * block in X and Z and a whole block in Y - while including the maximum
+     * one. That asymmetry meant the lowest wall of an arena was treated as
+     * outside it, so changes there were never rolled back and a player standing
+     * against it could be warned for leaving bounds they were plainly inside.
+     *
+     * <p>Snapping the stored corners here as well as on the way in is what lets
+     * arenas configured before corners were block-aligned pick up the fix on
+     * load, with no migration.
      */
     public boolean contains(Location location)
     {
         if (!hasBounds() || !location.getWorld().equals(boundsCorner1.getWorld()))
             return false;
 
-        double minX = Math.min(boundsCorner1.getX(), boundsCorner2.getX());
-        double maxX = Math.max(boundsCorner1.getX(), boundsCorner2.getX());
-        double minY = Math.min(boundsCorner1.getY(), boundsCorner2.getY());
-        double maxY = Math.max(boundsCorner1.getY(), boundsCorner2.getY());
-        double minZ = Math.min(boundsCorner1.getZ(), boundsCorner2.getZ());
-        double maxZ = Math.max(boundsCorner1.getZ(), boundsCorner2.getZ());
+        int x = BlockCoordinates.blockCoordinate(location.getX());
+        int y = BlockCoordinates.blockCoordinate(location.getY());
+        int z = BlockCoordinates.blockCoordinate(location.getZ());
 
-        return location.getX() >= minX && location.getX() <= maxX
-                && location.getY() >= minY && location.getY() <= maxY
-                && location.getZ() >= minZ && location.getZ() <= maxZ;
+        return x >= minBoundsX() && x <= maxBoundsX()
+                && y >= minBoundsY() && y <= maxBoundsY()
+                && z >= minBoundsZ() && z <= maxBoundsZ();
+    }
+
+    /**
+     * The size of the bounds box in blocks, or {@code null} if bounds are not
+     * set.
+     *
+     * <p>Exists for admin feedback: the difference between a correct box and
+     * one set a block out is invisible in a pair of coordinates but obvious in
+     * a set of dimensions.
+     */
+    public ArenaStructureSize getBoundsSize()
+    {
+        if (!hasBounds())
+            return null;
+
+        return new ArenaStructureSize(
+                maxBoundsX() - minBoundsX() + 1,
+                maxBoundsY() - minBoundsY() + 1,
+                maxBoundsZ() - minBoundsZ() + 1
+        );
+    }
+
+    private int minBoundsX()
+    {
+        return Math.min(BlockCoordinates.blockCoordinate(boundsCorner1.getX()), BlockCoordinates.blockCoordinate(boundsCorner2.getX()));
+    }
+
+    private int maxBoundsX()
+    {
+        return Math.max(BlockCoordinates.blockCoordinate(boundsCorner1.getX()), BlockCoordinates.blockCoordinate(boundsCorner2.getX()));
+    }
+
+    private int minBoundsY()
+    {
+        return Math.min(BlockCoordinates.blockCoordinate(boundsCorner1.getY()), BlockCoordinates.blockCoordinate(boundsCorner2.getY()));
+    }
+
+    private int maxBoundsY()
+    {
+        return Math.max(BlockCoordinates.blockCoordinate(boundsCorner1.getY()), BlockCoordinates.blockCoordinate(boundsCorner2.getY()));
+    }
+
+    private int minBoundsZ()
+    {
+        return Math.min(BlockCoordinates.blockCoordinate(boundsCorner1.getZ()), BlockCoordinates.blockCoordinate(boundsCorner2.getZ()));
+    }
+
+    private int maxBoundsZ()
+    {
+        return Math.max(BlockCoordinates.blockCoordinate(boundsCorner1.getZ()), BlockCoordinates.blockCoordinate(boundsCorner2.getZ()));
     }
 
     private static boolean canTransition(DynamicArenaState from, DynamicArenaState to)

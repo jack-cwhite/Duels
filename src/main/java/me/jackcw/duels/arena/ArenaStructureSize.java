@@ -1,7 +1,11 @@
 package me.jackcw.duels.arena;
 
 /**
- * The dimensions of a captured arena structure in blocks.
+ * The dimensions of an arena block box, in blocks.
+ *
+ * <p>Named for its original use, a captured arena structure, but it carries no
+ * structure-specific behaviour and {@link ArenaInstance#getBoundsSize()} reuses
+ * it for bounds rather than introducing a second identical three-integer record.
  */
 public record ArenaStructureSize(int x, int y, int z)
 {

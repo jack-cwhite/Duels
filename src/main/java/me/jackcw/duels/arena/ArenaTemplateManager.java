@@ -204,40 +204,27 @@ public final class ArenaTemplateManager
         }
     }
 
-    /**
-     * Client-reported position is float-precision, so a foot location that is
-     * conceptually on a block boundary (e.g. 64.0) can arrive as 63.999997.
-     * A small tolerance before flooring absorbs that drift without risking a
-     * false match across an intentionally different block.
-     */
-    private static final double BLOCK_COORD_EPSILON = 1.0e-3;
-
-    private static int blockCoordinate(double value)
-    {
-        return (int) Math.floor(value + BLOCK_COORD_EPSILON);
-    }
-
     private static Location minimumCorner(World world, Location first, Location second)
     {
         return new Location(world,
-                Math.min(blockCoordinate(first.getX()), blockCoordinate(second.getX())),
-                Math.min(blockCoordinate(first.getY()), blockCoordinate(second.getY())),
-                Math.min(blockCoordinate(first.getZ()), blockCoordinate(second.getZ())));
+                Math.min(BlockCoordinates.blockCoordinate(first.getX()), BlockCoordinates.blockCoordinate(second.getX())),
+                Math.min(BlockCoordinates.blockCoordinate(first.getY()), BlockCoordinates.blockCoordinate(second.getY())),
+                Math.min(BlockCoordinates.blockCoordinate(first.getZ()), BlockCoordinates.blockCoordinate(second.getZ())));
     }
 
     private static Location maximumCorner(World world, Location first, Location second)
     {
         return new Location(world,
-                Math.max(blockCoordinate(first.getX()), blockCoordinate(second.getX())),
-                Math.max(blockCoordinate(first.getY()), blockCoordinate(second.getY())),
-                Math.max(blockCoordinate(first.getZ()), blockCoordinate(second.getZ())));
+                Math.max(BlockCoordinates.blockCoordinate(first.getX()), BlockCoordinates.blockCoordinate(second.getX())),
+                Math.max(BlockCoordinates.blockCoordinate(first.getY()), BlockCoordinates.blockCoordinate(second.getY())),
+                Math.max(BlockCoordinates.blockCoordinate(first.getZ()), BlockCoordinates.blockCoordinate(second.getZ())));
     }
 
     private static boolean contains(Location minimum, Location maximum, Location location)
     {
-        int x = blockCoordinate(location.getX());
-        int y = blockCoordinate(location.getY());
-        int z = blockCoordinate(location.getZ());
+        int x = BlockCoordinates.blockCoordinate(location.getX());
+        int y = BlockCoordinates.blockCoordinate(location.getY());
+        int z = BlockCoordinates.blockCoordinate(location.getZ());
         return x >= minimum.getBlockX() && x <= maximum.getBlockX()
                 && y >= minimum.getBlockY() && y <= maximum.getBlockY()
                 && z >= minimum.getBlockZ() && z <= maximum.getBlockZ();

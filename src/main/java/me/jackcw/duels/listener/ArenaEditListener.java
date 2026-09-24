@@ -1,6 +1,7 @@
 package me.jackcw.duels.listener;
 
 import me.jackcw.duels.Duels;
+import me.jackcw.duels.arena.ArenaBoundsFeedback;
 import me.jackcw.duels.arena.ArenaEditManager;
 import me.jackcw.duels.arena.ArenaEditSession;
 import me.jackcw.duels.arena.ArenaEditTool;
@@ -10,9 +11,11 @@ import me.jackcw.duels.arena.ArenaInstanceMutationResult;
 import me.jackcw.duels.arena.ArenaTemplateCaptureResult;
 import me.jackcw.duels.arena.ArenaTemplateDefinition;
 import me.jackcw.duels.arena.ArenaTemplateManager;
+import me.jackcw.duels.arena.BlockCoordinates;
 import me.jackcw.duels.message.Message;
 import me.jackcw.jcore.message.MessageManager;
 import org.bukkit.Location;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -167,7 +170,7 @@ public final class ArenaEditListener implements Listener
         if (right)
             handleTeleport(player, session, instance, tool);
         else
-            handleSet(player, session, instance, tool);
+            handleSet(player, session, instance, tool, event.getClickedBlock());
     }
 
     @EventHandler
@@ -198,7 +201,7 @@ public final class ArenaEditListener implements Listener
 
         if (location != null)
         {
-            player.teleport(location);
+            player.teleport(isCorner(tool) ? centreOfBlock(location) : location);
             return;
         }
 
@@ -210,16 +213,55 @@ public final class ArenaEditListener implements Listener
             messageManager.send(player, Message.ARENA_BOUNDS_NOT_SET, "corner", toolNumber(tool), "id", instance.getId());
     }
 
-    private void handleSet(Player player, ArenaEditSession session, ArenaInstance instance, ArenaEditTool tool)
+    private static boolean isCorner(ArenaEditTool tool)
     {
+        return tool == ArenaEditTool.BOUNDS_CORNER_1 || tool == ArenaEditTool.BOUNDS_CORNER_2
+                || tool == ArenaEditTool.STRUCTURE_CORNER_1 || tool == ArenaEditTool.STRUCTURE_CORNER_2;
+    }
+
+    /**
+     * Corners are stored block-aligned, and teleporting to a block's minimum
+     * corner drops the admin on its edge, straddling the neighbouring block -
+     * which is exactly the ambiguity this change set out to remove. Standing
+     * them in the middle of the block makes "this is the corner block" visible.
+     *
+     * <p>Snapped before centring so a corner saved before corners were aligned
+     * still lands in the middle of a block rather than half a block off.
+     */
+    private static Location centreOfBlock(Location location)
+    {
+        return BlockCoordinates.snapToBlock(location).add(0.5, 0, 0.5);
+    }
+
+    /**
+     * Sets whichever position the held tool marks.
+     *
+     * <p>{@code clickedBlock} is the block the admin left-clicked, or
+     * {@code null} when they clicked air. Corners prefer it: pointing at the
+     * block you mean is how block selection has worked since WorldEdit, and it
+     * is the only way to select a corner you cannot stand in - the arena floor
+     * being the case that prompted this, since standing on the floor selects
+     * the air block above it. Clicking air still falls back to the admin's own
+     * position, so the previous stand-here workflow keeps working.
+     *
+     * <p>Spawns deliberately ignore the clicked block. A spawn is a full player
+     * position including the direction they face, and a block has no facing.
+     */
+    private void handleSet(Player player, ArenaEditSession session, ArenaInstance instance, ArenaEditTool tool, Block clickedBlock)
+    {
+        Location corner = clickedBlock != null ? clickedBlock.getLocation() : player.getLocation();
+
         if (tool == ArenaEditTool.STRUCTURE_CORNER_1 || tool == ArenaEditTool.STRUCTURE_CORNER_2)
         {
             if (tool == ArenaEditTool.STRUCTURE_CORNER_1)
-                arenaEditManager.setStructureCorner(player, instance.getId(), 1, player.getLocation());
+                arenaEditManager.setStructureCorner(player, instance.getId(), 1, corner);
             else
-                arenaEditManager.setStructureCorner(player, instance.getId(), 2, player.getLocation());
+                arenaEditManager.setStructureCorner(player, instance.getId(), 2, corner);
 
-            messageManager.send(player, Message.ARENA_STRUCTURE_CORNER_SET, "corner", toolNumber(tool));
+            Location stored = arenaEditManager.getStructureCorner(player, instance.getId(), toolNumber(tool));
+
+            messageManager.send(player, Message.ARENA_STRUCTURE_CORNER_SET, "corner", toolNumber(tool),
+                    "x", stored.getBlockX(), "y", stored.getBlockY(), "z", stored.getBlockZ());
             return;
         }
 
@@ -234,8 +276,8 @@ public final class ArenaEditListener implements Listener
             case SPAWN_1 -> arenaInstanceManager.setSpawn(instance.getId(), 1, player.getLocation());
             case SPAWN_2 -> arenaInstanceManager.setSpawn(instance.getId(), 2, player.getLocation());
             case STRUCTURE_CORNER_1, STRUCTURE_CORNER_2, CAPTURE -> null;
-            case BOUNDS_CORNER_1 -> arenaInstanceManager.setBoundsCorner(instance.getId(), 1, player.getLocation());
-            case BOUNDS_CORNER_2 -> arenaInstanceManager.setBoundsCorner(instance.getId(), 2, player.getLocation());
+            case BOUNDS_CORNER_1 -> arenaInstanceManager.setBoundsCorner(instance.getId(), 1, corner);
+            case BOUNDS_CORNER_2 -> arenaInstanceManager.setBoundsCorner(instance.getId(), 2, corner);
             case EXIT -> null;
         };
 
@@ -251,7 +293,7 @@ public final class ArenaEditListener implements Listener
                 if (tool == ArenaEditTool.SPAWN_1 || tool == ArenaEditTool.SPAWN_2)
                     messageManager.send(player, Message.ARENA_SPAWN_SET, "spawn", toolNumber(tool), "id", instance.getId());
                 else
-                    messageManager.send(player, Message.ARENA_BOUNDS_SET, "corner", toolNumber(tool), "id", instance.getId());
+                    ArenaBoundsFeedback.sendCornerSet(messageManager, player, result.instance(), toolNumber(tool));
             }
         }
     }
