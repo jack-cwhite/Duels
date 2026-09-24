@@ -57,6 +57,7 @@ public enum Message implements MessageKey
     ARENA_KIT_TOGGLED("admin.arena-kit-toggled"),
     ARENA_INVALID_BOUNDS_CORNER("admin.arena-invalid-bounds-corner"),
     ARENA_EDIT_MODE_EXITED("admin.arena-edit-mode-exited"),
+    ARENA_EDIT_WHILE_IN_MATCH("admin.arena-edit-while-in-match"),
     ARENA_STRUCTURE_CORNER_SET("admin.arena-structure-corner-set"),
     ARENA_STRUCTURE_CORNER_NOT_SET("admin.arena-structure-corner-not-set"),
     ARENA_TEMPLATE_CAPTURED("admin.arena-template-captured"),

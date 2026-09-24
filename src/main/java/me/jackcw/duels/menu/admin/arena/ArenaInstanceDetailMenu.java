@@ -94,7 +94,13 @@ public final class ArenaInstanceDetailMenu
                         return;
                     }
 
-                    arenaEditManager.start(player, current);
+                    if (!arenaEditManager.start(player, current))
+                    {
+                        messageManager.send(player, Message.ARENA_EDIT_WHILE_IN_MATCH);
+                        context.reopen();
+                        return;
+                    }
+
                     player.closeInventory();
                 });
         }

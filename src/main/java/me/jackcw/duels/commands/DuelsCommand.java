@@ -875,7 +875,8 @@ public final class DuelsCommand
             return;
         }
 
-        arenaEditManager.start(context.getPlayer(), instance);
+        if (!arenaEditManager.start(context.getPlayer(), instance))
+            messageManager.send(context.getSender(), Message.ARENA_EDIT_WHILE_IN_MATCH);
     }
 
     private void toggleArenaKit(CommandContext context)

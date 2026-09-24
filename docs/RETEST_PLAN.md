@@ -578,7 +578,7 @@ items below cover re-verifying the fixed behaviour directly.
 
 ## Part C: new fixes from this session, not covered by the original numbering
 
-These three items don't map onto any section 15-24 heading - they're genuine
+These items don't map onto any section 15-24 heading - they're genuine
 bugs found through live play this session, outside anything the original
 plan was written to check. Each needs its own live retest before B10 can be
 signed off.
@@ -632,3 +632,30 @@ signed off.
   deals real damage to both self and opponent. Note whether the TNT was
   lit with flint and steel or triggered another way (redstone, fire), since
   that changes which `resolveAttacker` branch is exercised.
+- [ ] **Arena edit mode can no longer be entered while in a duel, and any
+  existing edit session is closed when a match begins.** Reported 2026-09-24:
+  entering instance edit mode from the `/duels` GUI mid-match, then winning
+  the duel, left the player with their normal inventory restored but the
+  arena bounds particles still drawing and `isEditing()` permanently true -
+  locked out of edit mode with no edit tools. Root cause: `ArenaEditManager`
+  kept edit sessions in a `Map<UUID, ArenaEditSession>` with no guard against
+  the player being in a match, and nothing called `end()` at match start or
+  match end, so `PlayerStateManager.restore()` overwrote the hotbar while the
+  session (and its repeating particle task) survived. A latent second defect
+  sat behind this: `ArenaEditSession` snapshots the hotbar at construction, so
+  a session opened mid-duel captured the *kit* inventory - had `end()` ever
+  run, it would have written kit gear into the player's real inventory, an
+  item dupe. Fixed by making `ArenaEditManager.start` return `boolean` and
+  refuse when `matchManager.getMatch(...) != null || isPending(...)`, with
+  both call sites (`DuelsCommand.enterInstanceEditMode` and
+  `ArenaInstanceDetailMenu`) reporting `admin.arena-edit-while-in-match`; and
+  by calling `end()` for both participants in `MatchManager.initializePlayers`
+  *before* `storePlayerState`, covering the reverse race. Retest: (1) start a
+  duel, try `/duels arena edit 1` and the GUI edit button - both must refuse
+  with the new message; (2) win the duel, confirm no lingering bounds
+  particles and that edit mode can be entered normally afterwards; (3) enter
+  edit mode out of combat, then accept a duel - confirm the edit tools are
+  gone, the particles stop, and after the duel the restored inventory is the
+  pre-edit one with no duplicated kit items.
+  This also closes one named case of the `[~]` B8 item, which lists leftover
+  edit sessions among the things that must not survive their owning flow.

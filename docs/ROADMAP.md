@@ -1796,3 +1796,17 @@ the roadmap has one place tracking all deferred work:
   going down in the exact seconds around match-end) and more likely to matter once
   network/multi-server work (Phase 9) makes DB availability more load-bearing. Revisit
   then rather than building it ahead of need.
+- JCore: a permanent, required bottom row on every menu. Raised by Jack on 2026-09-24.
+  Currently the bottom row is a per-menu convention rather than a framework guarantee -
+  most menus reserve it for pagination, and navigation controls are added ad hoc where a
+  given menu happens to need them. The request is to make the bottom row a structural
+  part of the menu framework: always present, always reserved, carrying pagination *plus*
+  standard navigation (a main-menu button and an explicit exit/close button). Escape
+  already closes a menu, but an on-screen exit control is expected UI and shouldn't
+  require players to know the keybind. Belongs in JCore rather than Duels because it is a
+  property of the menu framework itself, not of any Duels screen - but per the standing
+  "JCore stays Duels-driven" rule, Duels' own menus are the design driver. Design
+  questions to settle when picked up: how a menu declares its "main menu" target (JCore
+  can't know Duels' menu graph), whether the reserved row shrinks usable slot count for
+  existing menus (it does - every current menu's layout needs re-checking), and whether
+  any menu is legitimately allowed to opt out. Explicitly flagged as not pressing.

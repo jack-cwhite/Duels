@@ -183,6 +183,14 @@ public final class MatchManager
 
     private void initializePlayers(Player player1, Player player2)
     {
+        // Ordering matters: an arena edit session must be closed before the player
+        // state is captured, so the snapshot holds the player's real inventory
+        // rather than the edit tools. ArenaEditManager.start now refuses to open a
+        // session mid-duel, so this only covers the reverse race - a session opened
+        // in the same tick a match commits.
+        plugin.getArenaEditManager().end(player1);
+        plugin.getArenaEditManager().end(player2);
+
         storePlayerState(player1, player2);
 
         prepareForMatch(player1);

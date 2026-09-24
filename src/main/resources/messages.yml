@@ -44,6 +44,7 @@ admin:
   arena-boundary-set: '&7Boundary mode for arena &e{id} &7set to &e{mode} &7with a &e{grace}s &7grace period'
   arena-kit-toggled: '&7Kit &e{kitId} &7is now &e{status} &7for arena &e{id}'
   arena-edit-mode-exited: '&7You have exited arena edit mode'
+  arena-edit-while-in-match: '&cYou cannot enter arena edit mode while you are in a duel'
   arena-structure-corner-set: '&7Structure capture corner &e{corner} &7set. These orange/yellow corners are separate from the aqua gameplay bounds.'
   arena-structure-corner-not-set: '&cStructure capture corner &e{corner} &chas not been set in this edit session'
   arena-template-captured: '&7Captured template revision &e{revision} &7for arena &e{id}&7: &e{sizeX}x{sizeY}x{sizeZ}'

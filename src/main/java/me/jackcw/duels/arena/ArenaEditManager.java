@@ -106,8 +106,25 @@ public final class ArenaEditManager
         this.toolSlots = resolveToolSlots(toolsSection, plugin.getLogger());
     }
 
-    public void start(Player player, ArenaInstance instance)
+    /**
+     * Opens an edit session, unless the player is in (or about to be in) a duel.
+     *
+     * <p>The refusal is not cosmetic. {@link ArenaEditSession} snapshots the
+     * player's hotbar so {@link #end} can put it back, and a match replaces that
+     * hotbar with a kit. Allowing a session to open mid-duel means the snapshot
+     * captures kit items, and the later restore would write those items into the
+     * player's real inventory - duplicating kit gear. Match-end restoration also
+     * has no knowledge of edit sessions, so the session (and its particle task)
+     * would outlive the match and lock the player out of edit mode entirely.
+     *
+     * @return {@code true} if the session was opened
+     */
+    public boolean start(Player player, ArenaInstance instance)
     {
+        if (plugin.getMatchManager().getMatch(player.getUniqueId()) != null
+                || plugin.getMatchManager().isPending(player.getUniqueId()))
+            return false;
+
         if (isEditing(player))
             end(player);
 
@@ -121,6 +138,7 @@ public final class ArenaEditManager
 
         giveTools(player);
         startBoundsParticles(session);
+        return true;
     }
 
     private void startBoundsParticles(ArenaEditSession session)
