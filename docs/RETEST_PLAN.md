@@ -735,8 +735,40 @@ like this. Multiverse-Core is installed and manages per-world PVP; its
 entries, but the dynamic arena world `duels_dynamic_arenas` is created by Duels
 at runtime and is not in that file.
 
-Next run: start a duel, place and detonate TNT next to yourself, then hand over
-the console output. The probe lines alone should identify the layer responsible.
+Outcome of that run below.
+
+- [ ] **ROOT CAUSE - the dynamic arena world was Peaceful.** Solved 2026-09-24
+  03:17 by the probes above. The `combat start` line reported
+  `world=duels_dynamic_arenas pvp=true difficulty=PEACEFUL`, while the explosion
+  probes showed the TNT priming and detonating perfectly normally
+  (`prime: TNT radius=4.00 cancelled=false`, `explode: TNT cancelled=false
+  blocks=50 nearby-players=[Jack]`) and the `LOWEST` probe still logged nothing
+  but `LAVA` and `FIRE_TICK`. So the explosion happened, players were inside it,
+  and the server never raised a damage event - which is exactly vanilla Peaceful
+  behaviour: explosions do not hurt players on Peaceful, and the check happens
+  inside the server before any Bukkit event is constructed.
+
+  This one setting also explains every other symptom chased this session. On
+  Peaceful a player regenerates health continuously - that is literally what
+  `RegainReason.REGEN` means in Bukkit - which accounts for the mystery
+  Regeneration that appeared despite `prepareForMatch` stripping all potion
+  effects, and hunger never depletes at all, which accounts for "hunger seems to
+  never go down in a duel." It also explains "why did it work earlier?": arena 1
+  lives in `world` (Easy), arena 2 is provisioned into `duels_dynamic_arenas`,
+  so TNT behaved correctly right up until testing moved to the dynamic arena.
+
+  Fix in `DynamicArenaWorldManager.alignWithPrimaryWorld`: `WorldCreator` does
+  not inherit difficulty or PVP from server.properties and writes a new world out
+  as Peaceful, so Duels now copies both from the primary world every time the
+  dynamic arena world is loaded - on every load rather than only on creation, so
+  the already-broken world on disk is repaired instead of staying Peaceful
+  forever. PVP is included because a dynamic arena silently created with
+  `pvp: false` would be the same class of invisible, gameplay-breaking default.
+
+  Retest: restart the server, start a duel in **arena 2** (the dynamic one), and
+  confirm `combat start` now reports `difficulty=EASY`. Then detonate TNT next to
+  yourself and confirm it damages you, and confirm the hunger bar now moves. Also
+  worth one duel in arena 1 to confirm nothing regressed there.
 
 - [x] **Passive food regeneration no longer heals duellists mid-match.** Found
   2026-09-24 while chasing "TNT does nothing" and "I can't drown." Console
