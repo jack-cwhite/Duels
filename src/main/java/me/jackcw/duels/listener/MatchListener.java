@@ -62,12 +62,17 @@ public final class MatchListener implements Listener
         Player attacker = event instanceof EntityDamageByEntityEvent damageByEntity ? resolveAttacker(damageByEntity.getDamager()) : null;
         Match match = matchManager.getMatch(damaged.getUniqueId());
 
+        logExplosionDiagnostic(event, damaged, attacker, match);
+
         // Isolation applies in both directions. A combatant may not hurt a
         // bystander, even though the bystander is not present in matches.
         if (match == null)
         {
             if (attacker != null && matchManager.getMatch(attacker.getUniqueId()) != null)
+            {
+                logExplosionOutcome(event, "cancelled: combatant may not damage a bystander");
                 event.setCancelled(true);
+            }
             return;
         }
 
@@ -83,17 +88,65 @@ public final class MatchListener implements Listener
 
         if (isInvalidTarget || isMatchNotInProgress)
         {
+            logExplosionOutcome(event, isInvalidTarget ? "cancelled: attacker is not a participant in this match"
+                    : "cancelled: match state is " + match.getState());
             event.setCancelled(true);
             return;
         }
 
         if (damaged.getHealth() - event.getFinalDamage() > 0)
+        {
+            logExplosionOutcome(event, "allowed: non-fatal, damage applied normally");
             return;
+        }
 
+        logExplosionOutcome(event, "cancelled: fatal hit intercepted, ending match");
         event.setCancelled(true);
 
         matchManager.endMatch(match, match.getOpponent(damaged.getUniqueId()));
     }
+
+    /**
+     * Temporary diagnostics for a long-running "TNT does no damage in duels"
+     * report that three rounds of live testing failed to pin down. Explosion
+     * damage against a player is rare enough that logging every one is not
+     * meaningful spam, and the fields below distinguish the candidate causes
+     * that reasoning alone could not: Creative or invulnerability (no event
+     * would reach here at all, so absence of these lines is itself the
+     * answer), a damage value already reduced to nothing before Duels sees it,
+     * and Duels cancelling the event itself. Remove once the report is closed.
+     */
+    private void logExplosionDiagnostic(EntityDamageEvent event, Player damaged, Player attacker, Match match)
+    {
+        if (!isExplosion(event))
+            return;
+
+        plugin.getLogger().info(String.format(
+                "[tnt-debug] %s cause=%s gamemode=%s invulnerable=%s health=%.2f raw=%.2f final=%.2f damager=%s attacker=%s match=%s",
+                damaged.getName(),
+                event.getCause(),
+                damaged.getGameMode(),
+                damaged.isInvulnerable(),
+                damaged.getHealth(),
+                event.getDamage(),
+                event.getFinalDamage(),
+                event instanceof EntityDamageByEntityEvent byEntity ? byEntity.getDamager().getType() : "none",
+                attacker != null ? attacker.getName() : "unresolved",
+                match != null ? match.getState() : "none"));
+    }
+
+    private void logExplosionOutcome(EntityDamageEvent event, String outcome)
+    {
+        if (isExplosion(event))
+            plugin.getLogger().info("[tnt-debug] -> " + outcome);
+    }
+
+    private boolean isExplosion(EntityDamageEvent event)
+    {
+        return event.getCause() == EntityDamageEvent.DamageCause.ENTITY_EXPLOSION
+                || event.getCause() == EntityDamageEvent.DamageCause.BLOCK_EXPLOSION;
+    }
+
 
     private Player resolveAttacker(Entity damager)
     {
