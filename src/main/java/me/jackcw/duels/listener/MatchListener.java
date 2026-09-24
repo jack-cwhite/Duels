@@ -24,6 +24,8 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityRegainHealthEvent;
+import org.bukkit.event.entity.EntityRegainHealthEvent.RegainReason;
 import org.bukkit.event.entity.AreaEffectCloudApplyEvent;
 import org.bukkit.event.entity.PotionSplashEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
@@ -150,6 +152,40 @@ public final class MatchListener implements Listener
         return true;
     }
 
+
+    /**
+     * Stops passive food-based healing for the duration of a duel.
+     *
+     * <p>Vanilla heals a player with a full hunger bar automatically - fast
+     * while saturation remains, slowly after it runs out. In a duel that means
+     * a fight can be decided by waiting rather than by fighting, and sustained
+     * environmental damage (standing in fire, drowning) can be out-healed
+     * indefinitely. Lowering the starting saturation shrinks the effect but
+     * cannot remove it, because the slow tier needs no saturation at all.
+     *
+     * <p>Only {@link RegainReason#SATIATED} is blocked. Regeneration from a
+     * potion, a golden apple, or anything else a kit deliberately provides is
+     * left alone - the intent is to remove healing nobody chose, not healing a
+     * player earned.
+     *
+     * <p>Doing this per-player rather than through the {@code naturalRegeneration}
+     * gamerule matters: the gamerule is world-wide and would change survival for
+     * everyone on the server, including players nowhere near a duel.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onRegainHealth(EntityRegainHealthEvent event)
+    {
+        if (!(event.getEntity() instanceof Player player))
+            return;
+
+        if (event.getRegainReason() != RegainReason.SATIATED)
+            return;
+
+        Match match = matchManager.getMatch(player.getUniqueId());
+
+        if (match != null && match.getState() == MatchState.IN_PROGRESS)
+            event.setCancelled(true);
+    }
 
     private Player resolveAttacker(Entity damager)
     {
