@@ -16,6 +16,44 @@ Two groups of work here:
 
 Tick items here as you go.
 
+## Where we are right now (2026-09-24, 03:25)
+
+Read this first if you have lost the thread. Everything below this section is
+the full detail; this is the short version.
+
+**What just got solved.** A single misconfiguration - the dynamic arena world
+`duels_dynamic_arenas` being generated on Peaceful difficulty - was behind three
+separate bug reports: TNT doing no damage, the hunger bar never moving, and a
+mystery Regeneration effect healing duellists. `WorldCreator` does not inherit
+difficulty from server.properties, so the world Duels created for itself was
+written out as Peaceful, and on Peaceful the server silently skips explosion
+damage against players, stops hunger depleting, and regenerates health
+continuously. Arena 1 lives in `world` and was always fine, which is why TNT
+worked earlier in testing and then appeared to break.
+
+**The one thing you need to do next.** Restart the server, then:
+
+1. Duel in **arena 2** (dynamic) and hit yourself with TNT. It should hurt.
+   Watch the hunger bar move too.
+2. Duel in **arena 1** (static), kill yourself with TNT, and check the crater
+   is gone afterwards and there are no dropped items lying around.
+3. Duel in **arena 1** again, place lava, and check both the source and the
+   whole flow are rolled back, and that any torches knocked off walls did not
+   drop as items.
+
+That is three duels. If all three look right, the only things left are Stage 6
+(five or six duels started from Creative + flying, checking you get Creative and
+flight back afterwards) and the final acceptance boxes in B10.
+
+**Still open, deliberately not fixed yet.** TNT lit by a redstone torch resolves
+to no attacker, so bystander isolation cannot act on it. Arena bounds already
+keep bystanders out of range, so this is recorded as a decision to make rather
+than a bug to rush - see the item near the end of this file.
+
+**Debug logging has been removed.** The `[tnt-debug]` console spam is gone now
+that the diagnosis is confirmed, so the console should be quiet again.
+
+
 ## Part A: retest - behaviour changed since the original pass
 
 ### A1. Arena list wording (was section 3)
@@ -806,6 +844,11 @@ Outcome of that run below.
   `BlockChangeRollbackStrategy` and would keep the hole plus a scattering of
   dropped items permanently. Retest: kill yourself with TNT in **arena 1** and
   check whether the crater survives the match ending.
+  **Fixed 03:25.** `BlockChangeRollbackStrategy.reset` now waits one tick before
+  it starts, and the instance stays trackable for that window, so an explosion
+  landing after `endMatch` is recorded and yield-suppressed like any other change.
+  The cost is that an arena is released a tick later than before, which the
+  integration tests were updated to expect; all 45 still pass.
 
 - [x] **Passive food regeneration no longer heals duellists mid-match.** Found
   2026-09-24 while chasing "TNT does nothing" and "I can't drown." Console
