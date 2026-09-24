@@ -700,3 +700,27 @@ in-duel attempt: detonate TNT at the same distance, in Survival, wearing the sam
 armour, *outside* a match. If the damage is equally negligible there, the behaviour
 is vanilla and this item closes as not-a-bug. Only if TNT hurts outside a duel but
 not inside one is there anything left for Duels to answer for.
+
+- [ ] **Passive food regeneration no longer heals duellists mid-match.** Found
+  2026-09-24 while chasing "TNT does nothing" and "I can't drown." Console
+  instrumentation showed the real cause: `MatchManager.prepareForMatch` set
+  saturation to the 20f maximum, and vanilla heals a player with a full hunger
+  bar automatically - 1 HP every half-second while saturation lasts, 1 HP every
+  four seconds afterwards regardless of saturation. A 76-tick drowning session
+  was logged in which health never once left 20.00, because healing at 2 HP/sec
+  outpaced drowning at 1.04 HP/sec. This silently made *all* sustained
+  environmental damage survivable, which had been invalidating the
+  environmental-death tests and plausibly the TNT reports too. Two changes:
+  starting saturation dropped to 5f, and `MatchListener.onRegainHealth` cancels
+  `RegainReason.SATIATED` for players in an `IN_PROGRESS` match. Only SATIATED
+  is blocked - regeneration from a potion or golden apple a kit deliberately
+  provides still works - and it is done per-player rather than through the
+  world-wide `naturalRegeneration` gamerule.
+  **Verified 2026-09-24 03:00** from `[tnt-debug]` console output: consecutive
+  SATIATED heals left health unchanged (3.00 → 3.00, 2.00 → 2.00) while
+  drowning took Test from full health to death in about twenty seconds, ending
+  with `-> cancelled: fatal hit intercepted, ending match` and no vanilla death
+  message in the log. That same evidence covers the **drowning** half of the
+  environmental-death item above; **lava still needs its own run.**
+  Retest: confirm a duellist no longer heals passively, and that a kit-provided
+  regeneration effect still does heal.
