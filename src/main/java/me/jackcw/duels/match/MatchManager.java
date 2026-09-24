@@ -490,7 +490,15 @@ public final class MatchManager
 
         player.setHealth(Math.min(20.0, player.getMaxHealth()));
         player.setFoodLevel(20);
-        player.setSaturation(20f);
+
+        // Deliberately not the 20f maximum. Food 20 with any saturation left
+        // triggers vanilla's saturation regeneration - 1 HP every half-second -
+        // and the hunger bar cannot move until saturation drains first. At 20f a
+        // duellist healed faster than fire or drowning could hurt them and never
+        // got hungry, which quietly made environmental damage survivable. 5f is
+        // roughly a decent meal: no fast regen, but still enough buffer that
+        // nobody loses a normal-length duel to starvation.
+        player.setSaturation(5f);
         player.setExhaustion(0f);
     }
 
