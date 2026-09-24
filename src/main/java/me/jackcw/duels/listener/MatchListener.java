@@ -178,6 +178,13 @@ public final class MatchListener implements Listener
         if (!(event.getEntity() instanceof Player player))
             return;
 
+        Match regainMatch = matchManager.getMatch(player.getUniqueId());
+
+        if (regainMatch != null)
+            plugin.getLogger().info(String.format(
+                    "[tnt-debug] regain: %s reason=%s amount=%.2f health=%.2f",
+                    player.getName(), event.getRegainReason(), event.getAmount(), player.getHealth()));
+
         if (event.getRegainReason() != RegainReason.SATIATED)
             return;
 
