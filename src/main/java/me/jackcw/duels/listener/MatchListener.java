@@ -71,7 +71,7 @@ public final class MatchListener implements Listener
         {
             if (attacker != null && matchManager.getMatch(attacker.getUniqueId()) != null)
                 event.setCancelled(true);
-            else if (isExplosion(event.getCause()) && insideActiveMatchBounds(damaged.getLocation()))
+            else if (isUnattributedArenaHazard(event.getCause()) && insideActiveMatchBounds(damaged.getLocation()))
                 event.setCancelled(true);
             return;
         }
@@ -135,26 +135,34 @@ public final class MatchListener implements Listener
     }
 
     /**
-     * Protects a bystander from a duel's explosions by geometry rather than by
-     * attribution.
+     * Protects a bystander from a duel's environmental hazards by geometry
+     * rather than by attribution.
      *
-     * <p>The attacker-based rule above cannot cover TNT, because
-     * {@link TNTPrimed#getSource()} is null whenever the TNT was lit by
-     * redstone rather than directly by a player - and the Destruction kit ships
-     * redstone torches, so that is the ordinary case rather than an edge one.
-     * An unattributable explosion would otherwise reach anyone standing in a
-     * hand-built arena in the main world, which is a place an unrelated player
-     * can genuinely wander into.
+     * <p>The attacker-based rule above only covers damage Bukkit raises as an
+     * {@link EntityDamageByEntityEvent} - it cannot see TNT lit by redstone
+     * ({@link TNTPrimed#getSource()} is null in that case, and the Destruction
+     * kit ships redstone torches, so that is the ordinary case rather than an
+     * edge one), and it cannot see lava, fire, or a magma block either, since
+     * none of those raise a "by entity" event at all. Any of them would
+     * otherwise reach anyone standing in a hand-built arena in the main world,
+     * which is a place an unrelated player can genuinely wander into.
      *
-     * <p>Deliberately limited to explosions. Cancelling every kind of damage
-     * inside an arena's bounds would let anyone stand in someone else's duel to
-     * become invulnerable; being immune to other people's TNT while standing in
-     * their arena is not worth exploiting.
+     * <p>Deliberately limited to causes that are never attributable to a
+     * specific attacker. Cancelling every kind of damage inside an arena's
+     * bounds would let anyone stand in someone else's duel to become
+     * invulnerable to that duel's combatants directly hitting them - but that
+     * case is already handled above, by the attacker-based check. This check
+     * only ever fires for damage nobody could have aimed at a bystander in the
+     * first place.
      */
-    private boolean isExplosion(EntityDamageEvent.DamageCause cause)
+    private boolean isUnattributedArenaHazard(EntityDamageEvent.DamageCause cause)
     {
         return cause == EntityDamageEvent.DamageCause.ENTITY_EXPLOSION
-                || cause == EntityDamageEvent.DamageCause.BLOCK_EXPLOSION;
+                || cause == EntityDamageEvent.DamageCause.BLOCK_EXPLOSION
+                || cause == EntityDamageEvent.DamageCause.LAVA
+                || cause == EntityDamageEvent.DamageCause.FIRE
+                || cause == EntityDamageEvent.DamageCause.FIRE_TICK
+                || cause == EntityDamageEvent.DamageCause.HOT_FLOOR;
     }
 
     private boolean insideActiveMatchBounds(Location location)
