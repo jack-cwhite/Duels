@@ -282,6 +282,37 @@ public final class MatchManager
                 .toList();
     }
 
+    /**
+     * The instance whose bounds contain this location and whose match is
+     * currently being fought, or {@code null} if no live match owns it.
+     *
+     * <p>Answers by geometry rather than by cause, because the callers that
+     * need it cannot attribute a world change to a player: TNT lit by redstone
+     * reports no source, and lava, fire and liquid flow report no source at
+     * all. The question they can answer is "is this location currently part of
+     * a duel", which is what this returns.
+     *
+     * <p>Lives here rather than in a listener because two unrelated callers now
+     * need it - the reset strategy, to decide what to record for rollback, and
+     * the containment guard, to decide what to allow at all - and neither owns
+     * the match map.
+     */
+    public ArenaInstance getInProgressInstanceAt(Location location)
+    {
+        for (Match match : getActiveMatches())
+        {
+            if (match.getState() != MatchState.IN_PROGRESS)
+                continue;
+
+            ArenaInstance instance = match.getArenaInstance();
+
+            if (instance.contains(location))
+                return instance;
+        }
+
+        return null;
+    }
+
     public boolean selectKit(UUID playerId, Kit kit)
     {
         Match match = getMatch(playerId);

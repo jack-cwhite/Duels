@@ -269,3 +269,28 @@ that stay inside bounds is unchanged. Direct player actions outside bounds
 are messaged; propagation effects are silently prevented. Dynamic-arena
 per-instance world isolation is explicitly deferred as a separate future
 item.
+
+## Implementation notes (deviations from the plan above)
+
+- **`BlockBreakEvent` was added to the direct-action set**, which the plan's
+  requirement (2) and step 5 did not list. Breaking has the same permanence
+  problem as placing: `track` refuses out-of-bounds locations, so a block a
+  duellist breaks outside the bounds is never restored. "A duel may only affect
+  its own arena" has to cover removals as well as additions, so it is hooked
+  through the same `isAllowedLocation` check and shares the same message.
+- **All guard handlers run at `EventPriority.LOW`**, ahead of
+  `BlockChangeRollbackStrategy`'s default (`NORMAL`) tracking. If tracking ran
+  first it would record a `BlockState` for a change the guard then prevents,
+  spending a slot of `arena-reset-max-tracked-block-changes` on a block that
+  never changed.
+- **`BlockIgniteEvent` is split on `getIgnitingEntity() instanceof Player`
+  rather than enumerating `IgniteCause`.** A player with flint and steel takes
+  the messaged direct-action path; anything else falls through to the silent
+  source-in/destination-out rule keyed on `getIgnitingBlock()`, which covers
+  `SPREAD` and lava ignition with one rule and no-ops where the server reports
+  no source block. `BlockBurnEvent.getIgnitingBlock()` and
+  `BlockIgniteEvent.getIgnitingBlock()` were both confirmed present and
+  nullable on the target Paper version.
+- **Message throttle is local to the guard** (a `Map<UUID, Long>` with a
+  two-second cooldown, cleared on quit) rather than reusing JCore's
+  `CooldownManager`, which is not exposed through the `JCore` facade.

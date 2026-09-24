@@ -488,6 +488,7 @@ public class Duels extends JavaPlugin
         getServer().getPluginManager().registerEvents(new MatchListener(this), this);
         getServer().getPluginManager().registerEvents(new ArenaEditListener(this), this);
         getServer().getPluginManager().registerEvents(new SpectatorListener(this), this);
+        getServer().getPluginManager().registerEvents(new ArenaContainmentGuard(this), this);
         getServer().getPluginManager().registerEvents(arenaResetStrategy, this);
     }
 

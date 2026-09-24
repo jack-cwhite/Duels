@@ -11,6 +11,7 @@ import me.jackcw.duels.arena.ArenaTemplateCaptureResult;
 import me.jackcw.duels.arena.DynamicArenaState;
 import me.jackcw.duels.arena.DynamicArenaRecovery;
 import me.jackcw.duels.arena.ArenaProvisioningMode;
+import me.jackcw.duels.arena.ArenaContainmentGuard;
 import me.jackcw.duels.arena.BlockChangeRollbackStrategy;
 import me.jackcw.duels.challenge.Challenge;
 import me.jackcw.duels.kit.Kit;
@@ -24,9 +25,12 @@ import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
+import org.bukkit.event.block.BlockFromToEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.inventory.ItemStack;
@@ -1013,5 +1017,198 @@ class DuelsIntegrationTest
         {
             this.canPickupItems = canPickupItems;
         }
+    }
+
+    /**
+     * Containment is scoped to "this match's own instance", not "inside some
+     * arena", which is what makes it safe to run globally: a player who is not
+     * duelling is never restricted, so ordinary building anywhere on the server
+     * behaves exactly as it did before the guard existed.
+     */
+    @Test
+    void buildingOutsideAnyMatchIsNotRestricted()
+    {
+        WorldMock world = server.addSimpleWorld("containment_bystander_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        createReadyInstance(arena, world);
+
+        PlayerMock charlie = addPlayer("Charlie");
+        charlie.setLocation(new Location(world, 500, 64, 500));
+
+        ArenaContainmentGuard guard = new ArenaContainmentGuard(plugin);
+        BlockPlaceEvent event = placeEvent(charlie, world.getBlockAt(500, 64, 500));
+
+        guard.onBlockPlace(event);
+
+        assertFalse(event.isCancelled(), "a player not in a match must not be restricted at all");
+    }
+
+    /**
+     * The direct-action half of containment. A block placed outside the bounds
+     * would never be recorded by the rollback - {@code track} refuses
+     * out-of-bounds locations - so it would survive the match permanently.
+     */
+    @Test
+    void aDuellistCannotPlaceOrBreakBlocksOutsideTheBounds()
+    {
+        WorldMock world = server.addSimpleWorld("containment_placement_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        ArenaInstance instance = createReadyInstance(arena, world);
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 1, new Location(world, -10, 60, -10));
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 2, new Location(world, 10, 70, 10));
+
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+
+        Match match = startInProgressMatch(alice, bob);
+        alice.setLocation(new Location(world, 5, 64, 5));
+
+        ArenaContainmentGuard guard = new ArenaContainmentGuard(plugin);
+
+        BlockPlaceEvent inside = placeEvent(alice, world.getBlockAt(6, 64, 6));
+        guard.onBlockPlace(inside);
+        assertFalse(inside.isCancelled(), "placing inside the arena is the normal case and must still work");
+
+        BlockPlaceEvent outside = placeEvent(alice, world.getBlockAt(40, 64, 40));
+        guard.onBlockPlace(outside);
+        assertTrue(outside.isCancelled(), "a block placed outside the bounds would never be rolled back");
+
+        BlockBreakEvent broken = new BlockBreakEvent(world.getBlockAt(40, 64, 40), alice);
+        guard.onBlockBreak(broken);
+        assertTrue(broken.isCancelled(), "a block broken outside the bounds would never be restored");
+
+        assertEquals(MatchState.IN_PROGRESS, match.getState());
+    }
+
+    /**
+     * {@code BoundaryMode.WARNING} lets a combatant physically walk out of the
+     * arena and stay out. Without checking the player's own position as well as
+     * the target block's, they could stand outside and keep building back into
+     * the fight - which is why the check is deliberately two-sided.
+     */
+    @Test
+    void aDuellistStandingOutsideTheBoundsCannotBuildBackInside()
+    {
+        WorldMock world = server.addSimpleWorld("containment_warning_mode_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        ArenaInstance instance = createReadyInstance(arena, world);
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 1, new Location(world, -10, 60, -10));
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 2, new Location(world, 10, 70, 10));
+
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+
+        startInProgressMatch(alice, bob);
+        alice.setLocation(new Location(world, 40, 64, 40));
+
+        ArenaContainmentGuard guard = new ArenaContainmentGuard(plugin);
+        BlockPlaceEvent event = placeEvent(alice, world.getBlockAt(5, 64, 5));
+
+        guard.onBlockPlace(event);
+
+        assertTrue(event.isCancelled(), "a player outside the bounds must not be able to build inside them");
+    }
+
+    /**
+     * An explosion is filtered rather than cancelled. A charge set against the
+     * arena wall legitimately destroys the inside face of it, so cancelling the
+     * whole event would make boundary TNT behave inconsistently; removing only
+     * the out-of-bounds entries leaves the rest of the blast normal.
+     */
+    @Test
+    void explosionsAreTrimmedToTheBlocksInsideTheirOwnArena()
+    {
+        WorldMock world = server.addSimpleWorld("containment_explosion_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        ArenaInstance instance = createReadyInstance(arena, world);
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 1, new Location(world, -10, 60, -10));
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 2, new Location(world, 10, 70, 10));
+
+        Block inside = world.getBlockAt(9, 64, 9);
+        inside.setType(Material.STONE);
+
+        Block outside = world.getBlockAt(11, 64, 11);
+        outside.setType(Material.STONE);
+
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+
+        startInProgressMatch(alice, bob);
+
+        ArenaContainmentGuard guard = new ArenaContainmentGuard(plugin);
+
+        Block source = world.getBlockAt(9, 65, 9);
+        BlockExplodeEvent event = new BlockExplodeEvent(
+                source, source.getState(), new ArrayList<>(List.of(inside, outside)), 1f, ExplosionResult.DESTROY
+        );
+
+        guard.onBlockExplode(event);
+
+        assertTrue(event.blockList().contains(inside), "the part of the blast inside the arena is left alone");
+        assertFalse(event.blockList().contains(outside), "the part of the blast outside the arena is removed");
+    }
+
+    /**
+     * Liquid flow is the case with no attributable player at all: emptying a
+     * bucket is one event, and every block the lava then creeps into is a
+     * separate {@code BlockFromToEvent} with no source entity. Keying on the
+     * flowing block's own location is the only thing that can contain it.
+     */
+    @Test
+    void liquidFlowIsStoppedAtTheArenaBoundary()
+    {
+        WorldMock world = server.addSimpleWorld("containment_flow_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        ArenaInstance instance = createReadyInstance(arena, world);
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 1, new Location(world, -10, 60, -10));
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 2, new Location(world, 10, 70, 10));
+
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+
+        startInProgressMatch(alice, bob);
+
+        ArenaContainmentGuard guard = new ArenaContainmentGuard(plugin);
+
+        BlockFromToEvent inwards = new BlockFromToEvent(world.getBlockAt(9, 64, 9), world.getBlockAt(8, 64, 9));
+        guard.onBlockFromTo(inwards);
+        assertFalse(inwards.isCancelled(), "flow that stays inside the arena is normal gameplay");
+
+        BlockFromToEvent outwards = new BlockFromToEvent(world.getBlockAt(10, 64, 10), world.getBlockAt(11, 64, 10));
+        guard.onBlockFromTo(outwards);
+        assertTrue(outwards.isCancelled(), "flow leaving the arena would never be rolled back");
+
+        BlockFromToEvent unrelated = new BlockFromToEvent(world.getBlockAt(200, 64, 200), world.getBlockAt(201, 64, 200));
+        guard.onBlockFromTo(unrelated);
+        assertFalse(unrelated.isCancelled(), "flow with no connection to a duel must be untouched");
+    }
+
+    /**
+     * Advances a freshly started match through kit selection and the grace
+     * period so it is actually {@code IN_PROGRESS}, which is the only state
+     * containment and tracking apply to.
+     */
+    private Match startInProgressMatch(PlayerMock first, PlayerMock second)
+    {
+        Match match = plugin.getMatchManager().startMatch(first, second);
+        assertNotNull(match);
+
+        server.getScheduler().performTicks((plugin.getSettings().kitSelectionSeconds() + 1) * 20L);
+        server.getScheduler().performTicks((plugin.getSettings().gracePeriodSeconds() + 1) * 20L);
+        assertEquals(MatchState.IN_PROGRESS, match.getState());
+
+        return match;
+    }
+
+    private BlockPlaceEvent placeEvent(Player player, Block target)
+    {
+        return new BlockPlaceEvent(
+                target,
+                target.getState(),
+                target.getRelative(BlockFace.DOWN),
+                new ItemStack(Material.STONE),
+                player,
+                true
+        );
     }
 }

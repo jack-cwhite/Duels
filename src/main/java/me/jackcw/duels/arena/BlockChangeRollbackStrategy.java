@@ -259,19 +259,20 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
      * window is not a nicety: an explosion that kills a duellist fires its
      * {@link EntityExplodeEvent} after {@code endMatch} has already run, and
      * without this those blocks belong to no match and are left in the arena.
+     *
+     * <p>Only the grace window is answered here. The "a match is being fought
+     * at this location" half belongs to {@code MatchManager}, because
+     * {@code ArenaContainmentGuard} needs the same answer to decide what to
+     * allow - whereas this extra window is specific to rollback timing and
+     * would be wrong for containment: once a match has ended there is nothing
+     * left to prevent, only things left to undo.
      */
     private ArenaInstance resolveInProgressInstance(Location location)
     {
-        for (Match match : matchManager.getActiveMatches())
-        {
-            if (match.getState() != MatchState.IN_PROGRESS)
-                continue;
+        ArenaInstance inProgress = matchManager.getInProgressInstanceAt(location);
 
-            ArenaInstance instance = match.getArenaInstance();
-
-            if (instance.contains(location))
-                return instance;
-        }
+        if (inProgress != null)
+            return inProgress;
 
         for (int instanceId : resettingInstanceIds)
         {
