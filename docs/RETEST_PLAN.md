@@ -611,8 +611,11 @@ items below cover re-verifying the fixed behaviour directly.
 
 ### B10. Section 24 - Final acceptance record
 
-- [ ] Automated tests pass immediately before the manual run.
-- [ ] Duels shaded package builds successfully.
+- [x] Automated tests pass immediately before the manual run. All 45 integration
+  tests passed on the build deployed at 03:37 on 2026-09-24.
+- [x] Duels shaded package builds successfully. `mvn package` produced
+  `Duels-1.0-SNAPSHOT.jar` with JCore shaded in and auto-deployed to the test
+  server at 03:37 on 2026-09-24.
 - [ ] All required sections above pass on the target Paper build.
 - [ ] Optional external-database/capacity tests are either passed or
   explicitly marked BLOCKED with the missing environment recorded.
@@ -822,7 +825,7 @@ Outcome of that run below.
   arena 2, and check `combat start` reports the primary world's difficulty
   without anyone having typed `/difficulty`.
 
-- [ ] **TNT ignited by redstone is attributed to nobody.** Seen in the same
+- [x] **TNT ignited by redstone is attributed to nobody.** Seen in the same
   03:18:48 line: `damager=TNT attacker=unresolved`. `MatchListener.resolveAttacker`
   asks `TNTPrimed.getSource()`, which is null when the TNT was lit by a redstone
   torch rather than directly by a player - and the Destruction kit ships redstone
@@ -834,6 +837,20 @@ Outcome of that run below.
   exposure, but the protection is not actually doing its job here. Decide whether
   to track TNT ownership at placement time (a PDC tag on the primed entity) or to
   accept it as bounded by arena geometry.
+  **Fixed 03:37 by geometry rather than attribution.** Tracking TNT ownership
+  would have meant a placement-time map keyed by block location, kept in step
+  with match end and block breakage - a lot of state for a narrow benefit, and
+  it would still miss anything else that explodes without a resolvable owner.
+  Instead, explosion damage to a player who is *not* in a match is cancelled
+  when that player is inside an active match's bounds. That is the invariant we
+  actually wanted ("a duel may not hurt someone outside it") expressed directly,
+  and it covers unattributable explosions of any origin. It is deliberately
+  limited to explosions: cancelling all damage inside the bounds would let
+  anyone stand in someone else's duel to become invulnerable, whereas immunity
+  to other people's TNT while standing in their arena is not worth exploiting.
+  Retest (low priority, needs a third player): have a non-participant stand
+  inside a static arena during a duel and confirm a duellist's TNT does not
+  hurt them.
 
 - [x] **An explosion that ends a match is not rolled back.** The 03:18 sequence
   shows the ordering problem plainly: the fatal damage and `endMatch` land at
