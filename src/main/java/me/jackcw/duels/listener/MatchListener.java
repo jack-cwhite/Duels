@@ -12,6 +12,7 @@ import me.jackcw.duels.message.Message;
 import me.jackcw.duels.spectator.SpectatorManager;
 import me.jackcw.jcore.message.MessageManager;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.AreaEffectCloud;
 import org.bukkit.entity.EvokerFangs;
@@ -69,6 +70,8 @@ public final class MatchListener implements Listener
         if (match == null)
         {
             if (attacker != null && matchManager.getMatch(attacker.getUniqueId()) != null)
+                event.setCancelled(true);
+            else if (isExplosion(event.getCause()) && insideActiveMatchBounds(damaged.getLocation()))
                 event.setCancelled(true);
             return;
         }
@@ -129,6 +132,38 @@ public final class MatchListener implements Listener
 
         if (match != null && match.getState() == MatchState.IN_PROGRESS)
             event.setCancelled(true);
+    }
+
+    /**
+     * Protects a bystander from a duel's explosions by geometry rather than by
+     * attribution.
+     *
+     * <p>The attacker-based rule above cannot cover TNT, because
+     * {@link TNTPrimed#getSource()} is null whenever the TNT was lit by
+     * redstone rather than directly by a player - and the Destruction kit ships
+     * redstone torches, so that is the ordinary case rather than an edge one.
+     * An unattributable explosion would otherwise reach anyone standing in a
+     * hand-built arena in the main world, which is a place an unrelated player
+     * can genuinely wander into.
+     *
+     * <p>Deliberately limited to explosions. Cancelling every kind of damage
+     * inside an arena's bounds would let anyone stand in someone else's duel to
+     * become invulnerable; being immune to other people's TNT while standing in
+     * their arena is not worth exploiting.
+     */
+    private boolean isExplosion(EntityDamageEvent.DamageCause cause)
+    {
+        return cause == EntityDamageEvent.DamageCause.ENTITY_EXPLOSION
+                || cause == EntityDamageEvent.DamageCause.BLOCK_EXPLOSION;
+    }
+
+    private boolean insideActiveMatchBounds(Location location)
+    {
+        for (Match match : matchManager.getActiveMatches())
+            if (match.getState() == MatchState.IN_PROGRESS && match.getArenaInstance().contains(location))
+                return true;
+
+        return false;
     }
 
     private Player resolveAttacker(Entity damager)
