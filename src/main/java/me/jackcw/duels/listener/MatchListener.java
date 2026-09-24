@@ -118,7 +118,7 @@ public final class MatchListener implements Listener
      */
     private void logExplosionDiagnostic(EntityDamageEvent event, Player damaged, Player attacker, Match match)
     {
-        if (!isExplosion(event))
+        if (!shouldLogDamage(event))
             return;
 
         plugin.getLogger().info(String.format(
@@ -137,14 +137,17 @@ public final class MatchListener implements Listener
 
     private void logExplosionOutcome(EntityDamageEvent event, String outcome)
     {
-        if (isExplosion(event))
+        if (shouldLogDamage(event))
             plugin.getLogger().info("[tnt-debug] -> " + outcome);
     }
 
-    private boolean isExplosion(EntityDamageEvent event)
+    // Widened from explosions only: the report now includes drowning and fire
+    // doing nothing either, and hunger never depleting, so the question is no
+    // longer about TNT specifically but about whether any damage at all
+    // reaches a duellist.
+    private boolean shouldLogDamage(EntityDamageEvent event)
     {
-        return event.getCause() == EntityDamageEvent.DamageCause.ENTITY_EXPLOSION
-                || event.getCause() == EntityDamageEvent.DamageCause.BLOCK_EXPLOSION;
+        return true;
     }
 
 

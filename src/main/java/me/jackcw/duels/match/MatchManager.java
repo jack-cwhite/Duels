@@ -569,6 +569,17 @@ public final class MatchManager
     private void startCombat(Match match, Player player1, Player player2)
     {
         match.setState(MatchState.IN_PROGRESS);
+
+        // Temporary, paired with MatchListener's damage diagnostics: records the
+        // state each duellist actually enters combat in, so a report of "nothing
+        // hurts me in a duel" can be checked against gamemode and invulnerability
+        // at the moment combat opens rather than inferred afterwards.
+        for (Player player : List.of(player1, player2))
+            plugin.getLogger().info(String.format(
+                    "[tnt-debug] combat start: %s gamemode=%s invulnerable=%s health=%.2f food=%d saturation=%.2f",
+                    player.getName(), player.getGameMode(), player.isInvulnerable(),
+                    player.getHealth(), player.getFoodLevel(), player.getSaturation()));
+
         messageManager.send(player1, Message.MATCH_START, "player", player2.getName());
         messageManager.send(player2, Message.MATCH_START, "player", player1.getName());
     }

@@ -1,5 +1,6 @@
 package me.jackcw.duels.arena;
 
+import com.destroystokyo.paper.event.block.BlockDestroyEvent;
 import me.jackcw.duels.Duels;
 import me.jackcw.duels.match.Match;
 import me.jackcw.duels.match.MatchManager;
@@ -121,6 +122,22 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
     {
         if (track(event.getBlockState()))
             event.getItems().clear();
+    }
+
+    /**
+     * A block that pops off because it lost its support is destroyed by the
+     * server, not broken by anyone, so it fires neither {@link BlockBreakEvent}
+     * nor {@link BlockDropItemEvent} - the latter is documented as firing for
+     * blocks broken *by a player*, which is why handling it alone did not stop
+     * a wall torch surviving a nearby explosion as a dropped item. Paper's
+     * {@link BlockDestroyEvent} is the event that actually covers this case,
+     * and it can suppress the drop directly.
+     */
+    @EventHandler(ignoreCancelled = true)
+    public void onBlockDestroy(BlockDestroyEvent event)
+    {
+        if (track(event.getBlock().getState()))
+            event.setWillDrop(false);
     }
 
     @EventHandler(ignoreCancelled = true)
