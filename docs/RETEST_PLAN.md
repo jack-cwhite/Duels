@@ -659,3 +659,10 @@ signed off.
   pre-edit one with no duplicated kit items.
   This also closes one named case of the `[~]` B8 item, which lists leftover
   edit sessions among the things that must not survive their owning flow.
+
+**Decision (2026-09-24): Duels deliberately does not block gamemode changes
+during a match.** Jack chose not to intercept `/gamemode` mid-duel even though
+Creative immunity is the leading explanation for the TNT report above. The
+practical consequence is on the tester, not the plugin: any test that depends
+on damage actually landing must confirm both participants are in Survival for
+the whole exchange, because nothing in Duels will enforce it.
