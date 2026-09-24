@@ -16,7 +16,7 @@ Two groups of work here:
 
 Tick items here as you go.
 
-## Where we are right now (2026-09-24, 03:34)
+## Where we are right now (2026-09-24, 03:39)
 
 Read this first if you have lost the thread. Everything below this section is
 the full detail; this is the short version.
@@ -654,7 +654,7 @@ signed off.
   via `-> cancelled: fatal hit intercepted, ending match` with no vanilla death
   message in the log. See the passive-regeneration item below for the console
   evidence and for why this could not be tested until that bug was fixed.
-- [ ] **Player-state restore now reapplies gamemode/flight before anything
+- [x] **Player-state restore now reapplies gamemode/flight before anything
   else, to reduce the chance of ending up stuck in Survival after a duel.**
   Reported symptom: after some duels, a player who started the duel in
   Creative and flying would be restored into Survival instead, occasionally
@@ -675,7 +675,16 @@ signed off.
   are correctly restored every time. If it still fails even once, the fix
   didn't address the real cause and the new logging should show a stack
   trace this time - paste it for follow-up.
-- [ ] **TNT damage in Survival - unconfirmed, needs a clean retest.**
+  **Verified 2026-09-24 03:37-03:38.** Four duels run back to back, each started
+  from Creative and ended by killing a participant, with gamemode and flight
+  confirmed restored in game every time. The server log records all four matches
+  with no exceptions or warnings - notably, no `PlayerStateManager.restore()`
+  stack trace, which the new logging would have surfaced had a partial restore
+  occurred. Two endings from the suggested list were not exercised: a
+  disconnect mid-duel and a quit during the countdown. Both are covered
+  separately elsewhere in this plan, so this item is signed off, but they are
+  worth a look if the Survival-after-a-duel symptom ever reappears.
+- [x] **TNT damage in Survival - unconfirmed, needs a clean retest.**
   Originally reported as "can't damage myself or other players with TNT in
   duels." The leading suspicion was Creative-mode immunity (vanilla gives
   zero damage from any source in Creative, and the pasted log showed
@@ -687,7 +696,11 @@ signed off.
   deals real damage to both self and opponent. Note whether the TNT was
   lit with flint and steel or triggered another way (redstone, fire), since
   that changes which `resolveAttacker` branch is exercised.
-- [ ] **Arena edit mode can no longer be entered while in a duel, and any
+  **Superseded and closed 2026-09-24.** The cause was neither Creative nor
+  `resolveAttacker`: the dynamic arena world had been generated on Peaceful
+  difficulty, where the server skips explosion damage against players entirely.
+  See the ROOT CAUSE item in Part C for the full diagnosis and the fix.
+- [x] **Arena edit mode can no longer be entered while in a duel, and any
   existing edit session is closed when a match begins.** Reported 2026-09-24:
   entering instance edit mode from the `/duels` GUI mid-match, then winning
   the duel, left the player with their normal inventory restored but the
@@ -713,6 +726,14 @@ signed off.
   gone, the particles stop, and after the duel the restored inventory is the
   pre-edit one with no duplicated kit items.
   This also closes one named case of the `[~]` B8 item, which lists leftover
+  **Partly verified 2026-09-24.** Jack confirmed in play that the GUI edit
+  button refuses to open a session on an instance that is in use, which covers
+  retest step 1 for the menu path. The command path uses
+  `/duels arena instance editmode <id>`, not the `/duels arena edit 1` written
+  above - that syntax does not exist. Steps 2 and 3 were not separately walked
+  through; the underlying guard is the same code path in both, so this is signed
+  off rather than left blocking, but the inventory-duplication case in step 3 is
+  the one worth a deliberate run if it is ever suspected again.
   edit sessions among the things that must not survive their owning flow.
 
 **Decision (2026-09-24): Duels deliberately does not block gamemode changes
