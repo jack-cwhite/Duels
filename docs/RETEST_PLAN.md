@@ -674,3 +674,29 @@ Creative immunity is the leading explanation for the TNT report above. The
 practical consequence is on the tester, not the plugin: any test that depends
 on damage actually landing must confirm both participants are in Survival for
 the whole exchange, because nothing in Duels will enforce it.
+
+**TNT damage - analysis after the 2026-09-24 retest.** Reported again as "no
+damage to self or others." Duels was re-read and does not suppress it: the only
+`setCancelled` paths in `MatchListener.onEntityDamage` are bystander isolation
+(requires a non-participant attacker), a match not `IN_PROGRESS`, and fatal-damage
+interception. A normal in-match TNT hit between the two duellists matches none of
+them, and `resolveAttacker` returning null for TNT would still not cancel anything
+(`isInvalidTarget` requires `attacker != null`). `EntityExplodeEvent` is only
+yield-suppressed, which affects block drops and not entity damage.
+
+Two mundane confounders explain the observation without a plugin bug, and both were
+present:
+
+1. **The Destruction kit's armour.** Three of its four diamond pieces carry
+   Protection IV. Full diamond is already an 80% reduction; 12 EPF of Protection
+   adds roughly another 48% of the remainder, so a duellist absorbs on the order of
+   90% of explosion damage. TNT at a few blocks' distance then lands well under half
+   a heart - indistinguishable from nothing.
+2. **Creative mode**, which is blanket damage immunity and which Duels deliberately
+   does not block (see the decision recorded above).
+
+The decisive test is a control against the vanilla baseline rather than another
+in-duel attempt: detonate TNT at the same distance, in Survival, wearing the same
+armour, *outside* a match. If the damage is equally negligible there, the behaviour
+is vanilla and this item closes as not-a-bug. Only if TNT hurts outside a duel but
+not inside one is there anything left for Duels to answer for.
