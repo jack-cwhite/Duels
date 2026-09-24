@@ -1,47 +1,102 @@
 # Arena Containment - In-Game Test Plan
 
-Verifies `ArenaContainmentGuard` (commit `20466ae`), the lava bystander fix
-(`5348961`) and block-aligned bounds corners, on a live server. The integration
-tests cover the logic; this plan covers what MockBukkit cannot simulate - real
-fire spread, real liquid flow, real explosion radii, and whether the feedback
-actually feels right in chat.
+Covers three changes, in the order they should be tested:
+
+| Commit | Change |
+|---|---|
+| `a901127` | Bounds defined in whole blocks; corners selectable by clicking a block; coordinate and size feedback. |
+| `20466ae` | `ArenaContainmentGuard` - a duel can only affect blocks inside its own arena. |
+| `5348961` | Bystanders protected from a duel's lava, fire and hot floor, not just explosions. |
+
+The integration tests (55 passing) cover the logic. This plan covers what
+MockBukkit cannot simulate - real fire spread, real liquid flow, real explosion
+radii, real template capture - and whether the feedback actually feels right in
+chat.
+
+**Run the parts in document order.** Part 1 comes first deliberately: a mis-set
+bounds box makes Parts 2 and 3 fail in ways that look like containment bugs.
 
 ## Setup
 
-1. One hand-built arena with an enclosed floor, four walls and a roof, using
-   the block-change rollback reset strategy (not a provisioned/template arena -
-   template pasting would repair anything the rollback missed and hide
-   failures).
-2. Bounds set to the inside faces of that enclosure.
-3. A kit containing **TNT, flint and steel, a lava bucket, a water bucket, and
+1. One **hand-built** arena with an enclosed floor, four walls and a roof, using
+   the block-change rollback reset strategy. Not a provisioned/template arena -
+   template pasting would repair anything the rollback missed and hide failures.
+2. A kit containing **TNT, flint and steel, a lava bucket, a water bucket, and
    redstone torches**. Redstone-lit TNT specifically matters: it is the case
    where `TNTPrimed.getSource()` is null, which is why containment is decided by
    geometry rather than by who lit it.
-4. Three accounts: two duellists (**A**, **B**) and one **bystander** (**C**)
+3. Three accounts: two duellists (**A**, **B**) and one **bystander** (**C**)
    who is never in a match.
-5. Place a few obvious marker blocks (coloured wool) **just outside** each wall
-   and one on the roof, so outward damage is visible at a glance.
+4. Marker blocks (coloured wool) placed **just outside** each wall and one on
+   the roof, so outward damage is visible at a glance.
+5. A provisioned/dynamic arena setup available for Parts 5 and 6.
 
-## Part 1 - Direct player actions (expect a message)
+---
 
-The message is throttled to one per two seconds, so spam-clicking should
+## Part 1 - Bounds corners and admin feedback
+
+Edit-mode convention is unchanged - **left-click sets, right-click teleports
+to** the position the held tool marks.
+
+| # | Action | Expected |
+|---|---|---|
+| 1.1 | Enter edit mode, hold the bounds corner 1 tool, **left-click a block** | Corner set to *that* block. Chat reports its coordinates. |
+| 1.2 | Set corner 2 by clicking the opposite block | Coordinates reported, plus a second line giving the box size in blocks. |
+| 1.3 | Check the reported size against the arena you actually built | Matches, counting both corner blocks - a box from X=10 to X=12 reads as **3** wide, not 2. |
+| 1.4 | **Right-click** the corner 1 tool | Teleports you standing in the **middle** of the corner block, not on its edge. |
+| 1.5 | Left-click **air** with a corner tool | Falls back to your own position - the old stand-here workflow still works. |
+| 1.6 | Stand on the arena floor, left-click **air** to set a corner | Selects the block you are standing *in* (the air above the floor). The floor is **not** included. |
+| 1.7 | Now left-click the **floor block itself** | Floor included. Reported Y is one lower than 1.6. |
+| 1.8 | Set a **spawn** with a spawn tool | Uses your exact position **and facing** - spawns deliberately ignore the clicked block. |
+| 1.9 | Right-click the spawn tool to teleport back | Returns you facing the direction you set it from. |
+| 1.10 | Set bounds corners via `/duels` and via the instance detail menu | Same coordinate + size feedback as the edit tool. |
+| 1.11 | Try to set a bounds corner on an arena **in use by a live match** | Refused as in-use, as before. |
+
+### Part 1b - Legacy arenas (no migration expected)
+
+The block-aligned comparison is what makes existing configs correct on load, so
+this must pass without re-setting any corners.
+
+| # | Action | Expected |
+|---|---|---|
+| 1.12 | Start the server with arenas configured **before** today's changes | Load normally. No errors or bounds warnings. |
+| 1.13 | Run a match in one, breaking blocks on the **lowest-X wall**, **lowest-Z wall** and **floor** | All allowed, all restored at match end. This is the face the old raw-coordinate comparison wrongly excluded. |
+| 1.14 | Stand hard against the lowest-X wall during a match | **No** spurious out-of-bounds warning, and building there is allowed. |
+
+### Part 1c - Template capture regression
+
+Structure corners are block-aligned now too. Capture already reduced them to
+block coordinates internally, so output should be identical - this confirms it.
+
+| # | Action | Expected |
+|---|---|---|
+| 1.15 | Set both structure corners by **clicking blocks**, then capture the template | Succeeds. Reported dimensions match what you built. |
+| 1.16 | Right-click a structure corner tool | Teleports to the middle of that corner block. |
+| 1.17 | Provision a dynamic arena from that template and play a match in it | Pastes correctly, plays normally, resets correctly. |
+
+---
+
+## Part 2 - Direct player actions (expect a message)
+
+The denial message is throttled to one per two seconds, so spam-clicking should
 produce a trickle, not a wall of text.
 
 | # | Action | Expected |
 |---|---|---|
-| 1.1 | A places a block well inside the arena | Succeeds. Removed again when the match ends. |
-| 1.2 | A stands inside, aims over the wall, places a block outside | Cancelled. `You can only build inside the arena bounds.` |
-| 1.3 | A spam-right-clicks that same outside spot for ~10s | At most one message every 2s. |
-| 1.4 | A breaks one of the marker blocks outside the wall | Cancelled, same message. Marker survives. |
-| 1.5 | A empties a lava bucket outside the bounds | Cancelled, same message. No lava appears. |
-| 1.6 | A fills a bucket from a source outside the bounds | Cancelled, same message. Source survives. |
-| 1.7 | A flint-and-steels a block outside the bounds | Cancelled, same message. No fire. |
-| 1.8 | Repeat 1.2 as **B** | Same result - no participant is exempt. |
+| 2.1 | A places a block well inside the arena | Succeeds. Removed again when the match ends. |
+| 2.2 | A stands inside, aims over the wall, places a block outside | Cancelled. `You can only build inside the arena bounds.` |
+| 2.3 | A spam-clicks that same outside spot for ~10s | At most one message every 2 seconds. |
+| 2.4 | A **breaks** one of the marker blocks outside the wall | Cancelled, same message. Marker survives. |
+| 2.5 | A empties a **lava bucket** outside the bounds | Cancelled, same message. No lava appears. |
+| 2.6 | A **fills** a bucket from a source outside the bounds | Cancelled, same message. Source survives. |
+| 2.7 | A **flint-and-steels** a block outside the bounds | Cancelled, same message. No fire. |
+| 2.8 | Repeat 2.2 as **B**, and again with B as an operator | Same result - no participant is exempt. There is no bypass permission. |
+| 2.9 | A disconnects mid-match and rejoins, then retries 2.2 | Message appears immediately - no stale throttle state. |
 
-### 1.9 - WARNING boundary mode (the two-sided check)
+### 2.10 - WARNING boundary mode (the two-sided check)
 
 Set the arena's boundary mode to `WARNING`, so leaving the bounds only warns
-instead of teleporting back.
+instead of teleporting the player back.
 
 1. A walks physically outside the bounds.
 2. A tries to place a block **inside** the bounds, reaching back over the
@@ -51,86 +106,88 @@ Expected: **cancelled** with the message, even though the target block is
 inside. This is the half of the check that tests the player's own location, and
 it is the only scenario that exercises it.
 
-## Part 2 - Propagation (expect silence)
+---
 
-Nothing in this part should produce a chat message. Watch chat throughout - a
-message here is a bug.
+## Part 3 - Propagation (expect silence)
 
-| # | Action | Expected |
-|---|---|---|
-| 2.1 | TNT detonated in the middle of the arena | Normal crater. No item drops. Fully restored at match end. |
-| 2.2 | TNT placed against the inside of a wall and lit **with a redstone torch** | Inside face of the wall is destroyed; markers outside are untouched; the wall is rebuilt at match end. No message. |
-| 2.3 | TNT on the roof, lit by redstone | Roof damaged inside the bounds only; nothing above/outside changes. |
-| 2.4 | Lava bucket emptied next to a wall with a gap or doorway | Flow stops at the boundary. Nothing outside changes. Arena restored afterwards. |
-| 2.5 | Water bucket emptied at the boundary | Same - flow contained. |
-| 2.6 | Flint and steel on a flammable block inside, near a wall | Fire spreads inside the bounds but does not cross it. No blocks outside catch or burn away. |
-| 2.7 | A long TNT-and-lava fight, ~1 minute | Chat stays clean of containment messages. Arena restored (allowing for the documented `arena-reset-max-tracked-block-changes` ceiling). |
-
-## Part 3 - Regressions (nothing unrelated may change)
-
-This is the most important part. Containment must never become server-wide
-grief protection.
+Nothing here should produce a chat message. Watch chat throughout - a message in
+this part is a bug, because none of these changes are attributable to a player.
 
 | # | Action | Expected |
 |---|---|---|
-| 3.1 | While A and B duel, **C** builds freely right outside the arena wall | Completely unrestricted. No message. |
-| 3.2 | C detonates TNT outside the arena, away from any bounds | Normal vanilla explosion, normal item drops. |
-| 3.3 | C empties a lava bucket outside the arena and lets it flow | Flows normally. Not cancelled at any boundary. |
-| 3.4 | C builds/breaks/TNTs somewhere far away with no match running at all | Entirely normal. |
-| 3.5 | C's TNT outside the arena blasts *into* the live arena | Blocks inside the arena are still tracked and **restored** at match end (existing behaviour, unchanged). |
-| 3.6 | A duel in an arena with **no bounds configured** | Nothing is restricted and nothing is rolled back - unchanged from before. |
+| 3.1 | TNT detonated in the middle of the arena | Normal crater. **No item drops.** Fully restored at match end. |
+| 3.2 | TNT against the inside of a wall, lit **with a redstone torch** | Inside face destroyed; outside markers untouched; wall rebuilt at match end. No message. |
+| 3.3 | TNT on the roof, lit by redstone | Roof damaged inside the bounds only; nothing above or outside changes. |
+| 3.4 | Lava bucket emptied next to a wall with a gap or doorway | Flow **stops at the boundary**. Nothing outside changes. Arena restored afterwards. |
+| 3.5 | Water bucket emptied at the boundary | Same - flow contained. |
+| 3.6 | Flint and steel on a flammable block inside, near a wall | Fire spreads inside the bounds but **does not cross it**. Nothing outside catches or burns away. |
+| 3.7 | TNT detonated right **on** the boundary line | Blocks inside destroyed and restored; blocks outside untouched. The blast is trimmed, not cancelled. |
+| 3.8 | A long TNT-and-lava fight, ~1 minute | Chat stays clean of containment messages. Arena restored, allowing for the documented `arena-reset-max-tracked-block-changes` ceiling. |
 
-## Part 4 - Dynamic arenas (shared world)
+---
 
-Requires two simultaneous provisioned matches in adjacent grid slots of
+## Part 4 - Regressions (nothing unrelated may change)
+
+**The most important part.** Containment must never become server-wide grief
+protection.
+
+| # | Action | Expected |
+|---|---|---|
+| 4.1 | While A and B duel, **C** builds freely right outside the arena wall | Completely unrestricted. No message. |
+| 4.2 | C detonates TNT outside the arena, away from any bounds | Normal vanilla explosion, **normal item drops**. |
+| 4.3 | C empties a lava bucket outside the arena and lets it flow | Flows normally. Not cancelled at any boundary. |
+| 4.4 | C builds / breaks / TNTs far away with **no match running at all** | Entirely normal. |
+| 4.5 | C's TNT outside the arena blasts **into** the live arena | Blocks inside the arena are still tracked and **restored** at match end (existing behaviour, unchanged). |
+| 4.6 | A duel in an arena with **no bounds configured** | Nothing restricted, nothing rolled back - unchanged from before. |
+| 4.7 | Ordinary world fire and lava spread somewhere with no arena nearby | Behaves exactly as vanilla. |
+
+---
+
+## Part 5 - Dynamic arenas (shared world)
+
+Requires two simultaneous provisioned matches in **adjacent grid slots** of
 `duels_dynamic_arenas`.
 
 | # | Action | Expected |
 |---|---|---|
-| 4.1 | Match 1 detonates TNT hard against the wall facing Match 2's slot | Match 2's arena is physically unchanged. |
-| 4.2 | Match 1 floods lava toward Match 2's slot | Flow stops at Match 1's bounds. |
-| 4.3 | Both matches end | Each arena is restored independently; neither reset damages the other. |
+| 5.1 | Match 1 detonates TNT hard against the wall facing Match 2's slot | Match 2's arena is **physically unchanged**. |
+| 5.2 | Match 1 floods lava toward Match 2's slot | Flow stops at Match 1's bounds. |
+| 5.3 | Both matches end | Each arena restored independently; neither reset damages the other. |
 
 Note: this only tests that one match cannot *alter* a neighbour. Neighbouring
 slots being **visible** to each other is a separate, deferred item.
 
-## Part 5 - Bystander hazard damage (the lava fix)
+---
 
-Re-verifies `5348961`, which extended bystander protection beyond explosions.
+## Part 6 - Bystander hazard damage
 
-| # | Action | Expected |
-|---|---|---|
-| 5.1 | C stands inside the arena bounds (walked in, or spectating in survival) while A empties lava on them | C takes **no** damage. |
-| 5.2 | Same with fire / burning | C takes no damage. |
-| 5.3 | Same with a magma block / hot floor | C takes no damage. |
-| 5.4 | A and B damage **each other** with lava and fire | Damage applies normally - combatants are not protected from each other. |
-| 5.5 | C takes lava damage somewhere unrelated, outside all bounds | Normal damage. The protection is geometric, not global. |
-
-## Part 6 - Bounds corner selection
-
-Bounds corners are now block-aligned and selectable by clicking a block. Run
-this part **first** if possible: a mis-set box makes Parts 1 and 2 fail in ways
-that look like containment bugs.
-
-Convention in edit mode is unchanged - **left-click sets, right-click teleports
-to** the corner the held tool marks.
+Re-verifies `5348961`, which extended bystander protection beyond explosions to
+lava, fire and hot floor.
 
 | # | Action | Expected |
 |---|---|---|
-| 6.1 | Enter edit mode, hold the bounds corner 1 tool, **left-click a block** | Corner set to *that* block. Chat reports its coordinates. |
-| 6.2 | Set corner 2 by clicking the opposite block | Coordinates reported, plus a second line giving the box size in blocks. |
-| 6.3 | Check the reported size against the arena you built | Matches, counting both corner blocks - a box from X=10 to X=12 reads as 3 wide, not 2. |
-| 6.4 | **Right-click** the corner 1 tool | Teleports you standing in the middle of the corner block, not on its edge. |
-| 6.5 | Left-click **air** with a corner tool | Falls back to your own position - the old stand-here workflow still works. |
-| 6.6 | Stand on the arena floor, left-click air to set a corner, then check | Selects the block you are standing *in*, i.e. the air above the floor. The floor is **not** included. |
-| 6.7 | Now left-click the **floor block itself** | Floor is included. Reported Y is one lower than 6.6. |
-| 6.8 | Set a corner with a spawn tool instead | Still uses your exact position **and facing** - spawns deliberately ignore the clicked block. |
-| 6.9 | Break a block on the **lowest-X wall**, the **lowest-Z wall** and the **floor** during a live match | All allowed, and all restored at match end. This is the face the old raw-coordinate comparison wrongly excluded. |
-| 6.10 | Stand hard against the lowest-X wall during a match | No spurious out-of-bounds warning. |
-| 6.11 | Load a server whose arenas were configured **before** this change | Bounds still work, and 6.9/6.10 pass without re-setting any corners. No migration is required. |
+| 6.1 | C stands inside the arena bounds while A empties **lava** on them | C takes **no** damage. |
+| 6.2 | Same with **fire** / burning | C takes no damage. |
+| 6.3 | Same with a **magma block** / hot floor | C takes no damage. |
+| 6.4 | A and B damage **each other** with lava and fire | Damage applies **normally** - combatants are not protected from each other. |
+| 6.5 | A and B damage each other with TNT | Normal damage. |
+| 6.6 | C takes lava damage somewhere unrelated, **outside all bounds** | Normal damage. The protection is geometric, not global. |
+| 6.7 | C spectates properly (via the spectator system) during a TNT fight | Takes no damage, is not knocked around. |
+
+---
 
 ## Sign-off
 
-Containment is verified when Parts 1 through 6 all pass, with Part 3 weighted
-most heavily - a containment feature that leaks into ordinary world behaviour is
-worse than the problem it solves.
+Verified when Parts 1 through 6 all pass, with **Part 4 weighted most heavily** -
+a containment feature that leaks into ordinary world behaviour is worse than the
+problem it solves.
+
+Known limitations, expected and not failures:
+
+- TNT that detonates entirely **outside** all arena bounds is left alone. This
+  is duel containment, not grief prevention.
+- Containment applies only while a match is `IN_PROGRESS`. Blocks placed during
+  the pre-game countdown are neither restricted nor rolled back - a pre-existing
+  gap, not introduced by these changes.
+- Falling sand/gravel settling outside the bounds, and hanging entities, are not
+  covered. No current kit places them.
