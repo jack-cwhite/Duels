@@ -584,9 +584,10 @@ public final class MatchManager
         // at the moment combat opens rather than inferred afterwards.
         for (Player player : List.of(player1, player2))
             plugin.getLogger().info(String.format(
-                    "[tnt-debug] combat start: %s gamemode=%s invulnerable=%s health=%.2f food=%d saturation=%.2f",
+                    "[tnt-debug] combat start: %s gamemode=%s invulnerable=%s health=%.2f food=%d saturation=%.2f world=%s pvp=%s difficulty=%s",
                     player.getName(), player.getGameMode(), player.isInvulnerable(),
-                    player.getHealth(), player.getFoodLevel(), player.getSaturation()));
+                    player.getHealth(), player.getFoodLevel(), player.getSaturation(),
+                    player.getWorld().getName(), player.getWorld().getPVP(), player.getWorld().getDifficulty()));
 
         messageManager.send(player1, Message.MATCH_START, "player", player2.getName());
         messageManager.send(player2, Message.MATCH_START, "player", player1.getName());

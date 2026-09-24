@@ -24,6 +24,8 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.entity.ExplosionPrimeEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent.RegainReason;
 import org.bukkit.event.entity.AreaEffectCloudApplyEvent;
@@ -192,6 +194,45 @@ public final class MatchListener implements Listener
 
         if (match != null && match.getState() == MatchState.IN_PROGRESS)
             event.setCancelled(true);
+    }
+
+    /**
+     * Temporary upstream diagnostics for the TNT report. Two instrumented test
+     * sessions produced no explosion damage line at all, which narrows the
+     * cause to somewhere before {@link #onEntityDamage}: either the explosion
+     * never happens, or the damage event is cancelled by a lower-priority
+     * listener, or the server never raises one. These three probes separate
+     * those cases. Remove with the rest of the [tnt-debug] logging.
+     */
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    public void onEntityDamageProbe(EntityDamageEvent event)
+    {
+        if (event.getEntity() instanceof Player player)
+            plugin.getLogger().info(String.format(
+                    "[tnt-debug] LOWEST %s cause=%s cancelled=%s raw=%.2f final=%.2f",
+                    player.getName(), event.getCause(), event.isCancelled(),
+                    event.getDamage(), event.getFinalDamage()));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
+    public void onExplosionPrimeProbe(ExplosionPrimeEvent event)
+    {
+        plugin.getLogger().info(String.format(
+                "[tnt-debug] prime: %s radius=%.2f fire=%s cancelled=%s world=%s at=%d,%d,%d",
+                event.getEntityType(), event.getRadius(), event.getFire(), event.isCancelled(),
+                event.getEntity().getWorld().getName(),
+                event.getEntity().getLocation().getBlockX(),
+                event.getEntity().getLocation().getBlockY(),
+                event.getEntity().getLocation().getBlockZ()));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
+    public void onEntityExplodeProbe(EntityExplodeEvent event)
+    {
+        plugin.getLogger().info(String.format(
+                "[tnt-debug] explode: %s cancelled=%s yield=%.2f blocks=%d nearby-players=%s",
+                event.getEntityType(), event.isCancelled(), event.getYield(), event.blockList().size(),
+                event.getLocation().getNearbyPlayers(8).stream().map(Player::getName).toList()));
     }
 
     private Player resolveAttacker(Entity damager)

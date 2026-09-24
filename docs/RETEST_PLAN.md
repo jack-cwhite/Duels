@@ -591,7 +591,7 @@ bugs found through live play this session, outside anything the original
 plan was written to check. Each needs its own live retest before B10 can be
 signed off.
 
-- [ ] **Environmental deaths now end the match before the real death/respawn
+- [x] **Environmental deaths now end the match before the real death/respawn
   screen is reached, the same way a PvP kill already does.** Previously,
   `MatchListener.onEntityDamage` only pre-emptively cancelled fatal damage
   and called `matchManager.endMatch(...)` when it could resolve an
@@ -607,6 +607,10 @@ signed off.
   separately to drowning, in an active duel, and confirm in both cases you
   never see the vanilla death/respawn screen - the match should just end and
   award the win to the opponent, identical to a PvP kill.
+  **Verified 2026-09-24** - drowning at 03:00 and lava at 03:02, both ending
+  via `-> cancelled: fatal hit intercepted, ending match` with no vanilla death
+  message in the log. See the passive-regeneration item below for the console
+  evidence and for why this could not be tested until that bug was fixed.
 - [ ] **Player-state restore now reapplies gamemode/flight before anything
   else, to reduce the chance of ending up stuck in Survival after a duel.**
   Reported symptom: after some duels, a player who started the duel in
@@ -701,7 +705,40 @@ armour, *outside* a match. If the damage is equally negligible there, the behavi
 is vanilla and this item closes as not-a-bug. Only if TNT hurts outside a duel but
 not inside one is there anything left for Duels to answer for.
 
-- [ ] **Passive food regeneration no longer heals duellists mid-match.** Found
+**TNT - state after the third instrumented round (2026-09-24 03:02).** Both
+confounders above are now dead. Creative is ruled out: every logged
+`combat start` line reports `gamemode=SURVIVAL invulnerable=false`. The armour
+theory is ruled out too - Jack removed the armour and stood next to roughly ten
+TNT with no damage at all. The hard fact left is that across three instrumented
+sessions **not one explosion `EntityDamageEvent` has ever reached Duels**. The
+same log rounds captured 26 `DROWNING`, 3 `FIRE_TICK` and 34 `LAVA` events, so
+the instrumentation is definitely working; explosions specifically are silent.
+`MatchListener.onEntityDamage` is `HIGHEST` with `ignoreCancelled = true`, so
+silence means the event is either never raised or cancelled by a lower-priority
+listener before we see it.
+
+Three probes were added to separate those cases, all tagged `[tnt-debug]`:
+
+- `onEntityDamageProbe` at `LOWEST` with `ignoreCancelled = false`, which sees
+  the event even if a lower-priority listener has already cancelled it.
+- `onExplosionPrimeProbe` on `ExplosionPrimeEvent`, which confirms the TNT
+  actually primes and reports its radius, world and coordinates.
+- `onEntityExplodeProbe` on `EntityExplodeEvent` at `MONITOR`, which reports
+  whether the explosion is cancelled, its yield, how many blocks it affected and
+  which players were within 8 blocks.
+
+`combat start` now also logs the world name, its PVP flag and its difficulty,
+because a per-world `pvp: false` would suppress damage from player-owned TNT
+inside vanilla before any Bukkit event is constructed - which would look exactly
+like this. Multiverse-Core is installed and manages per-world PVP; its
+`worlds.yml` currently reports `pvp: true` for all three overworld/nether/end
+entries, but the dynamic arena world `duels_dynamic_arenas` is created by Duels
+at runtime and is not in that file.
+
+Next run: start a duel, place and detonate TNT next to yourself, then hand over
+the console output. The probe lines alone should identify the layer responsible.
+
+- [x] **Passive food regeneration no longer heals duellists mid-match.** Found
   2026-09-24 while chasing "TNT does nothing" and "I can't drown." Console
   instrumentation showed the real cause: `MatchManager.prepareForMatch` set
   saturation to the 20f maximum, and vanilla heals a player with a full hunger
@@ -721,6 +758,10 @@ not inside one is there anything left for Duels to answer for.
   drowning took Test from full health to death in about twenty seconds, ending
   with `-> cancelled: fatal hit intercepted, ending match` and no vanilla death
   message in the log. That same evidence covers the **drowning** half of the
-  environmental-death item above; **lava still needs its own run.**
+  environmental-death item above, and the lava half was verified separately
+  at **2026-09-24 03:02**: 34 consecutive `cause=LAVA` events took Jack from
+  19.00 down to 2.00 and the last one logged `-> cancelled: fatal hit
+  intercepted, ending match`, again with no vanilla death message. Both halves
+  of the environmental-death item are therefore signed off.
   Retest: confirm a duellist no longer heals passively, and that a kit-provided
   regeneration effect still does heal.
