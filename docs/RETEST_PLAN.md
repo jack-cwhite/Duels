@@ -16,7 +16,7 @@ Two groups of work here:
 
 Tick items here as you go.
 
-## Where we are right now (2026-09-24, 03:25)
+## Where we are right now (2026-09-24, 03:34)
 
 Read this first if you have lost the thread. Everything below this section is
 the full detail; this is the short version.
@@ -31,19 +31,14 @@ damage against players, stops hunger depleting, and regenerates health
 continuously. Arena 1 lives in `world` and was always fine, which is why TNT
 worked earlier in testing and then appeared to break.
 
-**The one thing you need to do next.** Restart the server, then:
+**Those three verification duels are done.** Run on the restarted server between
+03:32 and 03:34 on 2026-09-24 - TNT damage in the dynamic arena, a TNT death and
+crater in the static arena, and lava flow rollback - all confirmed in game with
+a clean server log.
 
-1. Duel in **arena 2** (dynamic) and hit yourself with TNT. It should hurt.
-   Watch the hunger bar move too.
-2. Duel in **arena 1** (static), kill yourself with TNT, and check the crater
-   is gone afterwards and there are no dropped items lying around.
-3. Duel in **arena 1** again, place lava, and check both the source and the
-   whole flow are rolled back, and that any torches knocked off walls did not
-   drop as items.
-
-That is three duels. If all three look right, the only things left are Stage 6
-(five or six duels started from Creative + flying, checking you get Creative and
-flight back afterwards) and the final acceptance boxes in B10.
+**What is actually left.** Stage 6: five or six duels started from Creative with
+flying enabled, checking you get Creative and flight back afterwards. Then the
+final acceptance boxes in B10.
 
 **Still open, deliberately not fixed yet.** TNT lit by a redstone torch resolves
 to no attacker, so bystander isolation cannot act on it. Arena bounds already
@@ -126,7 +121,7 @@ that the diagnosis is confirmed, so the console should be quiet again.
   A2, not a newly created one (which cannot reach this state at all).
 - [X] `stop` during a damaged match and restart does not leave Duels in an
   invalid allocation state.
-- [ ] **Reopened - gap found in live testing:** a lava/water source placed
+- [x] **Reopened - gap found in live testing:** a lava/water source placed
   with a bucket mid-duel was not rolled back, even though block
   place/break/TNT changes were. Root cause: `BlockChangeRollbackStrategy`
   only listened for `BlockPlaceEvent`/`BlockBreakEvent`/explosion events;
@@ -144,7 +139,7 @@ that the diagnosis is confirmed, so the console should be quiet again.
   `event.getToBlock().getState()`. Retest as above, and additionally let the
   liquid run a reasonable distance before ending the match: confirm the whole
   flow is gone and anything it destroyed on the way is back.
-- [ ] **Reopened - second gap found alongside the above:** a redstone torch
+- [x] **Reopened - second gap found alongside the above:** a redstone torch
   occasionally survived rollback as a dropped item instead of being restored
   as a block, specifically after a TNT explosion destroyed the block it was
   mounted on. Root cause: a block detaching from lost support (not a direct
@@ -155,6 +150,13 @@ that the diagnosis is confirmed, so the console should be quiet again.
   detonate TNT next to a wall-mounted torch (or other attached block -
   redstone dust, a sign, a lever) mid-duel and confirm after rollback the
   block is back in place with no dropped item nearby.
+
+**Verified in play 2026-09-24 03:32-03:34.** Four duels on the restarted server
+covering all of it: TNT damage in the dynamic arena, a TNT death and crater in
+the static arena, and lava flow rollback. Jack confirmed the behaviour in game
+and the server log records the four matches with no exceptions or warnings. This
+closes the Peaceful root cause, the explosion-rollback ordering bug, the liquid
+spread gap and the detached-block drop gap together.
 
 ### B2. Section 16 - Dynamic provisioning and selection
 
@@ -775,7 +777,7 @@ at runtime and is not in that file.
 
 Outcome of that run below.
 
-- [ ] **ROOT CAUSE - the dynamic arena world was Peaceful.** Solved 2026-09-24
+- [x] **ROOT CAUSE - the dynamic arena world was Peaceful.** Solved 2026-09-24
   03:17 by the probes above. The `combat start` line reported
   `world=duels_dynamic_arenas pvp=true difficulty=PEACEFUL`, while the explosion
   probes showed the TNT priming and detonating perfectly normally
@@ -833,7 +835,7 @@ Outcome of that run below.
   to track TNT ownership at placement time (a PDC tag on the primed entity) or to
   accept it as bounded by arena geometry.
 
-- [ ] **An explosion that ends a match is not rolled back.** The 03:18 sequence
+- [x] **An explosion that ends a match is not rolled back.** The 03:18 sequence
   shows the ordering problem plainly: the fatal damage and `endMatch` land at
   03:18:48, and `EntityExplodeEvent` fires a tick later at 03:18:49 - by which
   point the instance is no longer tracked, so `trackExplosion` returned false and
