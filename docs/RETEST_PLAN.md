@@ -770,6 +770,43 @@ Outcome of that run below.
   yourself and confirm it damages you, and confirm the hunger bar now moves. Also
   worth one duel in arena 1 to confirm nothing regressed there.
 
+  **Diagnosis confirmed 2026-09-24 03:18, fix not yet exercised.** At 03:18:33
+  the console shows `Test issued server command: /difficulty normal` - a manual
+  change, with no server restart and no plugin reload. Fifteen seconds later the
+  very first explosion damage of the entire investigation appeared:
+  `LOWEST Jack cause=BLOCK_EXPLOSION cancelled=false raw=47.55 final=47.55`,
+  followed by `-> cancelled: fatal hit intercepted, ending match`. Difficulty was
+  the only variable that moved, so the Peaceful diagnosis is proven. The code fix
+  in `DynamicArenaWorldManager` was deployed at 03:18 but the server has not been
+  restarted since, so it still needs its own confirming run: restart, duel in
+  arena 2, and check `combat start` reports the primary world's difficulty
+  without anyone having typed `/difficulty`.
+
+- [ ] **TNT ignited by redstone is attributed to nobody.** Seen in the same
+  03:18:48 line: `damager=TNT attacker=unresolved`. `MatchListener.resolveAttacker`
+  asks `TNTPrimed.getSource()`, which is null when the TNT was lit by a redstone
+  torch rather than directly by a player - and the Destruction kit ships redstone
+  torches, so this is the normal case rather than an edge one. Inside a duel the
+  outcome is still correct, because a null attacker is treated as environmental
+  damage and a fatal hit ends the match in the opponent's favour. The gap is
+  bystander isolation: that check needs a resolvable attacker, so a duellist's
+  TNT reaching a non-participant would not be cancelled. Arena bounds limit the
+  exposure, but the protection is not actually doing its job here. Decide whether
+  to track TNT ownership at placement time (a PDC tag on the primed entity) or to
+  accept it as bounded by arena geometry.
+
+- [ ] **An explosion that ends a match is not rolled back.** The 03:18 sequence
+  shows the ordering problem plainly: the fatal damage and `endMatch` land at
+  03:18:48, and `EntityExplodeEvent` fires a tick later at 03:18:49 - by which
+  point the instance is no longer tracked, so `trackExplosion` returned false and
+  the probe recorded `yield=1.00` instead of the zeroed yield it gets mid-match.
+  The crater's blocks are therefore never recorded, never restored, and their
+  drops are never suppressed. Arena 2 hides this because a provisioned arena is
+  reset by pasting the template over it, but arena 1 uses
+  `BlockChangeRollbackStrategy` and would keep the hole plus a scattering of
+  dropped items permanently. Retest: kill yourself with TNT in **arena 1** and
+  check whether the crater survives the match ending.
+
 - [x] **Passive food regeneration no longer heals duellists mid-match.** Found
   2026-09-24 while chasing "TNT does nothing" and "I can't drown." Console
   instrumentation showed the real cause: `MatchManager.prepareForMatch` set
