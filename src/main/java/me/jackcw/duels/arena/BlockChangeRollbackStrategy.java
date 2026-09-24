@@ -12,6 +12,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockDropItemEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
+import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
@@ -79,6 +80,31 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
     public void onBucketFill(PlayerBucketFillEvent event)
     {
         track(event.getBlock().getState());
+    }
+
+    /**
+     * Tracks liquid spread. Emptying a bucket only changes the single source
+     * block; every block the liquid then flows into is a separate change that
+     * fires {@link BlockFromToEvent} and nothing else. Without this the
+     * rollback removed the source a player placed but left the whole flow
+     * behind - and never restored the blocks the liquid washed away on its
+     * way, since those were replaced by flowing liquid rather than broken.
+     *
+     * <p>Recording the destination's state before the liquid arrives is what
+     * makes the reverse replay put the original block back. Natural drainage
+     * after the source is gone fires this event too, but the deque is replayed
+     * in reverse, so the earliest state recorded for a position is the one that
+     * ends up applied.
+     *
+     * <p>A large flow can consume a noticeable share of
+     * {@code arena-reset-max-tracked-block-changes}; past that ceiling tracking
+     * stops and the arena may be left partially changed, which is the same
+     * documented behaviour as a chaotic TNT fight.
+     */
+    @EventHandler(ignoreCancelled = true)
+    public void onBlockFromTo(BlockFromToEvent event)
+    {
+        track(event.getToBlock().getState());
     }
 
     /**

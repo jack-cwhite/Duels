@@ -98,6 +98,14 @@ Tick items here as you go.
   water with a bucket mid-duel (both a dynamic and a static arena), end the
   match, confirm both are gone after rollback; also scoop a liquid back up
   with a bucket mid-duel and confirm it's restored afterward.
+  **Reopened again 2026-09-24:** the source block is now removed correctly,
+  but the flowing liquid it produced is not. Second root cause:
+  `BlockFromToEvent` - the only event a liquid spread step fires - was still
+  untracked, so every block the flow entered, and every block it washed away
+  en route, was invisible to the rollback. Fixed by tracking
+  `event.getToBlock().getState()`. Retest as above, and additionally let the
+  liquid run a reasonable distance before ending the match: confirm the whole
+  flow is gone and anything it destroyed on the way is back.
 - [ ] **Reopened - second gap found alongside the above:** a redstone torch
   occasionally survived rollback as a dropped item instead of being restored
   as a block, specifically after a TNT explosion destroyed the block it was
