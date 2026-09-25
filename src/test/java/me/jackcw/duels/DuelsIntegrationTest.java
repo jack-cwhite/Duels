@@ -13,6 +13,8 @@ import me.jackcw.duels.arena.DynamicArenaRecovery;
 import me.jackcw.duels.arena.ArenaProvisioningMode;
 import me.jackcw.duels.arena.ArenaContainmentGuard;
 import me.jackcw.duels.arena.BlockChangeRollbackStrategy;
+import me.jackcw.duels.arena.ArenaBoundsValidator;
+import me.jackcw.duels.arena.BlockBox;
 import me.jackcw.duels.challenge.Challenge;
 import me.jackcw.duels.kit.Kit;
 import me.jackcw.duels.match.Match;
@@ -1340,5 +1342,106 @@ class DuelsIntegrationTest
 
         assertTrue(instance.contains(world.getBlockAt(10, 64, 10).getLocation()),
                 "a legacy half-block corner must still include its own corner block");
+    }
+
+    /**
+     * The particle frame is drawn from the box's minimum corner to
+     * {@code maxCorner*}, so this pins the relationship the renderer depends on:
+     * the drawn extent on each axis must equal the number of blocks the box
+     * actually contains. Using {@code max*} there outlined a box one block short
+     * on every maximum face, which read in game as the whole frame sitting a
+     * block below the area being enforced.
+     */
+    @Test
+    void theBoxOutlineExtentMatchesTheNumberOfBlocksContained()
+    {
+        WorldMock world = server.addSimpleWorld("outline_world");
+
+        BlockBox box = BlockBox.of(new Location(world, 10, 64, 20), new Location(world, 12, 73, 39));
+
+        assertNotNull(box);
+        assertEquals(3, box.sizeX());
+        assertEquals(10, box.sizeY());
+        assertEquals(20, box.sizeZ());
+
+        assertEquals(box.sizeX(), box.maxCornerX() - box.minX(), 1.0e-9);
+        assertEquals(box.sizeY(), box.maxCornerY() - box.minY(), 1.0e-9);
+        assertEquals(box.sizeZ(), box.maxCornerZ() - box.minZ(), 1.0e-9);
+
+        assertTrue(box.contains(world.getBlockAt(12, 73, 39).getLocation()),
+                "the maximum corner block is inside the box it is drawn around");
+    }
+
+    @Test
+    void aSealedBoundsShellReportsNoGaps()
+    {
+        WorldMock world = server.addSimpleWorld("sealed_shell_world");
+        BlockBox box = BlockBox.of(new Location(world, 0, 64, 0), new Location(world, 4, 67, 4));
+
+        fillShell(world, box, Material.STONE);
+
+        ArenaBoundsValidator.ShellReport report = ArenaBoundsValidator.countShellGaps(box);
+
+        assertTrue(report.inspected());
+        assertFalse(report.hasGaps(), "a shell of solid blocks has nothing to warn about");
+    }
+
+    @Test
+    void aHoleInTheFloorOrWallIsReportedAsAGap()
+    {
+        WorldMock world = server.addSimpleWorld("holed_shell_world");
+        BlockBox box = BlockBox.of(new Location(world, 0, 64, 0), new Location(world, 4, 67, 4));
+
+        fillShell(world, box, Material.STONE);
+        world.getBlockAt(2, 64, 2).setType(Material.AIR);
+        world.getBlockAt(0, 66, 2).setType(Material.AIR);
+
+        ArenaBoundsValidator.ShellReport report = ArenaBoundsValidator.countShellGaps(box);
+
+        assertTrue(report.inspected());
+        assertEquals(1, report.floorGaps());
+        assertEquals(1, report.wallGaps());
+        assertEquals(2, report.totalGaps());
+    }
+
+    /**
+     * An open-topped arena is a normal design, and liquid cannot escape upward,
+     * so the roof must not count towards the warning - otherwise admins learn to
+     * ignore it.
+     */
+    @Test
+    void anOpenRoofIsNotReportedAsAGap()
+    {
+        WorldMock world = server.addSimpleWorld("open_roof_world");
+        BlockBox box = BlockBox.of(new Location(world, 0, 64, 0), new Location(world, 4, 67, 4));
+
+        fillShell(world, box, Material.STONE);
+
+        for (int x = box.minX() + 1; x <= box.maxX() - 1; x++)
+            for (int z = box.minZ() + 1; z <= box.maxZ() - 1; z++)
+                world.getBlockAt(x, box.maxY(), z).setType(Material.AIR);
+
+        ArenaBoundsValidator.ShellReport report = ArenaBoundsValidator.countShellGaps(box);
+
+        assertTrue(report.inspected());
+        assertFalse(report.hasGaps(), "an open roof is a design choice, not a containment hole");
+    }
+
+    /**
+     * Fills the floor and the four side faces of the box, leaving the interior
+     * and the roof interior as they were - the shape an arena's enclosing shell
+     * actually is.
+     */
+    private void fillShell(WorldMock world, BlockBox box, Material material)
+    {
+        for (int x = box.minX(); x <= box.maxX(); x++)
+            for (int z = box.minZ(); z <= box.maxZ(); z++)
+                world.getBlockAt(x, box.minY(), z).setType(material);
+
+        for (int y = box.minY() + 1; y <= box.maxY(); y++)
+            for (int x = box.minX(); x <= box.maxX(); x++)
+                for (int z = box.minZ(); z <= box.maxZ(); z++)
+                    if (x == box.minX() || x == box.maxX() || z == box.minZ() || z == box.maxZ())
+                        world.getBlockAt(x, y, z).setType(material);
     }
 }

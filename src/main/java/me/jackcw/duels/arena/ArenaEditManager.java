@@ -168,94 +168,76 @@ public final class ArenaEditManager
             return;
 
         if (instance.hasBounds() && player.getWorld().equals(instance.getBoundsCorner1().getWorld()))
-            tickGameplayBoundsParticles(player, instance.getBoundsCorner1(), instance.getBoundsCorner2());
+            tickBoxOutline(player, instance.getBoundsCorner1(), instance.getBoundsCorner2(), BOUNDS_DUST);
 
         if (instance.isSource() && session.getStructureCorner1() != null && session.getStructureCorner2() != null
                 && player.getWorld().equals(session.getStructureCorner1().getWorld())
                 && player.getWorld().equals(session.getStructureCorner2().getWorld()))
-            tickStructureParticles(player, session.getStructureCorner1(), session.getStructureCorner2());
+            tickBoxOutline(player, session.getStructureCorner1(), session.getStructureCorner2(), STRUCTURE_DUST);
     }
 
-    private void tickGameplayBoundsParticles(Player player, Location corner1, Location corner2)
+    /**
+     * Draws the twelve edges of a block box as a particle wireframe.
+     *
+     * <p>The maximum side of each axis is deliberately rendered at
+     * {@code max + 1}. A bounds box is a volume of <em>blocks</em> with both
+     * corner blocks inside it, so a box whose corner blocks are X=10 and X=12
+     * physically occupies the space from 10.0 up to 13.0. Drawing the frame
+     * from corner to corner instead outlined 10.0 to 12.0 - a box one block
+     * short on every maximum face, which read in game as the whole frame
+     * sitting a block below and inside the area actually being enforced, and
+     * made a correctly set corner look as though it had snapped inwards.
+     *
+     * <p>Corners are reduced to block indices with the same helper
+     * {@link ArenaInstance#contains(Location)} uses, so the frame cannot
+     * disagree with the box it is describing - including for arenas saved
+     * before corners were stored block-aligned, whose raw coordinates would
+     * otherwise render at fractional positions.
+     */
+    private void tickBoxOutline(Player player, Location corner1, Location corner2, Particle.DustOptions dust)
     {
-        World world = corner1.getWorld();
-        double minX = Math.min(corner1.getX(), corner2.getX());
-        double maxX = Math.max(corner1.getX(), corner2.getX());
-        double minY = Math.min(corner1.getY(), corner2.getY());
-        double maxY = Math.max(corner1.getY(), corner2.getY());
-        double minZ = Math.min(corner1.getZ(), corner2.getZ());
-        double maxZ = Math.max(corner1.getZ(), corner2.getZ());
+        BlockBox box = BlockBox.of(corner1, corner2);
 
-        for (double x = minX; x <= maxX; x += PARTICLE_STEP)
+        if (box == null)
+            return;
+
+        World world = box.world();
+
+        double lowX = box.minX();
+        double lowY = box.minY();
+        double lowZ = box.minZ();
+        double highX = box.maxCornerX();
+        double highY = box.maxCornerY();
+        double highZ = box.maxCornerZ();
+        for (double x = lowX; x <= highX; x += PARTICLE_STEP)
         {
-            spawnBoundsParticle(player, world, x, minY, minZ);
-            spawnBoundsParticle(player, world, x, minY, maxZ);
-            spawnBoundsParticle(player, world, x, maxY, minZ);
-            spawnBoundsParticle(player, world, x, maxY, maxZ);
+            spawnOutlineParticle(player, world, x, lowY, lowZ, dust);
+            spawnOutlineParticle(player, world, x, lowY, highZ, dust);
+            spawnOutlineParticle(player, world, x, highY, lowZ, dust);
+            spawnOutlineParticle(player, world, x, highY, highZ, dust);
         }
 
-        for (double y = minY; y <= maxY; y += PARTICLE_STEP)
+        for (double y = lowY; y <= highY; y += PARTICLE_STEP)
         {
-            spawnBoundsParticle(player, world, minX, y, minZ);
-            spawnBoundsParticle(player, world, minX, y, maxZ);
-            spawnBoundsParticle(player, world, maxX, y, minZ);
-            spawnBoundsParticle(player, world, maxX, y, maxZ);
+            spawnOutlineParticle(player, world, lowX, y, lowZ, dust);
+            spawnOutlineParticle(player, world, lowX, y, highZ, dust);
+            spawnOutlineParticle(player, world, highX, y, lowZ, dust);
+            spawnOutlineParticle(player, world, highX, y, highZ, dust);
         }
 
-        for (double z = minZ; z <= maxZ; z += PARTICLE_STEP)
+        for (double z = lowZ; z <= highZ; z += PARTICLE_STEP)
         {
-            spawnBoundsParticle(player, world, minX, minY, z);
-            spawnBoundsParticle(player, world, minX, maxY, z);
-            spawnBoundsParticle(player, world, maxX, minY, z);
-            spawnBoundsParticle(player, world, maxX, maxY, z);
+            spawnOutlineParticle(player, world, lowX, lowY, z, dust);
+            spawnOutlineParticle(player, world, lowX, highY, z, dust);
+            spawnOutlineParticle(player, world, highX, lowY, z, dust);
+            spawnOutlineParticle(player, world, highX, highY, z, dust);
         }
     }
 
-    private void spawnBoundsParticle(Player player, World world, double x, double y, double z)
+    private void spawnOutlineParticle(Player player, World world, double x, double y, double z, Particle.DustOptions dust)
     {
-        player.spawnParticle(Particle.DUST, x, y, z, 1, 0, 0, 0, 0, BOUNDS_DUST);
+        player.spawnParticle(Particle.DUST, x, y, z, 1, 0, 0, 0, 0, dust);
     }
-
-    private void tickStructureParticles(Player player, Location corner1, Location corner2)
-    {
-        World world = corner1.getWorld();
-        double minX = Math.min(corner1.getBlockX(), corner2.getBlockX());
-        double maxX = Math.max(corner1.getBlockX(), corner2.getBlockX());
-        double minY = Math.min(corner1.getBlockY(), corner2.getBlockY());
-        double maxY = Math.max(corner1.getBlockY(), corner2.getBlockY());
-        double minZ = Math.min(corner1.getBlockZ(), corner2.getBlockZ());
-        double maxZ = Math.max(corner1.getBlockZ(), corner2.getBlockZ());
-
-        for (double x = minX; x <= maxX; x += PARTICLE_STEP)
-        {
-            spawnStructureParticle(player, world, x, minY, minZ);
-            spawnStructureParticle(player, world, x, minY, maxZ);
-            spawnStructureParticle(player, world, x, maxY, minZ);
-            spawnStructureParticle(player, world, x, maxY, maxZ);
-        }
-
-        for (double y = minY; y <= maxY; y += PARTICLE_STEP)
-        {
-            spawnStructureParticle(player, world, minX, y, minZ);
-            spawnStructureParticle(player, world, minX, y, maxZ);
-            spawnStructureParticle(player, world, maxX, y, minZ);
-            spawnStructureParticle(player, world, maxX, y, maxZ);
-        }
-
-        for (double z = minZ; z <= maxZ; z += PARTICLE_STEP)
-        {
-            spawnStructureParticle(player, world, minX, minY, z);
-            spawnStructureParticle(player, world, minX, maxY, z);
-            spawnStructureParticle(player, world, maxX, minY, z);
-            spawnStructureParticle(player, world, maxX, maxY, z);
-        }
-    }
-
-    private void spawnStructureParticle(Player player, World world, double x, double y, double z)
-    {
-        player.spawnParticle(Particle.DUST, x, y, z, 1, 0, 0, 0, 0, STRUCTURE_DUST);
-    }
-
     public void giveTools(Player player)
     {
         PlayerInventory inventory = player.getInventory();

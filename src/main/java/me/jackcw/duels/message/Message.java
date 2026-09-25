@@ -54,6 +54,7 @@ public enum Message implements MessageKey
     ARENA_IN_USE("admin.arena-in-use"),
     ARENA_BOUNDS_SET("admin.arena-bounds-set"),
     ARENA_BOUNDS_SIZE("admin.arena-bounds-size"),
+    ARENA_BOUNDS_SHELL_GAPS("admin.arena-bounds-shell-gaps"),
     ARENA_BOUNDS_NOT_SET("admin.arena-bounds-not-set"),
     ARENA_BOUNDARY_SET("admin.arena-boundary-set"),
     ARENA_KIT_TOGGLED("admin.arena-kit-toggled"),

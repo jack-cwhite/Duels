@@ -182,6 +182,18 @@ public final class ArenaInstance
     }
 
     /**
+     * This instance's bounds as a box of whole blocks, or {@code null} if bounds
+     * are not set.
+     *
+     * <p>Derived on demand rather than cached, because an admin can move a
+     * corner at any time and a stale box would silently enforce the old area.
+     */
+    public BlockBox getBoundsBox()
+    {
+        return BlockBox.of(boundsCorner1, boundsCorner2);
+    }
+
+    /**
      * Whether the given location falls inside this instance's bounds box.
      *
      * <p>Returns {@code false} if bounds are not set, or if the location is in
@@ -205,16 +217,9 @@ public final class ArenaInstance
      */
     public boolean contains(Location location)
     {
-        if (!hasBounds() || !location.getWorld().equals(boundsCorner1.getWorld()))
-            return false;
+        BlockBox bounds = getBoundsBox();
 
-        int x = BlockCoordinates.blockCoordinate(location.getX());
-        int y = BlockCoordinates.blockCoordinate(location.getY());
-        int z = BlockCoordinates.blockCoordinate(location.getZ());
-
-        return x >= minBoundsX() && x <= maxBoundsX()
-                && y >= minBoundsY() && y <= maxBoundsY()
-                && z >= minBoundsZ() && z <= maxBoundsZ();
+        return bounds != null && bounds.contains(location);
     }
 
     /**
@@ -227,44 +232,9 @@ public final class ArenaInstance
      */
     public ArenaStructureSize getBoundsSize()
     {
-        if (!hasBounds())
-            return null;
+        BlockBox bounds = getBoundsBox();
 
-        return new ArenaStructureSize(
-                maxBoundsX() - minBoundsX() + 1,
-                maxBoundsY() - minBoundsY() + 1,
-                maxBoundsZ() - minBoundsZ() + 1
-        );
-    }
-
-    private int minBoundsX()
-    {
-        return Math.min(BlockCoordinates.blockCoordinate(boundsCorner1.getX()), BlockCoordinates.blockCoordinate(boundsCorner2.getX()));
-    }
-
-    private int maxBoundsX()
-    {
-        return Math.max(BlockCoordinates.blockCoordinate(boundsCorner1.getX()), BlockCoordinates.blockCoordinate(boundsCorner2.getX()));
-    }
-
-    private int minBoundsY()
-    {
-        return Math.min(BlockCoordinates.blockCoordinate(boundsCorner1.getY()), BlockCoordinates.blockCoordinate(boundsCorner2.getY()));
-    }
-
-    private int maxBoundsY()
-    {
-        return Math.max(BlockCoordinates.blockCoordinate(boundsCorner1.getY()), BlockCoordinates.blockCoordinate(boundsCorner2.getY()));
-    }
-
-    private int minBoundsZ()
-    {
-        return Math.min(BlockCoordinates.blockCoordinate(boundsCorner1.getZ()), BlockCoordinates.blockCoordinate(boundsCorner2.getZ()));
-    }
-
-    private int maxBoundsZ()
-    {
-        return Math.max(BlockCoordinates.blockCoordinate(boundsCorner1.getZ()), BlockCoordinates.blockCoordinate(boundsCorner2.getZ()));
+        return bounds == null ? null : bounds.size();
     }
 
     private static boolean canTransition(DynamicArenaState from, DynamicArenaState to)

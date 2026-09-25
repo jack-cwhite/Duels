@@ -36,15 +36,39 @@ public final class ArenaBoundsFeedback
                 "y", location.getBlockY(),
                 "z", location.getBlockZ());
 
-        ArenaStructureSize size = instance.getBoundsSize();
+        BlockBox box = instance.getBoundsBox();
 
-        if (size == null)
+        if (box == null)
             return;
+
+        ArenaStructureSize size = box.size();
 
         messageManager.send(player, Message.ARENA_BOUNDS_SIZE,
                 "id", instance.getId(),
                 "sizeX", size.x(),
                 "sizeY", size.y(),
                 "sizeZ", size.z());
+
+        warnAboutShellGaps(messageManager, player, instance, box);
+    }
+
+    /**
+     * Sent only when gaps are actually found, and only ever as advice.
+     *
+     * <p>A gap is not necessarily wrong - an arena with a deliberate doorway is
+     * a legitimate design - so this never blocks the corner from being set. It
+     * exists because the consequence is otherwise invisible until a match is
+     * running: liquid that refuses to flow, and a wall that is never repaired.
+     */
+    private static void warnAboutShellGaps(MessageManager messageManager, Player player, ArenaInstance instance, BlockBox box)
+    {
+        ArenaBoundsValidator.ShellReport report = ArenaBoundsValidator.inspectShell(box);
+
+        if (!report.hasGaps())
+            return;
+
+        messageManager.send(player, Message.ARENA_BOUNDS_SHELL_GAPS,
+                "id", instance.getId(),
+                "gaps", report.totalGaps());
     }
 }

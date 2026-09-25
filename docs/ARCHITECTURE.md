@@ -306,3 +306,54 @@ and avoids ever having to reason about "what if the source gets deleted mid-matc
 resource has a real-world/physical identity that can't be meaningfully copied, protect it
 with an in-use check instead. Phase 1 of `ROADMAP.md` (arena configuration vs. arena
 runtime instance) extends this same reasoning rather than replacing it.
+
+## Arena bounds are a box of blocks, and should enclose the arena
+
+Bounds are stored as two opposite corners, and every question asked of them
+("is this block inside?", "how big is it?", "where do I draw the frame?") goes
+through `BlockBox`. Two rules follow from that, and both have already caused
+bugs when a piece of code worked them out for itself instead:
+
+**Both corner blocks are inside the box.** Corners are snapped to whole blocks
+on the way in (`ArenaInstanceManager.setBoundsCorner`) *and* on comparison
+(`BlockBox.of`). Snapping on comparison is what lets an arena configured before
+that rule existed pick up the correct box on load with no migration. A box whose
+corners are X=10 and X=12 is therefore three blocks wide, not two.
+
+**A box measured in blocks has two different maximum coordinates.** The maximum
+*block* is `maxX()`; the far face of that block, in continuous world
+coordinates, is `maxCornerX()` - one greater. Anything drawing or measuring the
+box in world space needs the latter. The edit-mode particle frame originally
+used the former, which outlined a box one block short on every maximum face and
+read in game as the whole frame sitting a block below the area actually being
+enforced - which in turn made a correctly-set corner look as though it had
+snapped inwards.
+
+### Bounds should include the floor and walls, not just the interior air
+
+This is admin-facing convention rather than a hard requirement, and
+`ArenaBoundsValidator` advises on it when a corner is set. Two reasons:
+
+1. **Rollback only records changes inside the bounds.** A floor or wall left
+   outside the box is never restored, so a TNT fight permanently damages the
+   arena's structure even though the reset "succeeded".
+2. **Liquid containment degrades badly around a gap.** Minecraft picks a fluid's
+   spread direction *before* any event fires, and it does not try every open
+   neighbour - if the fluid can fall it commits to falling, and otherwise it
+   flows only towards the nearest place it could fall.
+   `ArenaContainmentGuard.onBlockFromTo` then vetoes that direction when it
+   leaves the arena, but **a veto is not a redirect**: if the direction Minecraft
+   chose was out through a hole, the fluid spreads nowhere at all and appears
+   frozen, even with open space inside the arena.
+
+The second point is worth being precise about, because the failure is cosmetic
+rather than a containment leak - nothing escapes either way. The fix is not to
+re-implement fluid spread so we can redirect it; that means shipping our own
+copy of Minecraft's fluid physics and keeping it in sync forever. The fix is to
+seal the box, at which point Minecraft never prefers an outward direction and
+flow looks entirely normal.
+
+The roof is deliberately exempt from the advisory: fluid never flows upward, and
+an open-topped arena has no ceiling blocks to restore, so an open roof is a
+design choice rather than a mistake. Warning about it would only teach admins to
+ignore the warning.

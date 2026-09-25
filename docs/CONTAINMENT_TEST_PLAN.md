@@ -7,8 +7,9 @@ Covers three changes, in the order they should be tested:
 | `a901127` | Bounds defined in whole blocks; corners selectable by clicking a block; coordinate and size feedback. |
 | `20466ae` | `ArenaContainmentGuard` - a duel can only affect blocks inside its own arena. |
 | `5348961` | Bystanders protected from a duel's lava, fire and hot floor, not just explosions. |
+| _pending_ | Particle frame corrected to wrap the block volume; `BlockBox` extracted; `ArenaBoundsValidator` shell advisory. |
 
-The integration tests (55 passing) cover the logic. This plan covers what
+The integration tests (59 passing) cover the logic. This plan covers what
 MockBukkit cannot simulate - real fire spread, real liquid flow, real explosion
 radii, real template capture - and whether the feedback actually feels right in
 chat.
@@ -21,15 +22,20 @@ bounds box makes Parts 2 and 3 fail in ways that look like containment bugs.
 1. One **hand-built** arena with an enclosed floor, four walls and a roof, using
    the block-change rollback reset strategy. Not a provisioned/template arena -
    template pasting would repair anything the rollback missed and hide failures.
-2. A kit containing **TNT, flint and steel, a lava bucket, a water bucket, and
+2. **Set the bounds to include the floor, walls and roof - not just the interior
+   air.** This is the documented convention, for two reasons: the rollback only
+   restores blocks inside the bounds, so a floor left outside the box stays
+   damaged after a TNT fight; and a gap in the shell makes liquid appear frozen
+   (see row 3.9). The plugin now advises you when it spots gaps.
+3. A kit containing **TNT, flint and steel, a lava bucket, a water bucket, and
    redstone torches**. Redstone-lit TNT specifically matters: it is the case
    where `TNTPrimed.getSource()` is null, which is why containment is decided by
    geometry rather than by who lit it.
-3. Three accounts: two duellists (**A**, **B**) and one **bystander** (**C**)
+4. Three accounts: two duellists (**A**, **B**) and one **bystander** (**C**)
    who is never in a match.
-4. Marker blocks (coloured wool) placed **just outside** each wall and one on
+5. Marker blocks (coloured wool) placed **just outside** each wall and one on
    the roof, so outward damage is visible at a glance.
-5. A provisioned/dynamic arena setup available for Parts 5 and 6.
+6. A provisioned/dynamic arena setup available for Parts 5 and 6.
 
 ---
 
@@ -51,6 +57,13 @@ to** the position the held tool marks.
 | 1.9 | Right-click the spawn tool to teleport back | Returns you facing the direction you set it from. |
 | 1.10 | Set bounds corners via `/duels` and via the instance detail menu | Same coordinate + size feedback as the edit tool. |
 | 1.11 | Try to set a bounds corner on an arena **in use by a live match** | Refused as in-use, as before. |
+| 1.12 | With both corners set, look at the **aqua particle frame** | It wraps the blocks being enforced: the bottom rail sits under the lowest included block and the top rail sits **above** the highest, not on top of it. |
+| 1.13 | Count the frame against the reported size | A frame around a 3x10x20 box spans 3 blocks in X, 10 in Y, 20 in Z. Previously it drew 2x9x19 and looked a block low. |
+| 1.14 | Set bounds that exclude the floor (click the interior air) | Corner + size lines, then an advisory: non-solid blocks in the floor or walls. |
+| 1.15 | Set bounds that include floor, walls and roof | Same corner + size lines, **no** advisory. |
+| 1.16 | Set bounds on a sealed arena that has one deliberate doorway | Advisory fires, naming the gap count. The corner is still set - this is advice, not a refusal. |
+| 1.17 | Set bounds on an arena with a solid floor/walls but an **open top** | **No** advisory. An open roof is a valid design and liquid cannot escape upward. |
+| 1.18 | Check the **orange structure frame** in a source arena | Same correction applies - it wraps the capture volume rather than sitting a block low. |
 
 ### Part 1b - Legacy arenas (no migration expected)
 
@@ -59,9 +72,9 @@ this must pass without re-setting any corners.
 
 | # | Action | Expected |
 |---|---|---|
-| 1.12 | Start the server with arenas configured **before** today's changes | Load normally. No errors or bounds warnings. |
-| 1.13 | Run a match in one, breaking blocks on the **lowest-X wall**, **lowest-Z wall** and **floor** | All allowed, all restored at match end. This is the face the old raw-coordinate comparison wrongly excluded. |
-| 1.14 | Stand hard against the lowest-X wall during a match | **No** spurious out-of-bounds warning, and building there is allowed. |
+| 1.19 | Start the server with arenas configured **before** today's changes | Load normally. No errors or bounds warnings. |
+| 1.20 | Run a match in one, breaking blocks on the **lowest-X wall**, **lowest-Z wall** and **floor** | All allowed, all restored at match end. This is the face the old raw-coordinate comparison wrongly excluded. |
+| 1.21 | Stand hard against the lowest-X wall during a match | **No** spurious out-of-bounds warning, and building there is allowed. |
 
 ### Part 1c - Template capture regression
 
@@ -70,9 +83,9 @@ block coordinates internally, so output should be identical - this confirms it.
 
 | # | Action | Expected |
 |---|---|---|
-| 1.15 | Set both structure corners by **clicking blocks**, then capture the template | Succeeds. Reported dimensions match what you built. |
-| 1.16 | Right-click a structure corner tool | Teleports to the middle of that corner block. |
-| 1.17 | Provision a dynamic arena from that template and play a match in it | Pastes correctly, plays normally, resets correctly. |
+| 1.22 | Set both structure corners by **clicking blocks**, then capture the template | Succeeds. Reported dimensions match what you built. |
+| 1.23 | Right-click a structure corner tool | Teleports to the middle of that corner block. |
+| 1.24 | Provision a dynamic arena from that template and play a match in it | Pastes correctly, plays normally, resets correctly. |
 
 ---
 
@@ -118,11 +131,12 @@ this part is a bug, because none of these changes are attributable to a player.
 | 3.1 | TNT detonated in the middle of the arena | Normal crater. **No item drops.** Fully restored at match end. |
 | 3.2 | TNT against the inside of a wall, lit **with a redstone torch** | Inside face destroyed; outside markers untouched; wall rebuilt at match end. No message. |
 | 3.3 | TNT on the roof, lit by redstone | Roof damaged inside the bounds only; nothing above or outside changes. |
-| 3.4 | Lava bucket emptied next to a wall with a gap or doorway | Flow **stops at the boundary**. Nothing outside changes. Arena restored afterwards. |
-| 3.5 | Water bucket emptied at the boundary | Same - flow contained. |
+| 3.4 | Lava bucket emptied next to a wall, bounds **sealed** (setup item 2) | Flow spreads normally inside and **stops at the boundary**. Nothing outside changes. Arena restored afterwards. |
+| 3.5 | Water bucket emptied on the bounds edge, bounds **sealed** | Spreads inward normally. This is the case that looked frozen before the shell convention was documented. |
 | 3.6 | Flint and steel on a flammable block inside, near a wall | Fire spreads inside the bounds but **does not cross it**. Nothing outside catches or burns away. |
 | 3.7 | TNT detonated right **on** the boundary line | Blocks inside destroyed and restored; blocks outside untouched. The blast is trimmed, not cancelled. |
 | 3.8 | A long TNT-and-lava fight, ~1 minute | Chat stays clean of containment messages. Arena restored, allowing for the documented `arena-reset-max-tracked-block-changes` ceiling. |
+| 3.9 | **Known behaviour, not a failure:** open a gap in the bounds floor or a wall, then empty lava right beside it | The lava may sit completely still, even with open space inside. Minecraft picks the spread direction before the event fires, so vetoing the escape does not redirect it. Nothing escapes. Sealing the shell resolves it. |
 
 ---
 
@@ -186,6 +200,12 @@ Known limitations, expected and not failures:
 
 - TNT that detonates entirely **outside** all arena bounds is left alone. This
   is duel containment, not grief prevention.
+- Liquid beside a gap in the bounds shell can appear frozen rather than flowing
+  inward. Minecraft chooses a fluid's spread direction before any event fires,
+  so cancelling an escaping flow does not redirect it. Containment still holds -
+  nothing leaves the arena - and sealing the bounds shell removes the effect.
+  Deliberately not fixed in code: redirecting the flow ourselves means
+  maintaining our own copy of Minecraft's fluid physics.
 - Containment applies only while a match is `IN_PROGRESS`. Blocks placed during
   the pre-game countdown are neither restricted nor rolled back - a pre-existing
   gap, not introduced by these changes.
