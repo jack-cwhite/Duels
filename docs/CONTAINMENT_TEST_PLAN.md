@@ -7,7 +7,7 @@ Covers three changes, in the order they should be tested:
 | `a901127` | Bounds defined in whole blocks; corners selectable by clicking a block; coordinate and size feedback. |
 | `20466ae` | `ArenaContainmentGuard` - a duel can only affect blocks inside its own arena. |
 | `5348961` | Bystanders protected from a duel's lava, fire and hot floor, not just explosions. |
-| _pending_ | Particle frame corrected to wrap the block volume; `BlockBox` extracted; `ArenaBoundsValidator` shell advisory. |
+| `11766e4` | Particle frame corrected to wrap the block volume; `BlockBox` extracted; `ArenaBoundsValidator` shell advisory. |
 
 The integration tests (59 passing) cover the logic. This plan covers what
 MockBukkit cannot simulate - real fire spread, real liquid flow, real explosion
