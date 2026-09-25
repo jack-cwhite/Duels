@@ -1,6 +1,6 @@
 # Duels in-game test suite
 
-_Target: Paper 1.21.11, Java 21. Last revised 2026-09-25._
+_Target: Paper 1.21.11, Java 21. Last revised 2026-09-26._
 
 **This is the single list of everything still to run in game.** It was
 consolidated from Part D of `docs/RETEST_PLAN.md` and all six parts of
@@ -12,8 +12,9 @@ Tick boxes as you go. Stages are ordered so that earlier ones set up what later
 ones need - Stage 1 wants a fresh database, Stage 3 leaves you with a dynamic
 arena that Stage 8 reuses.
 
-**Rough budget:** Stages 1-3 about 45 minutes. Stages 4-9 about 90 minutes.
-Stage 4 is the longest single stage because it is 24 separate admin actions.
+**Rough budget:** Stages 1-3 about 45 minutes, plus ~10 minutes once to build the
+small sealed box described below (needed only for Stage 4b). Stages 4-9 about 90
+minutes. Stage 4 remains the longest single stage.
 
 ---
 
@@ -42,23 +43,56 @@ on them:
 **Delete `plugins/Duels/duels.db` before Stage 1** so the migration runs from
 nothing. Back it up first if you care about the existing results.
 
-**Arena setup.** You need three arenas by the end. Build them now or as each
-stage calls for them:
+### Your existing arenas - keep them, one small addition
 
-| Arena | Type | Used by |
-|---|---|---|
-| A sealed room - floor, four walls, roof | STATIC, 2 instances | Stages 1-2, 4-7, 9 |
-| A second sealed room with a **deliberate doorway** | STATIC, 1 instance | Stage 4 (openings advisory) |
-| A dynamic source build | DYNAMIC | Stages 3, 8 |
+You already have what this suite needs. Nothing about their design is a problem:
 
-**Bounds convention.** Set bounds around the arena's **interior**: click the
-**floor block** in one corner and the **ceiling block** in the diagonally
-opposite corner. Floor and ceiling are then tracked and repaired, and the four
-walls sit one block outside the box and are immune to everything a duel does.
-Being inside the bounds makes a block *tracked*, not indestructible.
+- **Static arena, 2 instances.** An open platform with a small building on it, no
+  walls or ceiling. This is fine as-is. Block containment is decided purely by the
+  bounds box's coordinates, not by any physical wall standing in the way - and
+  player containment is handled by the arena's **boundary mode** (warning / soft
+  return / forfeit), which exists specifically to substitute for walls. Used by
+  Stages 1, 2, 4a, 5, 6, 7, 9.
+- **Dynamic arena, one generated copy.** Same reasoning, same open-platform
+  design. Used by Stages 3, 4a, 4d, 8.
+- **The temporary stone platform - remove it.** Nothing in this suite uses it;
+  delete the arena or retire the instance so it stops appearing in `/duels`.
+- **One new build - a small sealed box.** Needed only for Stage 4b, which checks
+  the openings advisory. Your two real arenas have no walls at all, so they can
+  only ever produce the "this is open" case; the box gives you the "this is
+  sealed" case to compare against. Exact spec is under Stage 4b below - build it
+  whenever is convenient, it doesn't block Stages 1-3.
 
-**Marker blocks.** Before Stage 5, place a few distinctive blocks (wool, glass)
-just **outside** each wall. Several checks are "the marker survived".
+### Setting bounds on your existing platforms (no walls - exact steps)
+
+Do this once per instance you're testing - both static instances, and the dynamic
+arena's live copy once one exists - before Stages 1, 2, 5, 6, 7, 9.
+
+1. Enter edit mode on the instance (`/duels edit <arena>`, or the edit button on
+   the instance in the admin menu) and equip the **bounds corner 1** tool.
+2. Decide the footprint you want playable - typically the platform's own edge, or
+   a deliberate margin inside it if the platform runs wider than you want combat
+   to reach. Walk to one corner of that footprint, stand on the platform surface,
+   and **left-click the ground block under your feet**. Chat reports the
+   coordinates it just recorded.
+3. Equip the **bounds corner 2** tool. Walk to the diagonally opposite corner of
+   the footprint. This time aim for height rather than the ground: fly or jump up
+   to a point a few blocks above the tallest part of the small building (so
+   players can stand on its roof without leaving bounds), then **left-click while
+   looking straight down at a block**, or left-click a block of the building at
+   that height if one is in reach. Chat reports the finished box size.
+4. **If the openings advisory prints here, ignore it.** With no walls at all,
+   most or all of the perimeter genuinely is open, so the check is correctly
+   reporting that. It is not a finding on this arena style - the pass/fail
+   contrast for the advisory itself happens on the sealed box in Stage 4b, not on
+   your real arenas.
+
+### Marker blocks
+
+Stage 5 checks that things just outside the bounds survive a duel untouched.
+Without walls, "outside" simply means outside the box you set above. Place two or
+three distinctive blocks (wool, glass) directly on the platform, a block or two
+past the footprint edge you clicked in step 2 above.
 
 ---
 
@@ -158,47 +192,94 @@ Fixed in code, never re-verified on the target Paper build.
 ## Stage 4 - Bounds corners and admin feedback
 
 Covers `a901127` (block-aligned bounds, click-to-select corners) and `8028d94`
-(the corrected openings advisory).
+(the corrected openings advisory). Split into four parts: 4a checks the
+corner-setting mechanics on your real arenas (you already did the clicking for
+this back in the setup section - these items are about confirming what you saw),
+4b is the one part that needs the sealed box, 4c is optional, and 4d covers the
+dynamic arena's source structure.
+
+### Stage 4a - Corner mechanics (on your real arenas)
+
+You already set bounds on your static and dynamic arenas in the setup section
+above. Confirm the following there - no new building needed:
+
+| # | Check | Expected | |
+|---|---|---|---|
+| 4.1 | Coordinates chat reported when you clicked corner 1 | Match the block you actually stood on. | [ ] |
+| 4.2 | Size chat reported when you clicked corner 2 | Counts both corners inclusively - a span of 5 blocks along one axis reads as **5**, not 4. | [ ] |
+| 4.3 | **Right-click** the corner 1 tool | Teleports you to the middle of that corner block, not its edge. | [ ] |
+| 4.4 | Left-click **air** with a corner tool, standing anywhere with nothing in reach | Falls back to your own current position - the old stand-here workflow still works. | [ ] |
+| 4.5 | Set a **spawn** with the spawn tool | Uses your exact position **and facing** - spawns deliberately ignore whatever block you clicked. | [ ] |
+| 4.6 | Right-click the spawn tool | Teleports back, facing the direction you originally set it from. | [ ] |
+| 4.7 | Try setting a bounds corner on an arena **currently in use by a live match** | Refused as in-use. | [ ] |
+| 4.8 | Look at the **aqua particle frame** around your platform's bounds | Wraps the tracked volume: the bottom rail sits under the lowest included block, the top rail sits **above** the highest, not sitting on top of it. | [ ] |
+| 4.9 | The advisory that fired when you set bounds on the open platform | Correctly reports openings - that's expected here. The no-advisory contrast case is Stage 4b, next. | [ ] |
+
+### Stage 4b - The openings advisory itself (needs the sealed box)
+
+**Build this once,** anywhere on flat ground, out of any block you have to hand -
+it never hosts a real duel, so looks don't matter:
+
+- **Footprint:** 5x5 blocks.
+- **Walls:** 1 block thick, running around all four edges, 3 blocks tall.
+- **Floor:** one solid 5x5 layer under the walls.
+- **Roof:** one solid 5x5 layer on top of the walls.
+- **Result:** a fully sealed box with a **3x3x3 interior** - a floor, four walls,
+  and a roof, with no gaps anywhere.
+
+**Register it as an arena:** create a new static arena from it (for example
+`/duels create boundstest`), with one instance. Spawns can point anywhere inside
+the box; they are never used.
+
+**Set its bounds** - this exact pair of clicks is what makes the rest of this
+stage work:
+
+1. Enter edit mode, equip the bounds corner 1 tool.
+2. Stand **inside** the box, in the corner where two walls meet the floor. Look
+   straight down and **left-click the floor block you're standing on**.
+3. Equip the bounds corner 2 tool. Move to the **diagonally opposite interior
+   corner, at the top** - stand so your head is against the roof, look straight
+   up, and **left-click the roof block above you**.
+4. Chat should report a **3x3x3** box. If it reports anything else, your walls
+   aren't where you think they are - recheck the build before continuing.
+5. This floor-block-to-roof-block convention is what puts the four walls exactly
+   one block *outside* the tracked box, which is what makes them immune later,
+   and matches the convention recommended for real sealed arenas.
+
+Now the checks:
 
 | # | Action | Expected | |
 |---|---|---|---|
-| 4.1 | Enter edit mode, hold the bounds corner 1 tool, **left-click a block** | Corner set to *that* block. Chat reports its coordinates. | [ ] |
-| 4.2 | Set corner 2 by clicking the opposite block | Coordinates reported, plus a second line giving the box size in blocks. | [ ] |
-| 4.3 | Check the reported size against the arena you actually built | Matches, counting both corner blocks - a box from X=10 to X=12 reads as **3** wide. | [ ] |
-| 4.4 | **Right-click** the corner 1 tool | Teleports you standing in the **middle** of the corner block, not on its edge. | [ ] |
-| 4.5 | Left-click **air** with a corner tool | Falls back to your own position - the old stand-here workflow still works. | [ ] |
-| 4.6 | Stand on the arena floor, left-click **air** to set a corner | Selects the block you are standing *in* (the air above the floor). The floor is **not** included. | [ ] |
-| 4.7 | Now left-click the **floor block itself** | Floor included. Reported Y is one lower than 4.6. | [ ] |
-| 4.8 | Set a **spawn** with a spawn tool | Uses your exact position **and facing** - spawns deliberately ignore the clicked block. | [ ] |
-| 4.9 | Right-click the spawn tool to teleport back | Returns you facing the direction you set it from. | [ ] |
-| 4.10 | Set bounds corners via `/duels` and via the instance detail menu | Same coordinate + size feedback as the edit tool. | [ ] |
-| 4.11 | Try to set a bounds corner on an arena **in use by a live match** | Refused as in-use. | [ ] |
-| 4.12 | With both corners set, look at the **aqua particle frame** | It wraps the blocks being enforced: the bottom rail sits under the lowest included block and the top rail sits **above** the highest, not on top of it. | [ ] |
-| 4.13 | Count the frame against the reported size | A frame around a 3x10x20 box spans 3 blocks in X, 10 in Y, 20 in Z. It previously drew 2x9x19 and looked a block low. | [ ] |
-| 4.14 | Set bounds around the arena's **interior** (the recommended convention) | Corner + size lines, and **no** advisory. The boundary blocks are all air, but the real walls sit just outside them, so nothing can escape. **This is the case the first version of the check got wrong** - it reported a warning per boundary block, about 500 of them. | [ ] |
-| 4.15 | Set bounds that swallow the floor, walls and roof themselves | Same corner + size lines, **no** advisory either. Both conventions are acceptable; interior is recommended because it leaves the walls immune. | [ ] |
-| 4.16 | Set bounds on the arena with the deliberate **doorway** | Advisory fires, naming the number of openings. The corner is still set - this is advice, not a refusal. | [ ] |
-| 4.17 | Set bounds on an arena with a solid floor and walls but an **open top** | **No** advisory. An open roof is a valid design and liquid cannot escape upward. | [ ] |
-| 4.18 | Check the **orange structure frame** in a source arena | Same correction applies - it wraps the capture volume rather than sitting a block low. | [ ] |
+| 4.10 | With the box fully sealed (just built, bounds just set per above) | **No** advisory printed - only the corner + size lines. **This is the case your two real open-platform arenas cannot produce**, which is the whole reason this box exists. | [ ] |
+| 4.11 | Punch a single 1-block hole through the middle of one wall, at mid-height | Nothing prints yet - the advisory is computed when a bounds corner is set, not continuously as the world changes. | [ ] |
+| 4.12 | Re-click the **same** corner 2 block (the roof block from step 3 above) to force a recheck | Advisory now fires, naming **1** opening. | [ ] |
+| 4.13 | Patch the hole with a block, re-click corner 2 again | Advisory clears - back to no advisory, matching 4.10. | [ ] |
+| 4.14 | Punch two separate 1-block holes (different walls this time), re-click corner 2 | Advisory names **2** openings. | [ ] |
+| 4.15 | Remove the entire roof, re-click corner 2 | **No** advisory. An open top is a valid design - liquid cannot escape upward, so only side openings are flagged. | [ ] |
 
-### Stage 4b - Legacy arenas (no migration expected)
+### Stage 4c - Legacy arenas *(skip if this doesn't apply to you)*
 
-Bounds corners are now stored block-aligned and compared inclusively. Arenas
-saved before that change must keep working untouched.
+Only relevant if you have an arena whose bounds were set **before** the
+block-aligned bounds work (`a901127` onward) and have never been re-clicked
+since. If every arena you're using was configured recently, there's nothing
+legacy to check - skip straight to 4d.
 
 | # | Action | Expected | |
 |---|---|---|---|
-| 4.19 | Start the server with arenas configured **before** these changes | Load normally. No errors, no bounds warnings. | [ ] |
-| 4.20 | Run a match in one, breaking blocks on the **lowest-X wall**, **lowest-Z wall** and **floor** | All allowed, all restored at match end. This is the face the old raw-coordinate comparison wrongly excluded. | [ ] |
-| 4.21 | Stand hard against the lowest-X wall during a match | **No** spurious out-of-bounds warning, and building there is allowed. | [ ] |
+| 4.16 | Start the server with that arena's old bounds left untouched | Loads normally - no errors, no bounds warnings. | [ ] |
+| 4.17 | Run a match in it, breaking blocks on its lowest-X face, lowest-Z face and floor | All allowed, all restored - this is the face the old raw-coordinate comparison used to wrongly exclude. | [ ] |
 
-### Stage 4c - Template capture regression
+### Stage 4d - Template capture regression (dynamic arena)
+
+Stage 3 already validated that the captured template pastes completely. This
+re-validates the capture *tooling* itself - the corner clicks and the frame.
 
 | # | Action | Expected | |
 |---|---|---|---|
-| 4.22 | Set both structure corners by **clicking blocks**, then capture the template | Succeeds. Reported dimensions match what you built. | [ ] |
-| 4.23 | Right-click a structure corner tool | Teleports to the middle of that corner block. | [ ] |
-| 4.24 | Provision a dynamic arena from that template and play a match in it | Pastes correctly, plays normally, resets correctly. | [ ] |
+| 4.18 | On the dynamic arena's source, set both structure corners by **clicking blocks**, then recapture the template | Succeeds. Reported dimensions match what's actually built. | [ ] |
+| 4.19 | Right-click a structure corner tool | Teleports to the middle of that corner block. | [ ] |
+| 4.20 | Look at the **orange structure frame** on the source | Wraps the capture volume with the same correction as the aqua bounds frame - not sitting a block low. | [ ] |
+| 4.21 | Provision a fresh copy from the recaptured template and play a match in it | Pastes, plays, and resets normally. | [ ] |
 
 ---
 
@@ -209,9 +290,9 @@ A and B are duelling. Every action here should be **cancelled with a message**.
 | # | Action | Expected | |
 |---|---|---|---|
 | 5.1 | A places a block well inside the arena | Succeeds. Removed again when the match ends. | [ ] |
-| 5.2 | A stands inside, aims over the wall, places a block outside | Cancelled. `You can only build inside the arena bounds.` | [ ] |
+| 5.2 | A stands inside, aims past the bounds edge, places a block outside | Cancelled. `You can only build inside the arena bounds.` | [ ] |
 | 5.3 | A spam-clicks that same outside spot for ~10s | At most one message every 2 seconds. | [ ] |
-| 5.4 | A **breaks** one of the marker blocks outside the wall | Cancelled, same message. Marker survives. | [ ] |
+| 5.4 | A **breaks** one of the marker blocks outside the bounds edge | Cancelled, same message. Marker survives. | [ ] |
 | 5.5 | A empties a **lava bucket** outside the bounds | Cancelled, same message. No lava appears. | [ ] |
 | 5.6 | A **fills** a bucket from a source outside the bounds | Cancelled, same message. Source survives. | [ ] |
 | 5.7 | A **flint-and-steels** a block outside the bounds | Cancelled, same message. No fire. | [ ] |
@@ -238,19 +319,25 @@ Physics, not player clicks. **No containment messages should appear at all** -
 these paths cancel events that no player directly triggered, so messaging them
 would spam.
 
+**On an open platform, expect item 6.9 below to happen essentially every time**
+you point lava or water toward the bounds edge, not just as an edge case - since
+there's no wall to visibly stop it against, a cancelled flow can look like it
+simply freezes in mid-air. That's the correct, documented behaviour; don't
+mistake it for a bug.
+
 | # | Action | Expected | |
 |---|---|---|---|
 | 6.1 | TNT detonated in the middle of the arena | Normal crater. **No item drops.** Fully restored at match end. | [ ] |
-| 6.2 | TNT against the inside of a wall, lit **with a redstone torch** | Inside face destroyed; outside markers untouched; wall rebuilt at match end. No message. | [ ] |
-| 6.3 | TNT on the roof, lit by redstone | Roof damaged inside the bounds only; nothing above or outside changes. | [ ] |
-| 6.4 | Lava bucket emptied next to a wall, interior bounds | Flow spreads normally inside and **stops at the boundary**. Nothing outside changes. Arena restored afterwards. | [ ] |
-| 6.5 | Water bucket emptied on the bounds edge | Spreads inward normally. Interior bounds inside a sealed room have no openings, so there is nothing for the guard to veto and the flow behaves as a player expects. | [ ] |
-| 6.6 | Flint and steel on a flammable block inside, near a wall | Fire spreads inside the bounds but **does not cross it**. Nothing outside catches or burns away. | [ ] |
+| 6.2 | TNT at ground level near the bounds edge, lit **with a redstone torch** | Ground destroyed up to the boundary line; markers just outside untouched; the crater is restored at match end. No message. | [ ] |
+| 6.3 | TNT placed against the small building, within the bounds height you set | Damage confined within the bounds box; nothing above the height you set for corner 2 changes. | [ ] |
+| 6.4 | Lava bucket emptied near the bounds edge | Flow spreads normally inside and **stops at the boundary**, even with no wall there to stop it visibly. Nothing outside changes. Arena restored afterwards. | [ ] |
+| 6.5 | Water bucket emptied near the bounds edge | Spreads inward normally and stops at the same line. | [ ] |
+| 6.6 | Flint and steel on a flammable block inside, near the bounds edge | Fire spreads inside the bounds but **does not cross it**. Nothing outside catches or burns away. | [ ] |
 | 6.7 | TNT detonated right **on** the boundary line | Blocks inside destroyed and restored; blocks outside untouched. The blast is trimmed, not cancelled. | [ ] |
 | 6.8 | A long TNT-and-lava fight, ~1 minute | Chat stays clean of containment messages. Arena restored, allowing for the documented `arena-reset-max-tracked-block-changes` ceiling. | [ ] |
-| 6.9 | **Known behaviour, not a failure:** knock a hole through a wall so the bounds have a real opening, then empty lava right beside it | The lava may sit completely still, even with open space inside. Minecraft picks the spread direction before the event fires, so vetoing the escape does not redirect it. Nothing escapes. Closing the opening - or moving the bounds so it falls outside them - resolves it, which is what the Stage 4 advisory tells the admin to do. | [ ] |
+| 6.9 | **Known behaviour, not a failure, and likely by default on an open platform:** empty lava right beside the bounds edge | The lava may sit completely still even though there's open space just past it. Minecraft picks a fluid's spread direction before the event fires, so vetoing the escape does not redirect it. Nothing escapes regardless - if this looks wrong, it isn't. | [ ] |
 | 6.10 | **Sand or gravel floor:** blow a crater under it with TNT inside the bounds, let it settle, then end the match | The rearranged floor is restored to its original arrangement. A falling block is an entity in flight, so neither a break nor a place event fires - this was unrestored before `EntityChangeBlockEvent` was tracked. | [ ] |
-| 6.11 | Hang **item frames with items in them**, a painting and an armour stand on the arena walls, then fight a TNT-and-lava match around them | All survive untouched. No frame breaks, no item pops out, the armour stand is not knocked over, nothing drops. Decoration is entities, so the rollback cannot record it - it is protected instead, exactly as the walls are. | [ ] |
+| 6.11 | Hang **item frames with items in them**, a painting and an armour stand somewhere inside the bounds - the small building's walls work well - then fight a TNT-and-lava match around them | All survive untouched. No frame breaks, no item pops out, the armour stand is not knocked over, nothing drops. Decoration is entities, so the rollback cannot record it - it is protected instead, exactly as walls would be. | [ ] |
 | 6.12 | Punch an item frame inside a live arena as a duellist | Nothing happens - the item stays in the frame. | [ ] |
 | 6.13 | Punch the same item frame with **no match running** | Normal vanilla behaviour: the item pops out. Protection is scoped to a live arena, not permanent. | [ ] |
 
@@ -264,7 +351,7 @@ report it rather than continuing.
 
 | # | Action | Expected | |
 |---|---|---|---|
-| 7.1 | While A and B duel, **C** builds freely right outside the arena wall | Completely unrestricted. No message. | [ ] |
+| 7.1 | While A and B duel, **C** builds freely right outside the bounds edge | Completely unrestricted. No message. | [ ] |
 | 7.2 | C detonates TNT outside the arena, away from any bounds | Normal vanilla explosion, **normal item drops**. | [ ] |
 | 7.3 | C empties a lava bucket outside the arena and lets it flow | Flows normally. Not cancelled at any boundary. | [ ] |
 | 7.4 | C builds / breaks / TNTs far away with **no match running at all** | Entirely normal. | [ ] |
