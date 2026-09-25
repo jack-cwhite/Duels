@@ -5,6 +5,7 @@ import me.jackcw.duels.challenge.ChallengeExpiryHandler;
 import me.jackcw.duels.challenge.ChallengeManager;
 import me.jackcw.duels.commands.DuelCommand;
 import me.jackcw.duels.commands.DuelsCommand;
+import me.jackcw.duels.diagnostics.DuelsDiagnostics;
 import me.jackcw.duels.kit.Kit;
 import me.jackcw.duels.kit.KitManager;
 import me.jackcw.duels.kit.KitSerializer;
@@ -59,6 +60,7 @@ public class Duels extends JavaPlugin
     private DynamicArenaRecovery dynamicArenaRecovery;
     private ArenaEditManager arenaEditManager;
     private BoundaryEnforcer boundaryEnforcer;
+    private DuelsDiagnostics diagnostics;
     private BlockChangeRollbackStrategy arenaResetStrategy;
     private KitManager kitManager;
     private ChallengeManager challengeManager;
@@ -180,6 +182,11 @@ public class Duels extends JavaPlugin
     public BoundaryEnforcer getBoundaryEnforcer()
     {
         return boundaryEnforcer;
+    }
+
+    public DuelsDiagnostics getDiagnostics()
+    {
+        return diagnostics;
     }
 
     public ArenaResetStrategy getArenaResetStrategy()
@@ -477,6 +484,9 @@ public class Duels extends JavaPlugin
         spectatorManager = new SpectatorManager(this, jCore.files().yaml("spectators.yml"));
         boundaryEnforcer = new BoundaryEnforcer(this);
         arenaResetStrategy = new BlockChangeRollbackStrategy(this);
+
+        // Last: it reads every manager above it and owns none of them.
+        diagnostics = new DuelsDiagnostics(this);
 
         arenaManager.setHasInstancesCheck(arenaInstanceManager::hasInstances);
         arenaInstanceManager.setActiveCheck(arenaAllocator::isAllocated);

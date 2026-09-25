@@ -46,6 +46,17 @@ public final class ArenaEditManager
         return sessions;
     }
 
+    /**
+     * Temporary per-admin structure-corner drafts. They are deliberately not
+     * persisted and are cleared on disconnect or when another instance is
+     * selected, so a surviving draft is a leak - which is what
+     * {@code /duels diagnostics} reports this for.
+     */
+    public int getCaptureDraftCount()
+    {
+        return captureDrafts.size();
+    }
+
     private final Map<UUID, ArenaEditSession> sessions = new HashMap<>();
     private final Map<UUID, CaptureDraft> captureDrafts = new HashMap<>();
 

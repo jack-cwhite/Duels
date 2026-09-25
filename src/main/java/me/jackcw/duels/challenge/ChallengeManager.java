@@ -101,6 +101,16 @@ public final class ChallengeManager
         return challenge;
     }
 
+    /**
+     * Every challenge still pending, across all players. Reported by
+     * {@code /duels diagnostics}, where a challenge outliving its expiry task or
+     * the match it started is the leak worth catching.
+     */
+    public int getChallengeCount()
+    {
+        return challenges.size();
+    }
+
     public List<Challenge> getChallenges(UUID uuid)
     {
         List<Challenge> involving = new ArrayList<>();

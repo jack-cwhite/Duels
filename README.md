@@ -38,6 +38,7 @@ See `plugin.yml` for the full list with descriptions. One thing worth knowing if
 - `/duel top` - view the leaderboard.
 - `/duels` - open the admin menu (arenas, kits).
 - `/duels arena create|delete|list|setspawn` and `/duels kit create|delete|list` - command equivalents of the admin menu. Creating a kit and setting arena spawns require a player; list and delete can be used from the console.
+- `/duels diagnostics` - show Duels' live internal state: running matches, countdowns, spectator and edit sessions, pending players and challenges, rollback bookkeeping, scheduled tasks, and the entities standing inside each arena's bounds. `/duels diagnostics baseline` remembers the current numbers and `/duels diagnostics compare` shows only what has changed since - which is the quick way to tell whether a flow left something behind, because a clean flow prints nothing. Works from the console.
 
 ## How a duel plays out
 

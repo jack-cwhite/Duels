@@ -17,6 +17,7 @@ import me.jackcw.duels.arena.ArenaBoundsValidator;
 import me.jackcw.duels.arena.BlockBox;
 import me.jackcw.duels.challenge.Challenge;
 import me.jackcw.duels.kit.Kit;
+import me.jackcw.duels.diagnostics.DuelsDiagnostics;
 import me.jackcw.duels.match.Match;
 import me.jackcw.duels.match.MatchResult;
 import me.jackcw.duels.match.MatchState;
@@ -937,6 +938,47 @@ class DuelsIntegrationTest
         charlie.setGameMode(GameMode.CREATIVE);
         plugin.getSpectatorManager().restoreOnJoin(charlie);
         assertEquals(GameMode.CREATIVE, charlie.getGameMode());
+    }
+
+    /**
+     * The counts {@code /duels diagnostics} reports have to come back to where
+     * they started once a duel is over, because that is the whole basis on which
+     * an administrator uses the command to judge whether something leaked. If a
+     * count legitimately drifts across a clean match, every real leak it would
+     * otherwise catch gets dismissed as normal drift.
+     *
+     * <p>Comparing whole snapshots rather than picked fields is deliberate: a
+     * field added later is then covered by this test automatically, which is the
+     * case most likely to introduce exactly this kind of drift.
+     */
+    @Test
+    void diagnosticsCountsReturnToTheirBaselineAfterACleanMatch()
+    {
+        WorldMock world = server.addSimpleWorld("diagnostics_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        createReadyInstance(arena, world);
+        plugin.getKitManager().createKit("Warrior");
+
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+
+        DuelsDiagnostics diagnostics = plugin.getDiagnostics();
+        DuelsDiagnostics.Snapshot baseline = diagnostics.snapshot();
+
+        assertEquals(0, baseline.matches());
+
+        Match match = startInProgressMatch(alice, bob);
+
+        DuelsDiagnostics.Snapshot during = diagnostics.snapshot();
+
+        assertEquals(1, during.matches());
+        assertFalse(diagnostics.compare(baseline, during).isEmpty());
+
+        plugin.getMatchManager().endMatch(match, alice.getUniqueId());
+        server.getScheduler().performTicks(5L);
+
+        assertEquals(baseline, diagnostics.snapshot());
+        assertEquals(List.of(), diagnostics.compare(baseline, diagnostics.snapshot()));
     }
 
     private Match startSpectatableMatch(String worldName, String arenaName)

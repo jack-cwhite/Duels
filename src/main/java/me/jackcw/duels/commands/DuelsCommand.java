@@ -18,6 +18,7 @@ import me.jackcw.duels.arena.ArenaTemplateStatus;
 import me.jackcw.duels.arena.DynamicArenaProvisioner;
 import me.jackcw.duels.arena.DynamicArenaState;
 import me.jackcw.duels.arena.BoundaryMode;
+import me.jackcw.duels.diagnostics.DuelsDiagnostics;
 import me.jackcw.duels.kit.Kit;
 import me.jackcw.duels.kit.KitManager;
 import me.jackcw.duels.menu.admin.AdminMainMenu;
@@ -36,14 +37,19 @@ import me.jackcw.jcore.command.CommandNode;
 import me.jackcw.jcore.menu.MenuManager;
 import me.jackcw.jcore.message.MessageManager;
 import me.jackcw.jcore.message.CoreMessage;
+import me.jackcw.jcore.util.StringUtil;
 import org.bukkit.Material;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.List;
+import java.util.UUID;
 
 public final class DuelsCommand
 {
+    private static final UUID CONSOLE_BASELINE_KEY = new UUID(0L, 0L);
+
     private final ArenaManager arenaManager;
     private final ArenaInstanceManager arenaInstanceManager;
     private final ArenaEditManager arenaEditManager;
@@ -60,6 +66,7 @@ public final class DuelsCommand
     private final KitListMenu kitListMenu;
     private final KitDetailMenu kitDetailMenu;
     private final KitEditMenu kitEditMenu;
+    private final DuelsDiagnostics diagnostics;
 
     public DuelsCommand(Duels plugin)
     {
@@ -79,6 +86,7 @@ public final class DuelsCommand
         this.kitListMenu = plugin.getKitListMenu();
         this.kitDetailMenu = plugin.getKitDetailMenu();
         this.kitEditMenu = plugin.getKitEditMenu();
+        this.diagnostics = plugin.getDiagnostics();
     }
 
     public CommandNode build()
@@ -339,7 +347,79 @@ public final class DuelsCommand
                                                 .playerOnly()
                                                 .argument("id", ArgumentTypes.integer())
                                                 .executes(this::editKit)))
+                .child(
+                        CommandBuilder.command("diagnostics")
+                                .description("Show Duels' live internal state, or compare it against a baseline")
+                                .usage("/duels diagnostics [baseline|compare]")
+                                .permission("duels.admin.diagnostics")
+                                .alias("diag")
+                                .executes(this::showDiagnostics)
+                                .child(
+                                        CommandBuilder.command("baseline")
+                                                .description("Remember the current state to compare against later")
+                                                .usage("/duels diagnostics baseline")
+                                                .permission("duels.admin.diagnostics")
+                                                .executes(this::saveDiagnosticsBaseline))
+                                .child(
+                                        CommandBuilder.command("compare")
+                                                .description("Show what has changed since your baseline")
+                                                .usage("/duels diagnostics compare")
+                                                .permission("duels.admin.diagnostics")
+                                                .executes(this::compareDiagnostics)))
                 .build();
+    }
+
+    private void showDiagnostics(CommandContext context)
+    {
+        sendLines(context.getSender(), diagnostics.describe(diagnostics.snapshot()));
+    }
+
+    private void saveDiagnosticsBaseline(CommandContext context)
+    {
+        diagnostics.saveBaseline(baselineKey(context.getSender()), diagnostics.snapshot());
+        messageManager.send(context.getSender(), Message.DIAGNOSTICS_BASELINE_SAVED);
+    }
+
+    private void compareDiagnostics(CommandContext context)
+    {
+        DuelsDiagnostics.Snapshot baseline = diagnostics.getBaseline(baselineKey(context.getSender()));
+
+        if (baseline == null)
+        {
+            messageManager.send(context.getSender(), Message.DIAGNOSTICS_NO_BASELINE);
+            return;
+        }
+
+        List<String> changes = diagnostics.compare(baseline, diagnostics.snapshot());
+
+        if (changes.isEmpty())
+        {
+            messageManager.send(context.getSender(), Message.DIAGNOSTICS_NO_CHANGES);
+            return;
+        }
+
+        messageManager.send(context.getSender(), Message.DIAGNOSTICS_CHANGES_HEADER);
+        sendLines(context.getSender(), changes);
+    }
+
+    /**
+     * Baselines are keyed by player, so the console needs a key of its own. A
+     * fixed UUID is enough: there is only ever one console.
+     */
+    private static UUID baselineKey(CommandSender sender)
+    {
+        return sender instanceof Player player ? player.getUniqueId() : CONSOLE_BASELINE_KEY;
+    }
+
+    /**
+     * Sent as coloured raw lines rather than through message keys, because the
+     * report is a table of numbers rather than copy - see {@link DuelsDiagnostics}
+     * for why it is not in {@code messages.yml}.
+     */
+    private static void sendLines(CommandSender sender, List<String> lines)
+    {
+        for (String line : lines)
+            sender.sendMessage(StringUtil.color(line));
     }
 
     private void openMenuOrHelp(CommandContext context)

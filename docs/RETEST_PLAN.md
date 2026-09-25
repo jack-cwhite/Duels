@@ -967,26 +967,50 @@ Delete any existing `database.db` first so the migration runs from scratch.
 The existing item was inferred from nothing going visibly wrong. This asks for
 an actual before-and-after count.
 
-Use `/minecraft:data get entity @e` sparingly; the practical tool is a plugin
-or `/execute` count. Simplest reliable approach: stand outside the arena and
-run a targeted count before and after.
+`/duels diagnostics` exists for exactly this. It reports live matches,
+countdowns, pending players, pending respawn restores, pending challenges,
+spectator sessions, edit sessions, capture drafts, boundary-tracked players,
+rollback state, scheduled plugin tasks, and the entities standing inside every
+arena's bounds grouped by projectiles, dropped items, effect clouds and primed
+TNT. Players are excluded from the entity counts, so a duellist standing in the
+arena does not move them.
 
-- [ ] Note the entity count in the arena before a match. Fight a duel using
-  **bows and splash potions** so projectiles and effect clouds are in play, kill
-  the loser, and confirm the count returns to its pre-match value once the match
-  ends. No arrows stuck in blocks, no lingering clouds, no dropped items.
+The pair that makes this practical:
+
+- `/duels diagnostics baseline` before the flow you are testing.
+- `/duels diagnostics compare` after it has finished.
+
+A clean flow prints "Nothing changed since your baseline". **Anything printed at
+all is a finding** - unchanged rows are omitted specifically so that the output
+is empty when everything cleaned up. Do not hand-count anything; if a row
+appears, `/duels diagnostics` on its own shows the full table plus which
+matches and instances are involved.
+
+Take a fresh baseline before each item below, since each leaves the server in a
+slightly different state.
+
+- [ ] Baseline, then fight a duel using **bows and splash potions** so
+  projectiles and effect clouds are in play, kill the loser, and compare. No
+  arrows stuck in blocks, no lingering clouds, no dropped items, and no pending
+  players.
 - [ ] Repeat with a **spectator** attached, who leaves via `/duel leave`. Their
-  session ends and nothing of theirs survives.
+  session ends and the comparison is clean.
 - [ ] Repeat with a spectator who **disconnects instead of leaving**. Their saved
   row is kept deliberately so they are restored on next join - confirm they are,
-  and that nothing else lingers.
+  and that nothing else lingers. Note that the spectator-session count is
+  expected to be back at its baseline here: the surviving row is on disk, not a
+  live session.
 - [ ] Quit during the **kit selection** countdown, and separately during the
-  **grace** countdown. In both cases the countdown task stops, the arena is
-  released, and the quitter takes the loss.
-- [ ] Leave an **edit session** open, then disconnect. The session does not
-  survive the disconnect, and the arena is not left locked as in-use.
-- [ ] After all of the above, `/duels` reports every arena free and no pending
-  players.
+  **grace** countdown. In both cases the compare is clean - in particular
+  "Live countdowns" and "Scheduled plugin tasks" return to baseline, which is
+  the part that was previously impossible to check - the arena is released, and
+  the quitter takes the loss.
+- [ ] Leave an **edit session** open, then disconnect. The compare shows edit
+  sessions and capture drafts back at baseline, and the arena is not left locked
+  as in-use.
+- [ ] After all of the above, `/duels diagnostics` reports zero live matches,
+  zero pending players and zero tracked block changes, and `/duels` reports
+  every arena free.
 
 ### D3. Structure capture size
 

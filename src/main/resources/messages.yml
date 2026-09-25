@@ -66,6 +66,10 @@ admin:
   kit-icon-empty-hand: '&cHold the item you want as this kit''s icon first'
   no-kits: '&cThere are no kits set up yet. Use /duels kit create <name> to make one'
   kit-list-entry: '&e#{id} {name}'
+  diagnostics-baseline-saved: '&7Diagnostics baseline saved. Run &e/duels diagnostics compare &7after the flow you are testing has finished.'
+  diagnostics-no-baseline: '&cNo baseline saved yet. Run &e/duels diagnostics baseline &cfirst.'
+  diagnostics-no-changes: '&aNothing changed since your baseline - no leaked state.'
+  diagnostics-changes-header: '&eChanges since your baseline:'
   help:
     - '&e/duels arena [id] &7- open arena management or a specific arena'
     - '&e/duels arena create <name> [STATIC|DYNAMIC] &7- choose type before setup'

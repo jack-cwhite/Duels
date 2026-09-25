@@ -206,6 +206,36 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
     }
 
     /**
+     * How many instances currently hold recorded block changes, and how many
+     * blocks that is in total.
+     *
+     * <p>Reported by {@code /duels diagnostics}. A deque left behind for an
+     * instance with no live match means a reset was missed and the next match in
+     * that arena will restore the wrong blocks, which is invisible until it
+     * happens. The total also shows how close a long match is getting to
+     * {@code arena-reset-max-tracked-block-changes}.
+     */
+    public int getTrackedInstanceCount()
+    {
+        return changesByInstanceId.size();
+    }
+
+    public int getTrackedChangeCount()
+    {
+        int total = 0;
+
+        for (Deque<BlockState> changes : changesByInstanceId.values())
+            total += changes.size();
+
+        return total;
+    }
+
+    public int getResettingInstanceCount()
+    {
+        return resettingInstanceIds.size();
+    }
+
+    /**
      * Rolls the arena back, but not until the tick after it is asked to.
      *
      * <p>The delay exists because a match can end <em>during</em> the very

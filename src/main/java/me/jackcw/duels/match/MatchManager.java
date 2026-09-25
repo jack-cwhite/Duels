@@ -258,6 +258,21 @@ public final class MatchManager
         releaseArena(match);
     }
 
+    /**
+     * Players reserved for a match that is still being prepared. Exposed as a
+     * count for {@code /duels diagnostics}: a reservation surviving a finished
+     * or failed match start is a leak, and there is otherwise no way to see one.
+     */
+    public int getPendingPlayerCount()
+    {
+        return pendingPlayers.size();
+    }
+
+    public int getPendingRespawnRestoreCount()
+    {
+        return pendingRespawnRestores.size();
+    }
+
     public Match getMatch(UUID uuid)
     {
         return matches.get(uuid);

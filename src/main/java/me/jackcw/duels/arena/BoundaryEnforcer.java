@@ -15,7 +15,9 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -107,6 +109,19 @@ public final class BoundaryEnforcer
     {
         clearOutOfBounds(uuid);
         lastInBoundsLocation.remove(uuid);
+    }
+
+    /**
+     * How many players this enforcer is still remembering. Both maps are keyed
+     * by player and are only meant to hold entries for duellists currently in a
+     * match, so a non-zero count with no live match is a leak.
+     */
+    public int getTrackedPlayerCount()
+    {
+        Set<UUID> tracked = new HashSet<>(outOfBoundsSince.keySet());
+        tracked.addAll(lastInBoundsLocation.keySet());
+
+        return tracked.size();
     }
 
     public void shutdown()
