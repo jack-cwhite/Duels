@@ -37,12 +37,12 @@ The codebase is a release candidate. Automated tests and packaging pass. A real 
 
 ## Known boundaries
 
-- Duels does not define physical arena regions. It prevents combat interference, but another protection or world-management system must stop outsiders entering, placing blocks, or teleporting into an arena.
+- Duels defines arena bounds and contains a duel to them: a duellist cannot break or place outside the box, explosions and fire/liquid spread are trimmed at it, and changes inside it are rolled back at match end. It still does not stop *outsiders* entering an arena or teleporting into one, so a protection or world-management system is still wanted for that.
 - YAML stats rewrite a growing file and are intended for small installations. SQLite or an external SQL server is the better long-term choice.
 - SQL write failures are logged and do not block match cleanup. There is no durable retry queue, so a result can be lost while the database is unavailable.
 - Arena and kit definitions remain YAML-backed even when match statistics use SQL.
 - Existing installations created before monotonic ID metadata cannot reconstruct IDs that were already deleted. From this release onward IDs are not reused.
-- External database behavior still needs real-engine acceptance tests; SQLite unit tests cannot substitute for MySQL, MariaDB, and PostgreSQL.
+- External database behavior still needs real-engine acceptance tests. The in-game SQLite pass is covered by Part D of `docs/RETEST_PLAN.md`; MySQL, MariaDB and PostgreSQL each need their own pass before release, since the dialect-specific SQL is where they differ. SQLite unit tests cannot substitute for them.
 
 ## Automated verification
 

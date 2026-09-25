@@ -925,3 +925,89 @@ Outcome of that run below.
   of the environmental-death item are therefore signed off.
   Retest: confirm a duellist no longer heals passively, and that a kit-provided
   regeneration effect still does heal.
+
+## Part D: Phase 4B closeout
+
+The three residuals that hold Phase 4B open. All verification, no build work.
+Once these pass, 4B flips to `[x]` in `docs/ROADMAP.md`.
+
+### D1. The SQL stats path, on SQLite
+
+B10 marked this `BLOCKED` on the grounds that no external MySQL was available.
+That was the wrong conclusion: the shipped default is `stats-storage: SQL` with
+`database.yml` `type: SQLITE`, which needs no database server at all. So this
+is testable as-is, and it matters more than the rest of Part D - Phase 5 is
+entirely SQL query work, and the repository underneath it has never once
+executed against a real database.
+
+Set `stats-storage: SQL` in `config.yml` and leave `database.yml` on `SQLITE`.
+Delete any existing `database.db` first so the migration runs from scratch.
+
+- [ ] Server starts clean. The console shows the migration applying, and
+  `plugins/Duels/database.db` appears. No SQL exceptions anywhere in the log.
+- [ ] Restart the server with the database already present. The migration is
+  recognised as applied and does not run twice; startup is still clean.
+- [ ] Play one duel to a normal death. `/duel top` shows the winner with one
+  win. The value is correct **immediately** - a stale zero here means the
+  read-after-write ordering in `StatsManager` has regressed.
+- [ ] Play a duel ending by **disconnect**. The quitter takes the loss and the
+  opponent takes the win, same as a death.
+- [ ] Inspect the tables directly (any SQLite browser, or `sqlite3`):
+  `duels_matches` has one row per match with a sane `arena_id`, `winner_id` and
+  `ended_at`; `duels_match_participants` has exactly two rows per match with the
+  right `player_id`, `kit_id` and `won` flag.
+- [ ] Play a duel in a **dynamic** arena and confirm its `arena_id` is the
+  template's arena id, not a per-copy instance id. Stats are per arena, not per
+  generated copy, and this is the only place that distinction is visible.
+- [ ] Stop the server with `stop` mid-session. Hikari shuts the pool down
+  cleanly, with no "pool suspended" or scheduler warnings.
+
+### D2. Post-flow cleanup, measured rather than assumed
+
+The existing item was inferred from nothing going visibly wrong. This asks for
+an actual before-and-after count.
+
+Use `/minecraft:data get entity @e` sparingly; the practical tool is a plugin
+or `/execute` count. Simplest reliable approach: stand outside the arena and
+run a targeted count before and after.
+
+- [ ] Note the entity count in the arena before a match. Fight a duel using
+  **bows and splash potions** so projectiles and effect clouds are in play, kill
+  the loser, and confirm the count returns to its pre-match value once the match
+  ends. No arrows stuck in blocks, no lingering clouds, no dropped items.
+- [ ] Repeat with a **spectator** attached, who leaves via `/duel leave`. Their
+  session ends and nothing of theirs survives.
+- [ ] Repeat with a spectator who **disconnects instead of leaving**. Their saved
+  row is kept deliberately so they are restored on next join - confirm they are,
+  and that nothing else lingers.
+- [ ] Quit during the **kit selection** countdown, and separately during the
+  **grace** countdown. In both cases the countdown task stops, the arena is
+  released, and the quitter takes the loss.
+- [ ] Leave an **edit session** open, then disconnect. The session does not
+  survive the disconnect, and the arena is not left locked as in-use.
+- [ ] After all of the above, `/duels` reports every arena free and no pending
+  players.
+
+### D3. Structure capture size
+
+Fixed in code, never re-verified on the target Paper build.
+
+- [ ] Capture a template whose structure corners are deliberately **larger than
+  the gameplay bounds** - include the walls and some surrounding ground.
+- [ ] Provision a copy and compare it against the source build block for block.
+  The full captured volume is pasted, not a volume trimmed to the gameplay
+  bounds.
+- [ ] Confirm the reported capture size matches the corners you clicked, in the
+  same way the bounds frame now matches its reported size.
+- [ ] Provision several copies and confirm no two overlap and none sits partly
+  outside its grid slot.
+
+### D4. Sign-off
+
+- [ ] D1, D2 and D3 all pass on the target Paper build.
+- [ ] `docs/ROADMAP.md` Phase 4B flipped from `[~]` to `[x]`, and the
+  "Remaining before 4B sign-off" section removed.
+- [ ] A MySQL/MariaDB pass is recorded as outstanding release-readiness work in
+  `docs/RELEASE_REVIEW.md`. Deliberately not a 4B blocker: SQLite covers the
+  repository logic and is what a small server runs, but the dialect-specific SQL
+  is a distinct risk that needs its own pass before release.

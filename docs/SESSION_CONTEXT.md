@@ -1,6 +1,6 @@
 # Duels Current Session Context
 
-_Last verified: 2026-09-21_
+_Last verified: 2026-09-25_
 
 This file is the compact handoff for a new development session. Read it before
 starting work, then inspect the relevant source files before changing code.
@@ -8,14 +8,21 @@ starting work, then inspect the relevant source files before changing code.
 ## Current state
 
 Duels V1 is complete, tested, and manually verified on a real Paper server.
-Phase 4B is implemented but needs a fresh real-Paper pass after the exclusive
-STATIC/DYNAMIC setup redesign before sign-off.
+Phases 0-4 and 11 are done. Arena containment and bounds - the follow-up work
+under Phases 2 and 3B - is complete and committed, awaiting one in-game pass
+against `docs/CONTAINMENT_TEST_PLAN.md`.
 
-Verification at the last handoff:
+Phase 4B is fully implemented and its manual acceptance suite has been run and
+signed off (`docs/RETEST_PLAN.md`, section B10). It is held open only by three
+verification residuals listed under "Remaining before 4B sign-off" in
+`docs/ROADMAP.md`, the most important being that the SQL stats path has never
+been exercised in game. Per-instance *worlds* for dynamic arenas are a separate
+deferred idea, not a 4B blocker.
 
-- `mvn -o test`: 43 tests passed, 0 failures, 0 errors, 0 skipped.
-- `mvn -o package`: passed and copied the shaded jar to the configured test
-  server plugins folder. Target-Paper acceptance remains to be checked.
+Verification at this handoff:
+
+- `mvn -o test`: 62 tests passed, 0 failures, 0 errors, 0 skipped.
+- `mvn -o -q package -DskipTests`: clean.
 - Manual in-game testing passed for arena management, matches, kits, bounds,
   instancing, rollback, spectators, GUI/command parity, and advancements.
 
@@ -45,9 +52,11 @@ Verification at the last handoff:
 
 - Selected-arena challenges have both command and player GUI paths. Dynamic
   admin setup has GUI controls for source, capture corners/template, health,
-  retry, and retirement; real-Paper validation is still pending.
-- Dynamic capture/provisioning/recovery is implemented but still requires the
-  complete real-Paper run in `docs/IN_GAME_TEST_PLAN.md` before sign-off.
+  retry, and retirement, all exercised in the signed-off acceptance run.
+- Dynamic capture/provisioning/recovery is implemented and signed off except for
+  the three residuals in Part D of `docs/RETEST_PLAN.md`: the in-game SQLite
+  stats pass, a measured post-flow cleanup check, and a structure-capture-size
+  retest.
 - The baseline reset is block-change rollback. The optional WorldEdit/FAWE
   schematic reset path is not implemented.
 - There is no matchmaking queue, ranked/MMR system, Vault reward integration,
@@ -60,83 +69,81 @@ Verification at the last handoff:
 The matchmaking/rewards/rating/network items are later scope decisions, not
 unfinished V1 defects.
 
-## Next development target: V2 Phase 4B
+## Next development target: close Phase 4B, then Phase 5
 
-The next implementation phase is **Dynamic Arena Provisioning**, including
-player/admin arena selection. The desired flow is:
+Phase 4B is built. What remains is verification, in this order, agreed with Jack:
 
-1. A player or queue chooses an arena template/theme such as Desert or Castle.
-2. STATIC uses a free hand-built playable copy. DYNAMIC uses a free generated
-   copy or provisions a new one in a dedicated void-world slot.
-3. A DYNAMIC source is only the build reference; it never hosts a duel.
-4. The resulting copy becomes a normal `ArenaInstance`, so existing match,
-   bounds, spectator, and reset systems continue to work.
+1. **Run Part D of `docs/RETEST_PLAN.md`** to close 4B. The three residuals are
+   the in-game SQL/SQLite stats pass, a measured post-flow cleanup check, and a
+   structure-capture-size retest. Item D1 comes first because Phase 5 is entirely
+   SQL query work and `SqlStatsRepository` has never executed against a real
+   database - the earlier `BLOCKED` note assumed an external MySQL was needed,
+   but the shipped default is `SQL` + `SQLITE`, which needs no server.
+2. **Run `docs/CONTAINMENT_TEST_PLAN.md`** for the arena containment work.
+3. **Then Phase 5, Deeper Statistics & Tracking.** Design agreed; see below.
 
-The design must support both modes:
+A MySQL/MariaDB/PostgreSQL pass is deliberately release-readiness work rather
+than a 4B blocker, recorded in `docs/RELEASE_REVIEW.md`.
 
-- **Static mode:** small/friends servers manually build a finite number of
-  copies; no dynamic infrastructure is required.
-- **Dynamic mode:** larger servers build one source, capture it and provision
-  playable copies on demand.
+### Phase 5 design decisions already made with Jack
 
-The baseline should use Paper/vanilla Structure APIs rather than requiring
-WorldEdit/FAWE. WorldEdit/FAWE may be an optional integration later. Whole
-world-per-match generation is not the baseline because of blocking world I/O,
-memory cost, and the fact that it does not remove the capacity limit of one
-server.
+These are settled - implement against them rather than reopening them.
 
-Phase 4B core implementation is now present. Admins capture a Paper NBT template from
-separate edit-session structure corners; template spawns and gameplay bounds are saved
-as offsets. A dynamic arena reuses a free generated copy first, otherwise
-reserves a persisted grid slot in a lazy Duels void world, prepares chunks, pastes the
-template, and publishes a normal provisioned `ArenaInstance`.
+- **One query object, not more repository methods.** The filters Jack wants are a
+  product of arena x kit x opponent x time window, so `StatsQuery` carries the
+  optional filters and `PlayerStats` carries the result. The SQL side builds a
+  `WHERE` clause from the non-null fields; the YAML side filters the in-memory
+  list with the same predicate, so the two backends cannot drift in what a filter
+  *means*. Jack explicitly wants deep, combinable queries ("kds of players on a
+  specific arena using specific kits") even where a combination is niche, on the
+  grounds that the data is already there.
+- **Streaks are computed from ordered history per query, not stored.** A stored
+  counter is a second source of truth that desyncs the first time a write fails.
+- **Migration 2 is `ALTER TABLE ADD COLUMN` only** - `started_at`, `end_reason`,
+  and indexes on `arena_id` and `(player_id, kit_id)`. All four dialects spell
+  that identically. `winner_id` stays `NOT NULL`: no code path ends a match
+  without a winner, and dropping a `NOT NULL` on SQLite means a table rebuild.
+- **A disconnect is always a loss**, at any point in a match the player willingly
+  entered, including during kit selection before any kit is applied. This is
+  Jack's explicit decision and matches current behaviour, so no rule changes -
+  `end_reason = DISCONNECT` exists so a profile can read "Losses: 42 (7 by
+  disconnect)" for visibility, not to change the outcome. Nothing punitive is
+  being built until there are real numbers to calibrate against.
+- **Match records are kept forever.** No pruning, no retention config.
+- **Filters are presented as menu buttons**, not command syntax: `/duel stats
+  [player]` opens a profile showing matches, wins, losses, K/D, win rate, current
+  and best streak and disconnect count, with kit and arena filter buttons that
+  drill into any combination, and head-to-head shown when viewing another player.
+  `/duel top` gains sort categories with a minimum-matches floor on win rate.
+  Both keep the reserved bottom row per Jack's menu convention.
+
+Implementation order: migration 2 and `MatchEndReason` threaded through
+`endMatch`; then `StatsQuery`/`PlayerStats` and both repositories with tests
+asserting SQL and YAML agree; then `StatsManager` wiring, which already orders
+reads behind writes so filtered reads inherit that; then the profile menu; then
+`/duel top` sorting; then docs.
+
+### How Phase 4B works, for context
+
+Admins capture a Paper NBT template from separate edit-session structure corners;
+template spawns and gameplay bounds are saved as offsets. A dynamic arena reuses
+a free generated copy first, otherwise reserves a persisted grid slot in a lazy
+Duels void world, prepares chunks, pastes the template, and publishes a normal
+provisioned `ArenaInstance`. STATIC uses only hand-built playable copies; DYNAMIC
+uses one non-playable source build plus generated copies.
 
 Allocation and match start are asynchronous: `MatchManager` owns a pending-player
-reservation and does not mutate either player until provisioning succeeds. Challenges
-carry either Any or a specific arena selection (`/duel challenge <player> <arenaId>`) and
-are claimed during preparation rather than consumed early. Provisioned instances persist
-health states and startup rebuilds interrupted/dirty copies; retirement is bounded and
-failed copies can be retried.
-
-The remaining Phase 4B work is target-Paper manual verification (capture,
-paste, capacity, shutdown/restart, spectator and reset paths), followed by a focused
-hardening review. See `docs/PHASE_4B_DESIGN.md` and `docs/ROADMAP.md`.
-
-The latest GUI/setup change from Jack's in-game review:
-
-- The creation GUI chooses STATIC/DYNAMIC before naming. STATIC screens show
-  hand-built playable copies and no structure controls. DYNAMIC screens show
-  one source, template capture, and generated copies. Gameplay bounds support
-  confinement/rollback; structure corners belong only to the source.
-- Capture corners are temporary per-admin/per-instance drafts shared between the
-  GUI and edit tools, kept on leaving edit mode but cleared at disconnect or when
-  another instance is selected. They are never persisted as arena configuration.
-- Orange structure preview is independent of gameplay bounds. The GUI now captures
-  templates and guards generated-copy retirement. `/duel select <player>` exposes
-  the selected-arena challenge flow to players without requiring IDs.
-- The acceptance suite is ordered by in-game flow. All checks are open for a
-  fresh pass on this build.
-
-Current follow-up from Jack's next real-Paper test:
-
-- Capturing arena #2 from instance #3 exposed Paper's two-corner `Structure.fill`
-  saving one fewer block on every axis than our inclusive metadata. Capture now
-  calls the explicit origin-and-size overload; the regression test checks a
-  reversed inclusive 3x4x5 selection. Recheck on the target Paper server.
-- Bundled arena detail reserves a third Back row; instance detail spreads
-  controls across three content rows and a fourth Back row; the kit editor
-  moves Save above its Back row. Untouched legacy layouts are migrated on
-  startup; custom slot layouts remain intact.
-- The hybrid allocator and GUI were replaced by exclusive per-arena flows.
-  Existing one-copy STATIC arenas have guarded explicit conversion (preserving
-  setup), and old one-manual-copy DYNAMIC arenas migrate their source at
-  startup. Multi-copy legacy DYNAMIC arenas require explicit source adoption;
-  no manual copy is accidentally matched.
+reservation and does not mutate either player until provisioning succeeds.
+Challenges carry either Any or a specific arena selection (`/duel challenge
+<player> <arenaId>`) and are claimed during preparation rather than consumed
+early. Provisioned instances persist health states, startup rebuilds
+interrupted/dirty copies, retirement is bounded, and failed copies can be
+retried. See `docs/PHASE_4B_DESIGN.md` and `docs/ROADMAP.md`.
 
 ## Recommended V2 order
 
-1. Phase 4B: arena selection and dynamic provisioning, while preserving static
-   mode.
+1. Phase 4B: close out the three verification residuals (Part D of
+   `docs/RETEST_PLAN.md`). Implementation is done.
 2. Phase 5: deeper statistics and tracking.
 3. Phase 6: Vault integration and durable, idempotent rewards.
 4. Phase 7: local matchmaking queues.
@@ -190,7 +197,10 @@ Duels until a second real plugin creates a proven reusable need.
 - Detailed phase status and dependencies: `docs/ROADMAP.md`
 - Architectural reasoning and ownership rules: `docs/ARCHITECTURE.md`
 - Full manual V1 test suite: `docs/V1_TEST_PLAN.md`
-- Current complete V1 + Phase 4B in-game acceptance suite:
-  `docs/IN_GAME_TEST_PLAN.md`
-- Focused regression/retest checklist: `docs/RETEST.md`
+- Current V1 + Phase 4B in-game acceptance suite, including the Part D closeout
+  items: `docs/RETEST_PLAN.md`. The older `IN_GAME_TEST_PLAN.md` it superseded has
+  been removed.
+- Arena containment and bounds in-game suite: `docs/CONTAINMENT_TEST_PLAN.md`
+- Earlier focused regression/retest checklist, all passed: `docs/RETEST.md`
+- Release-readiness gaps and known boundaries: `docs/RELEASE_REVIEW.md`
 - Learning notes: `docs/LEARNING.md` and `docs/JAVA_CONCEPTS_AND_JCORE.md`

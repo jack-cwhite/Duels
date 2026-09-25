@@ -30,7 +30,7 @@ selects one using `source adopt` and resolves the others deliberately.
 The type cannot be casually toggled after instances/templates exist. Dynamic
 template recapture/clear requires retiring generated copies first. The one
 source cannot be deleted while its template or generated copies still exist.
-`docs/IN_GAME_TEST_PLAN.md` is the current acceptance route; the hybrid
+`docs/RETEST_PLAN.md` is the current acceptance route; the hybrid
 scenarios later in this historical design are not test instructions.
 
 ## Purpose
