@@ -93,9 +93,9 @@ public final class SqlStatsRepository implements StatsRepository
     }
 
     @Override
-    public void recordMatch(int arenaId, UUID player1Id, UUID player2Id, UUID winnerId, Integer kitId1, Integer kitId2, long endedAt)
+    public CompletableFuture<Void> recordMatch(int arenaId, UUID player1Id, UUID player2Id, UUID winnerId, Integer kitId1, Integer kitId2, long endedAt)
     {
-        plugin.core().tasks().runAsync(() ->
+        return plugin.core().tasks().runAsyncFuture(() ->
         {
             try
             {

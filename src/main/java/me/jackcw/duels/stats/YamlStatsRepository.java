@@ -30,7 +30,7 @@ public final class YamlStatsRepository implements StatsRepository
     }
 
     @Override
-    public void recordMatch(int arenaId, UUID player1Id, UUID player2Id, UUID winnerId, Integer kitId1, Integer kitId2, long endedAt)
+    public CompletableFuture<Void> recordMatch(int arenaId, UUID player1Id, UUID player2Id, UUID winnerId, Integer kitId1, Integer kitId2, long endedAt)
     {
         int id = matches.size() + 1;
 
@@ -41,6 +41,10 @@ public final class YamlStatsRepository implements StatsRepository
 
         matches.add(record);
         repository.save(record);
+
+        // Already durable by the time this returns - the YAML store writes on the
+        // calling thread - so there is nothing for a caller to wait on.
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override

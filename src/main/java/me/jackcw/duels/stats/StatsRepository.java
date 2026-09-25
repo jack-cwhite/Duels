@@ -6,7 +6,7 @@ import java.util.concurrent.CompletableFuture;
 
 public interface StatsRepository
 {
-    void recordMatch(int arenaId, UUID player1Id, UUID player2Id, UUID winnerId, Integer kitId1, Integer kitId2, long endedAt);
+    CompletableFuture<Void> recordMatch(int arenaId, UUID player1Id, UUID player2Id, UUID winnerId, Integer kitId1, Integer kitId2, long endedAt);
 
     CompletableFuture<Integer> getWins(UUID playerId);
 
