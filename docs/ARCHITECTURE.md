@@ -329,31 +329,87 @@ read in game as the whole frame sitting a block below the area actually being
 enforced - which in turn made a correctly-set corner look as though it had
 snapped inwards.
 
-### Bounds should include the floor and walls, not just the interior air
+### What being inside the bounds actually means
 
-This is admin-facing convention rather than a hard requirement, and
-`ArenaBoundsValidator` advises on it when a corner is set. Two reasons:
+Bounds do not make a block indestructible - they make it *tracked*. The two
+sides of the boundary get opposite treatment, and which one an admin wants
+differs per surface:
 
-1. **Rollback only records changes inside the bounds.** A floor or wall left
-   outside the box is never restored, so a TNT fight permanently damages the
-   arena's structure even though the reset "succeeded".
-2. **Liquid containment degrades badly around a gap.** Minecraft picks a fluid's
-   spread direction *before* any event fires, and it does not try every open
-   neighbour - if the fluid can fall it commits to falling, and otherwise it
-   flows only towards the nearest place it could fall.
-   `ArenaContainmentGuard.onBlockFromTo` then vetoes that direction when it
-   leaves the arena, but **a veto is not a redirect**: if the direction Minecraft
-   chose was out through a hole, the fluid spreads nowhere at all and appears
-   frozen, even with open space inside the arena.
+- **Inside the bounds**, a duellist may freely break and place. Every change is
+  recorded by `BlockChangeRollbackStrategy` and replayed in reverse at match
+  end, with drops suppressed so the repaired arena is not littered with items.
+- **Outside the bounds**, a duel simply cannot reach. `ArenaContainmentGuard`
+  cancels a duellist's break or placement, trims out-of-bounds blocks out of an
+  explosion's `blockList()`, and refuses fire and liquid spread across the
+  boundary. Nothing needs restoring because nothing changed.
 
-The second point is worth being precise about, because the failure is cosmetic
-rather than a containment leak - nothing escapes either way. The fix is not to
+So the recommended setup for a hand-built arena is to draw the box around the
+**interior**: click the floor block in one corner and the ceiling block in the
+diagonally opposite one. The floor and ceiling are then inside the box and get
+repaired after a TNT fight, while the four walls sit one block outside it and
+are immune for the duration of the match. An admin who instead wants breakable
+walls can include them, and they will be restored rather than protected.
+
+This is also why the walls being outside the box is not a gap to warn about -
+it is the normal case.
+
+### Decoration is protected, not restored
+
+Item frames, paintings and armour stands are entities, not blocks, so no block
+event fires for them and the rollback strategy can neither record nor restore
+them. They are therefore protected outright while a match holds the arena:
+`ArenaContainmentGuard` cancels `HangingBreakEvent` and any `EntityDamageEvent`
+aimed at them inside a live arena's bounds.
+
+Protecting rather than restoring is the deliberate choice, because it matches
+what already happens to the walls - anything the admin built and the duellists
+are not meant to touch survives the match untouched. Restoring would mean
+reimplementing entity persistence for a case where the simpler rule is also the
+one admins expect.
+
+### Containment starts when the arena is occupied, not when combat does
+
+Both duellists are teleported to their spawns in `MatchManager` as soon as the
+match is created, while it is still `PREGAME` and they are choosing kits.
+"Standing in the arena" therefore begins well before `IN_PROGRESS`, and rules
+about what a duel may do to the *world* key on `Match.isLive()` instead - true
+for `PREGAME`, `GRACE` and `IN_PROGRESS`. A bucket of lava emptied at a spawn
+during kit selection is in the arena just as much as one emptied mid-fight, and
+previously was neither prevented nor restored.
+
+Rules about how a duellist may be *treated* still key on `IN_PROGRESS`, because
+those depend on the fight actually being live. The two are genuinely different
+questions and the split is intentional.
+
+### Bounds with an opening make liquid look stuck
+
+`ArenaBoundsValidator` advises on this when a corner is set. Minecraft picks a
+fluid's spread direction *before* any event fires, and it does not try every
+open neighbour - if the fluid can fall it commits to falling, and otherwise it
+flows only towards the nearest place it could fall.
+`ArenaContainmentGuard.onBlockFromTo` then vetoes that direction when it leaves
+the arena, but **a veto is not a redirect**: if the direction Minecraft chose was
+out through an opening, the fluid spreads nowhere at all and appears frozen,
+even with open space inside the arena.
+
+The failure is cosmetic rather than a containment leak - nothing escapes either
+way - which is why this is advice and never a refusal. The fix is not to
 re-implement fluid spread so we can redirect it; that means shipping our own
-copy of Minecraft's fluid physics and keeping it in sync forever. The fix is to
-seal the box, at which point Minecraft never prefers an outward direction and
-flow looks entirely normal.
+copy of Minecraft's fluid physics and keeping it in sync forever.
 
-The roof is deliberately exempt from the advisory: fluid never flows upward, and
-an open-topped arena has no ceiling blocks to restore, so an open roof is a
-design choice rather than a mistake. Warning about it would only teach admins to
-ignore the warning.
+The test the validator applies is worth stating precisely, because the obvious
+version of it is wrong. Asking "is the box's own outermost layer solid?"
+condemns the recommended interior setup, where every boundary block is air and
+nothing can escape regardless, because the real walls are one block further
+out. An opening needs two things at once:
+
+1. the boundary block is passable, so a liquid could actually be there;
+2. the block immediately **outside** the box in that direction is also passable,
+   so Minecraft may choose to spread that way.
+
+Together those flag a genuine doorway, window or hole in the floor, while
+staying quiet for a sealed room whichever way the box was drawn.
+
+The roof is deliberately exempt: fluid never flows upward, so an open-topped
+arena is a design choice rather than a mistake. Warning about it would only
+teach admins to ignore the warning.
