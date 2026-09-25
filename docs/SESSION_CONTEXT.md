@@ -10,18 +10,20 @@ starting work, then inspect the relevant source files before changing code.
 Duels V1 is complete, tested, and manually verified on a real Paper server.
 Phases 0-4 and 11 are done. Arena containment and bounds - the follow-up work
 under Phases 2 and 3B - is complete and committed, awaiting one in-game pass
-against `docs/CONTAINMENT_TEST_PLAN.md`.
+against `docs/IN_GAME_SUITE.md` (Stages 4-9).
 
 Phase 4B is fully implemented and its manual acceptance suite has been run and
 signed off (`docs/RETEST_PLAN.md`, section B10). It is held open only by three
 verification residuals listed under "Remaining before 4B sign-off" in
-`docs/ROADMAP.md`, the most important being that the SQL stats path has never
+`docs/ROADMAP.md` and consolidated as Stages 1-3 of `docs/IN_GAME_SUITE.md`, the
+most important being that the SQL stats path has never
 been exercised in game. Per-instance *worlds* for dynamic arenas are a separate
 deferred idea, not a 4B blocker.
 
 Verification at this handoff:
 
-- `mvn -o test`: 62 tests passed, 0 failures, 0 errors, 0 skipped.
+- `mvn -o test`: 63 tests passed, 0 failures, 0 errors, 0 skipped. JCore: 303
+  passed, 1 skipped.
 - `mvn -o -q package -DskipTests`: clean.
 - Manual in-game testing passed for arena management, matches, kits, bounds,
   instancing, rollback, spectators, GUI/command parity, and advancements.
@@ -47,6 +49,9 @@ Verification at this handoff:
 - Admin command/GUI parity for the completed V1 operations.
 - YAML, SQLite, MySQL/MariaDB, and PostgreSQL statistics backends.
 - Configurable database pool size and resilient stats-failure cleanup.
+- `/duels diagnostics` - a live read of every manager's internal counters, with
+  per-admin baseline/compare so a leak shows up as a difference rather than
+  having to be inferred.
 
 ## Current intentional limitations and remaining verification
 
@@ -54,7 +59,7 @@ Verification at this handoff:
   admin setup has GUI controls for source, capture corners/template, health,
   retry, and retirement, all exercised in the signed-off acceptance run.
 - Dynamic capture/provisioning/recovery is implemented and signed off except for
-  the three residuals in Part D of `docs/RETEST_PLAN.md`: the in-game SQLite
+  the three residuals now covered by Stages 1-3 of `docs/IN_GAME_SUITE.md`: the in-game SQLite
   stats pass, a measured post-flow cleanup check, and a structure-capture-size
   retest.
 - The baseline reset is block-change rollback. The optional WorldEdit/FAWE
@@ -68,6 +73,86 @@ Verification at this handoff:
 
 The matchmaking/rewards/rating/network items are later scope decisions, not
 unfinished V1 defects.
+
+## Confidence by system
+
+How much each system is trusted, and on what evidence. "Automated" means covered
+by `mvn -o test`; "in game" means a recorded manual pass. The two are not
+interchangeable - MockBukkit will happily confirm behaviour that a real server
+does differently, and a manual pass proves one run rather than an invariant.
+
+| System | Confidence | Evidence and what is missing |
+|---|---|---|
+| Arena templates and instances | **High** | Automated (serializers, monotonic ids, conversion guards, slot repair) plus a full in-game pass. The most-exercised code in the plugin. |
+| Match lifecycle (PREGAME / GRACE / IN_PROGRESS) | **High** | Automated state-transition, disconnect-forfeit and concurrency tests, plus repeated in-game passes. Every known edge has a test rather than only a checklist line. |
+| Kits and kit snapshots | **High** | Automated snapshot/slot-separation tests; in-game editor pass. Snapshots mean a mid-match kit edit cannot corrupt a running match. |
+| Challenge flow and expiry | **High** | Automated pair tests; in-game pass. Small surface, well bounded. |
+| Player state capture and restoration | **Medium-high** | In-game passes across death, disconnect, reconnect and reload. Not automatable end to end: MockBukkit cannot reproduce shutdown-time restoration, which is the one path that has only ever been checked by hand. |
+| Arena containment and bounds | **Medium-high** | Strong automated coverage - 6 containment tests, 6 bounds-geometry tests, 5 openings-advisory tests - but the physics paths (fluid spread, fire spread, trimmed explosions, falling blocks) can only really be judged on a live server, and that pass has not been run since `8028d94`. Stages 4-9. |
+| Block-change rollback | **Medium-high** | Automated for basic, explosion, ceiling and double-reset cases. The tracked-change ceiling is a known, documented cliff rather than a bug. |
+| Spectators | **Medium-high** | Automated for disconnect, eject, forfeit-while-spectated and detached-session finish. In-game pass done. Less real-world mileage than matches simply because fewer people use it. |
+| Dynamic arena provisioning and recovery | **Medium** | Signed off in game, but `DynamicArenaProvisioner` and `DynamicArenaRecovery` have **no end-to-end automated coverage** - they touch world generation and structure APIs that MockBukkit does not implement. The layout maths is tested in isolation. This is the widest automated-coverage gap in the plugin. |
+| Stats, YAML backend | **Medium** | Automated read-after-write ordering; in-game pass. |
+| Stats, SQL backend | **Low** | The code is written and reviewed and the boolean-parameter handling is unit tested, but **it has never executed against a real database**. This is Stage 1 and it sits directly on Phase 5's critical path. |
+| Non-SQLite dialects (MySQL, MariaDB, PostgreSQL) | **Unverified** | Dialect-specific SQL, no automated or manual pass. A release gate, not a phase blocker. |
+| Menus (admin and user) | **Medium** | Automated for layout rules - bottom row reserved, static/dynamic screen separation, slot upgrade - but **not for click handling**, because the MockBukkit slot-conversion test is skipped. Every menu action has been driven by hand in game instead. |
+| Commands and permissions | **Medium-high** | In-game GUI/command parity pass. Permission nodes are declared in `plugin.yml` and were checked by hand; nothing asserts they stay in sync with the code. |
+| Diagnostics (`/duels diagnostics`) | **Medium-high** | Automated test asserts a clean match returns every counter to baseline, comparing whole `Snapshot` records so a field added later is covered automatically. Not yet used in anger on a live server - that is Stage 2, and Stage 2 is simultaneously the tool's first real use. |
+| Post-flow cleanup (no leaks) | **Low until Stage 2** | Previously signed off by *inference* - nothing visibly broke, so nothing was assumed to leak. The diagnostics command exists precisely because that is not evidence. One automated test covers the clean-match case. |
+| JCore infrastructure | **High** | 303 tests, and every system is consumed by Duels rather than existing speculatively. |
+
+### What could usefully be tested more
+
+In rough order of how much the coverage is worth:
+
+1. **The SQL stats path** - Stage 1. Lowest confidence, highest downstream cost.
+2. **Dynamic provisioning end to end.** MockBukkit blocks the obvious route, but
+   an integration test could still cover the layout-allocation and recovery
+   *bookkeeping* against a fake world, leaving only the paste itself manual.
+3. **Menu click handling.** The skipped slot-conversion test is the blocker. Worth
+   revisiting: a menu mis-wire is easy to introduce and currently only a human
+   clicking every button would catch it.
+4. **Permission-node drift.** A test that walks the command tree and asserts every
+   declared permission exists in `plugin.yml` would be cheap and would stay
+   correct forever.
+5. **Shutdown-time player restoration.** Hard to automate; a scripted server
+   start/stop harness is the realistic route if it ever bites.
+6. **The other three SQL dialects** - a release gate, and genuinely only provable
+   against real servers.
+
+## Progress and time frame
+
+**Scope being measured.** "Complete" here means the target in `CLAUDE.md`:
+release-ready for a standalone server, with the full single-server feature set
+finished and tested. Matchmaking, ELO and network support are counted below
+because they are on the current roadmap, but they are explicitly *not* required
+for Duels itself to be considered complete.
+
+| Milestone | Status | Remaining effort |
+|---|---|---|
+| Phases 0-4, 11 (foundation, arenas, instancing, spectators, containment, QoL) | Done | - |
+| Phase 4B (dynamic provisioning) | Implementation done, verification open | ~2-3 hours of in-game testing (`docs/IN_GAME_SUITE.md`) |
+| Phase 5 (deeper statistics) | Designed in full, not started | ~3-4 sessions |
+| Phase 6 (Vault + durable rewards) | Not designed | ~3-4 sessions |
+| Phase 7 (local matchmaking queues) | Not designed | ~3-4 sessions |
+| Phase 8 (ELO / MMR / SBMM) | Not designed | ~2-3 sessions |
+| Phase 9 (network-readiness boundaries) | Not designed | ~2-3 sessions |
+| Phase 10 (advanced/optional) | Deliberately open-ended | not estimated |
+
+**Against the standalone-complete definition: roughly 90%.** What is left is one
+in-game test run and the release-gate items in `docs/RELEASE_REVIEW.md` - the
+other three SQL dialects and a clean-install pass of `docs/TESTING.md`. Realistic
+time to that point is **one solid testing day plus one session of fixes**, on the
+assumption the suite finds a handful of small issues rather than a design problem.
+
+**Against the full current roadmap through Phase 9: roughly 65%.** Phases 5-9 are
+each a small number of sessions of real work, and Phase 5 is the only one already
+designed. A plausible calendar estimate is **three to four months of the current
+cadence**, dominated by Phases 6 and 7 rather than by Phase 5.
+
+Treat both numbers as effort estimates, not deadlines. The most likely thing to
+move them is the Stage 1 SQL pass: if the stats path needs rework, Phase 5 starts
+later and every phase behind it shifts.
 
 ## Next development target: close Phase 4B, then Phase 5
 
@@ -142,8 +227,8 @@ retried. See `docs/PHASE_4B_DESIGN.md` and `docs/ROADMAP.md`.
 
 ## Recommended V2 order
 
-1. Phase 4B: close out the three verification residuals (Part D of
-   `docs/RETEST_PLAN.md`). Implementation is done.
+1. Phase 4B: close out the three verification residuals (Stages 1-3 of
+   `docs/IN_GAME_SUITE.md`). Implementation is done.
 2. Phase 5: deeper statistics and tracking.
 3. Phase 6: Vault integration and durable, idempotent rewards.
 4. Phase 7: local matchmaking queues.
@@ -196,11 +281,14 @@ Duels until a second real plugin creates a proven reusable need.
 
 - Detailed phase status and dependencies: `docs/ROADMAP.md`
 - Architectural reasoning and ownership rules: `docs/ARCHITECTURE.md`
-- Full manual V1 test suite: `docs/V1_TEST_PLAN.md`
-- Current V1 + Phase 4B in-game acceptance suite, including the Part D closeout
-  items: `docs/RETEST_PLAN.md`. The older `IN_GAME_TEST_PLAN.md` it superseded has
+- **The in-game suite to actually run: `docs/IN_GAME_SUITE.md`.** Everything
+  outstanding, consolidated in run order.
+- Historical full manual V1 suite, kept as reference: `docs/V1_TEST_PLAN.md`
+- Rationale behind each acceptance item, and the record of what Parts A-C passed:
+  `docs/RETEST_PLAN.md`. The older `IN_GAME_TEST_PLAN.md` it superseded has
   been removed.
-- Arena containment and bounds in-game suite: `docs/CONTAINMENT_TEST_PLAN.md`
+- Containment rationale, commit-by-commit, and the known-limitation sign-off:
+  `docs/CONTAINMENT_TEST_PLAN.md`
 - Earlier focused regression/retest checklist, all passed: `docs/RETEST.md`
 - Release-readiness gaps and known boundaries: `docs/RELEASE_REVIEW.md`
 - Learning notes: `docs/LEARNING.md` and `docs/JAVA_CONCEPTS_AND_JCORE.md`

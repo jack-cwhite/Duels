@@ -1,5 +1,11 @@
 # Arena Containment - In-Game Test Plan
 
+> **To run this, use `docs/IN_GAME_SUITE.md`.** Every part of this plan has been
+> folded into that consolidated suite (Stages 4-9) along with Part D of
+> `docs/RETEST_PLAN.md`, so a test run happens in one document and one order.
+> This file is kept for the commit-by-commit rationale below and for the detailed
+> sign-off notes on known limitations.
+
 Covers the arena containment work, in the order it should be tested:
 
 | Commit | Change |

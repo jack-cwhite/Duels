@@ -1,5 +1,11 @@
 # Duels retest plan
 
+> **To run the outstanding items, use `docs/IN_GAME_SUITE.md`.** Part D of this
+> plan - the 20 items still unchecked - has been folded into that consolidated
+> suite along with the containment plan, so a test run happens in one document
+> and one order. This file is kept for the rationale behind each item and for the
+> record of what Parts A, B and C already passed.
+
 _Target: Paper 1.21.11, Java 21. Generated after the bounds-requirement,
 message-key, menu-navigation, edit-mode-layout, and template-cleanup fixes in
 an earlier session. This is now the single current manual acceptance suite -

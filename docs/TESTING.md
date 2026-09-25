@@ -1,5 +1,13 @@
 # Duels release test plan
 
+> **This is the release gate, not the current phase's test run.** It is the full
+> clean-install matrix across every storage backend, to be run before a release.
+> To close the work currently in progress - the SQLite stats path, post-flow
+> cleanup, structure capture size, and arena containment - use
+> `docs/IN_GAME_SUITE.md` instead. Section 10 below is the part of this plan that
+> is a genuine release blocker today: MySQL, MariaDB and PostgreSQL have no
+> recorded pass.
+
 Run this plan on a clean Paper 1.21.11 server with Java 21. Use two clients for the main flow and three clients for interference checks. Four clients are useful for concurrent-arena testing.
 
 Do a full server restart between storage-backend tests. Plugin managers and hot reloads do not reproduce a clean startup reliably.

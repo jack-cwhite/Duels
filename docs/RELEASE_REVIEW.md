@@ -2,7 +2,10 @@
 
 ## Status
 
-The codebase is a release candidate. Automated tests and packaging pass. A real Paper server still needs to complete the manual matrix in `TESTING.md`, especially inventory interaction, crash recovery, damage attribution, and each database engine intended for release.
+The codebase is a release candidate. Automated tests and packaging pass. Two separate manual passes are still outstanding, and they are not the same thing:
+
+1. **`docs/IN_GAME_SUITE.md`** - everything needed to close the current phase: the SQLite stats path, a measured post-flow cleanup check, structure capture size, and the full arena-containment suite. This is the one to run next.
+2. **`docs/TESTING.md`** - the clean-install release matrix, especially inventory interaction, crash recovery, damage attribution, and **each database engine intended for release**. MySQL, MariaDB and PostgreSQL have no pass recorded against them at all.
 
 ## Release issues fixed during review
 
@@ -34,6 +37,7 @@ The codebase is a release candidate. Automated tests and packaging pass. A real 
 - Arena and kit list order is deterministic by ID.
 - The machine-specific Maven copy step was removed.
 - Duels now has integration tests for IDs, challenges, kit snapshots, command-created kit slot separation, and deep kit copies.
+- `/duels diagnostics` reports every manager's live counters with per-admin baseline/compare, so an admin can see whether a flow leaked rather than inferring it from the absence of visible problems.
 
 ## Known boundaries
 
@@ -42,10 +46,11 @@ The codebase is a release candidate. Automated tests and packaging pass. A real 
 - SQL write failures are logged and do not block match cleanup. There is no durable retry queue, so a result can be lost while the database is unavailable.
 - Arena and kit definitions remain YAML-backed even when match statistics use SQL.
 - Existing installations created before monotonic ID metadata cannot reconstruct IDs that were already deleted. From this release onward IDs are not reused.
-- External database behavior still needs real-engine acceptance tests. The in-game SQLite pass is covered by Part D of `docs/RETEST_PLAN.md`; MySQL, MariaDB and PostgreSQL each need their own pass before release, since the dialect-specific SQL is where they differ. SQLite unit tests cannot substitute for them.
+- External database behavior still needs real-engine acceptance tests. The in-game SQLite pass is Stage 1 of `docs/IN_GAME_SUITE.md`; MySQL, MariaDB and PostgreSQL each need their own pass before release, since the dialect-specific SQL is where they differ. SQLite unit tests cannot substitute for them.
 
 ## Automated verification
 
-- JCore: 300 tests run with no failures or errors. One inventory-click test is skipped because MockBukkit does not implement the required slot conversion; its behavior remains in the Paper acceptance plan.
-- Duels tests cover plugin startup, monotonic IDs, multiple challenge requests, match kit snapshots, command-created kit slot separation, kit deep copies, strict arena fields, and SQLite-backed stats queries. Shutdown restoration remains a real-server acceptance check because MockBukkit does not implement every PlayerState API used by Paper.
+- JCore: 303 tests run with no failures or errors. One inventory-click test is skipped because MockBukkit does not implement the required slot conversion; its behavior remains in the Paper acceptance plan.
+- Duels: 63 tests run with no failures or errors, covering plugin startup, monotonic IDs, multiple challenge requests, match kit snapshots, command-created kit slot separation, kit deep copies, strict arena fields, SQLite-backed stats queries, the full PREGAME/GRACE/IN_PROGRESS lifecycle including disconnect forfeits, spectator lifecycle, two-instance concurrency, block-change rollback, arena containment, bounds geometry and the bounds-openings advisory, and a diagnostics baseline/compare check that a clean match leaks nothing. Shutdown restoration remains a real-server acceptance check because MockBukkit does not implement every PlayerState API used by Paper.
 - Duels packages successfully with JCore and database drivers shaded into the plugin jar.
+- Not covered automatically, and therefore reliant on the manual passes: `DynamicArenaProvisioner`/`DynamicArenaRecovery` end to end, menu click handling (the MockBukkit slot-conversion test is skipped), shutdown-time player restoration, and every SQL dialect other than SQLite. The confidence table in `docs/SESSION_CONTEXT.md` records how much each system is trusted and why.

@@ -37,6 +37,36 @@ scope for it. See each phase for its individual status.
 
 ---
 
+## Where the project stands `[2026-09-25]`
+
+| Phase | Status | Remaining effort |
+| --- | --- | --- |
+| 0, 1, 2, 3, 3B, 4, 11 | `[x]` implemented and verified | - |
+| 4B - Dynamic Arena Provisioning | `[~]` implementation complete, verification open | ~2-3 hours of in-game testing |
+| 5 - Deeper Statistics | `[ ]` design settled, no code | ~3-4 sessions |
+| 6 - Vault & Rewards | `[ ]` not designed | ~3-4 sessions |
+| 7 - Matchmaking | `[ ]` not designed | ~3-4 sessions |
+| 8 - ELO/MMR/SBMM | `[ ]` not designed | ~2-3 sessions |
+| 9 - Network Readiness | `[ ]` not designed | ~2-3 sessions |
+| 10 - Advanced/Optional | `[ ]` deliberately open-ended | not estimated |
+
+**Against the standalone-complete scope target above: roughly 90%.** What remains
+is one in-game test run (`docs/IN_GAME_SUITE.md`) and the release gates in
+`docs/RELEASE_REVIEW.md` - passes on the three non-SQLite SQL dialects and a
+clean-install run of `docs/TESTING.md`. Realistically **one solid testing day plus
+a session of fixes**, assuming the suite turns up small issues rather than a design
+problem.
+
+**Against this whole roadmap through Phase 9: roughly 65%**, or three to four
+months at the current cadence, dominated by Phases 6 and 7. Phase 5 is the only
+unstarted phase whose design is already settled, which is why it is next.
+
+Automated coverage at this point: **Duels 63 tests, JCore 303** (1 skipped), both
+green. Per-system confidence, including where coverage is thin and what would be
+worth testing more, is tabulated in `docs/SESSION_CONTEXT.md`.
+
+---
+
 ## Phase 0 - Foundation Hardening `[x]`
 
 Small, low-risk fixes surfaced by the V2 audit. None of these block anything by
@@ -1424,7 +1454,8 @@ there, computes real spawn/bounds from the offsets, and registers a normal
 
 ### Remaining before 4B sign-off
 
-Run as Part D of `docs/RETEST_PLAN.md`.
+Run as **Stages 1-3 of `docs/IN_GAME_SUITE.md`**, which consolidates these three
+with the containment suite so the whole outstanding pass happens in one document.
 
 1. **The SQL stats path has never been exercised in game.** B10 records this as
    `BLOCKED` because the test server was switched to YAML storage and no external
@@ -1432,14 +1463,17 @@ Run as Part D of `docs/RETEST_PLAN.md`.
    default is `stats-storage: SQL` with `type: SQLITE`, which needs no external
    server at all, so the whole `SqlStatsRepository` path including its migrations
    can be verified as-is. This is also on Phase 5's critical path, since Phase 5 is
-   entirely SQL query work.
+   entirely SQL query work. Stage 1.
 2. **Post-flow cleanup has never been positively checked.** No projectiles, dropped
    items, temporary effects, spectators, pending players, countdowns or edit
    sessions may survive their owning flow. The existing note is explicit that this
    was inferred from the absence of reported problems rather than measured - no
-   entity or task count was captured before and after a match.
+   entity or task count was captured before and after a match. `/duels diagnostics`
+   was built to close this: it reports every manager's live counters and diffs them
+   against a saved baseline, so the check is two commands rather than a hand count.
+   Stage 2.
 3. **Structure capture size awaits a target-Paper retest.** Fixed in code, never
-   re-verified live.
+   re-verified live. Stage 3.
 
 A MySQL/MariaDB pass is deliberately *not* a 4B blocker. SQLite covers the
 repository logic and is what a small server runs; the dialect-specific SQL needs
