@@ -3,11 +3,12 @@ package me.jackcw.duels.arena;
 import me.jackcw.duels.Duels;
 import me.jackcw.duels.match.Match;
 import me.jackcw.duels.match.MatchManager;
-import me.jackcw.duels.match.MatchState;
 import me.jackcw.duels.message.Message;
 import me.jackcw.jcore.message.MessageManager;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
+import org.bukkit.entity.ArmorStand;
+import org.bukkit.entity.Hanging;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.EventHandler;
@@ -19,7 +20,9 @@ import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.block.BlockIgniteEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.hanging.HangingBreakEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -168,6 +171,42 @@ public final class ArenaContainmentGuard implements Listener
         containExplosion(event.getBlock().getLocation(), event.blockList());
     }
 
+    /**
+     * Protects an arena's decoration - item frames, paintings and armour
+     * stands - from the duel being fought around it.
+     *
+     * <p>These are entities, not blocks, so none of the block handlers above
+     * see them and {@link BlockChangeRollbackStrategy} cannot record or restore
+     * them: an item frame caught in a TNT blast dropped its contents and was
+     * gone for good, and the arena came back repaired but stripped. Preventing
+     * the damage is the right fix rather than trying to restore it, because it
+     * matches what already happens to an arena's walls - anything the admin
+     * built and the duellists are not meant to touch simply survives the match.
+     *
+     * <p>Two events are needed. {@link HangingBreakEvent} covers the frame or
+     * painting being destroyed, including by an explosion or by losing the
+     * block it was mounted on, while {@link EntityDamageEvent} covers a punch
+     * that knocks the <em>item</em> out of a frame without breaking the frame
+     * itself. Neither is reported to the player: a blast reaching a wall
+     * decoration is propagation, not something anyone aimed at.
+     */
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onHangingBreak(HangingBreakEvent event)
+    {
+        if (matchManager.getLiveInstanceAt(event.getEntity().getLocation()) != null)
+            event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onDecorationDamaged(EntityDamageEvent event)
+    {
+        if (!(event.getEntity() instanceof Hanging) && !(event.getEntity() instanceof ArmorStand))
+            return;
+
+        if (matchManager.getLiveInstanceAt(event.getEntity().getLocation()) != null)
+            event.setCancelled(true);
+    }
+
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerQuit(PlayerQuitEvent event)
     {
@@ -187,7 +226,7 @@ public final class ArenaContainmentGuard implements Listener
     {
         Match match = matchManager.getMatch(player.getUniqueId());
 
-        if (match == null || match.getState() != MatchState.IN_PROGRESS)
+        if (match == null || !match.isLive())
             return true;
 
         ArenaInstance instance = match.getArenaInstance();
@@ -229,7 +268,7 @@ public final class ArenaContainmentGuard implements Listener
         if (source == null)
             return;
 
-        ArenaInstance instance = matchManager.getInProgressInstanceAt(source.getLocation());
+        ArenaInstance instance = matchManager.getLiveInstanceAt(source.getLocation());
 
         if (instance != null && !instance.contains(target.getLocation()))
             event.setCancelled(true);
@@ -252,7 +291,7 @@ public final class ArenaContainmentGuard implements Listener
      */
     private void containExplosion(Location origin, List<Block> blocks)
     {
-        ArenaInstance instance = matchManager.getInProgressInstanceAt(origin);
+        ArenaInstance instance = matchManager.getLiveInstanceAt(origin);
 
         if (instance == null)
             return;

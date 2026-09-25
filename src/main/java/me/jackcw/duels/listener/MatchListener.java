@@ -168,7 +168,7 @@ public final class MatchListener implements Listener
     private boolean insideActiveMatchBounds(Location location)
     {
         for (Match match : matchManager.getActiveMatches())
-            if (match.getState() == MatchState.IN_PROGRESS && match.getArenaInstance().contains(location))
+            if (match.isLive() && match.getArenaInstance().contains(location))
                 return true;
 
         return false;

@@ -15,6 +15,7 @@ import org.bukkit.event.block.BlockDropItemEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
@@ -30,8 +31,12 @@ import java.util.HashSet;
 
 /**
  * The default, dependency-free {@link ArenaResetStrategy}: records every block
- * changed inside a match's bounds while it is {@link MatchState#IN_PROGRESS},
+ * changed inside a match's bounds for as long as that match holds the arena,
  * then replays those changes in reverse once the match ends.
+ *
+ * <p>"Holds the arena" starts at {@link MatchState#PREGAME} rather than at
+ * {@link MatchState#IN_PROGRESS}, because both duellists are standing in the
+ * arena from the moment the match is created - see {@link Match#isLive()}.
  *
  * <p>Changes are tracked per {@link ArenaInstance} rather than per {@link Match}
  * - only one match can hold a given instance at a time, and this avoids
@@ -147,6 +152,23 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
             event.setWillDrop(false);
     }
 
+    /**
+     * Covers block changes made by an entity rather than a player or a physics
+     * update: sand and gravel settling after the floor beneath them is blown
+     * out, and an enderman picking a block up.
+     *
+     * <p>Sand is the case that matters. A falling block is an entity in flight,
+     * so the block it leaves behind and the block it becomes on landing are two
+     * separate changes and neither fires {@link BlockBreakEvent} or
+     * {@link BlockPlaceEvent} - a duellist cratering a sand floor left a
+     * rearranged floor that the rollback had no record of.
+     */
+    @EventHandler(ignoreCancelled = true)
+    public void onEntityChangeBlock(EntityChangeBlockEvent event)
+    {
+        track(event.getBlock().getState());
+    }
+
     @EventHandler(ignoreCancelled = true)
     public void onEntityExplode(EntityExplodeEvent event)
     {
@@ -235,7 +257,7 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
 
     private boolean track(BlockState previousState)
     {
-        ArenaInstance instance = resolveInProgressInstance(previousState.getLocation());
+        ArenaInstance instance = resolveTrackableInstance(previousState.getLocation());
 
         if (instance == null)
             return false;
@@ -267,12 +289,12 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
      * would be wrong for containment: once a match has ended there is nothing
      * left to prevent, only things left to undo.
      */
-    private ArenaInstance resolveInProgressInstance(Location location)
+    private ArenaInstance resolveTrackableInstance(Location location)
     {
-        ArenaInstance inProgress = matchManager.getInProgressInstanceAt(location);
+        ArenaInstance live = matchManager.getLiveInstanceAt(location);
 
-        if (inProgress != null)
-            return inProgress;
+        if (live != null)
+            return live;
 
         for (int instanceId : resettingInstanceIds)
         {

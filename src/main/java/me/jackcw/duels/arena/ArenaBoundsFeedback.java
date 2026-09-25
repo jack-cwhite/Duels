@@ -49,7 +49,7 @@ public final class ArenaBoundsFeedback
                 "sizeY", size.y(),
                 "sizeZ", size.z());
 
-        warnAboutShellGaps(messageManager, player, instance, box);
+        warnAboutOpenings(messageManager, player, instance, box);
     }
 
     /**
@@ -60,15 +60,21 @@ public final class ArenaBoundsFeedback
      * exists because the consequence is otherwise invisible until a match is
      * running: liquid that refuses to flow, and a wall that is never repaired.
      */
-    private static void warnAboutShellGaps(MessageManager messageManager, Player player, ArenaInstance instance, BlockBox box)
+    /**
+     * Advice, never a refusal. A bounds box with an opening still works and
+     * still contains the duel; the only symptom is liquid that looks stuck, so
+     * rejecting the corner would block a legitimate setup - an open-air arena
+     * where nobody will ever use a bucket - to prevent a cosmetic oddity.
+     */
+    private static void warnAboutOpenings(MessageManager messageManager, Player player, ArenaInstance instance, BlockBox box)
     {
-        ArenaBoundsValidator.ShellReport report = ArenaBoundsValidator.inspectShell(box);
+        ArenaBoundsValidator.OpeningReport report = ArenaBoundsValidator.inspect(box);
 
-        if (!report.hasGaps())
+        if (!report.hasOpenings())
             return;
 
-        messageManager.send(player, Message.ARENA_BOUNDS_SHELL_GAPS,
+        messageManager.send(player, Message.ARENA_BOUNDS_OPENINGS,
                 "id", instance.getId(),
-                "gaps", report.totalGaps());
+                "openings", report.totalOpenings());
     }
 }

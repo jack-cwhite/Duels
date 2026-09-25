@@ -103,6 +103,27 @@ public final class Match
         return state.getState();
     }
 
+    /**
+     * Whether this match is occupying its arena right now.
+     *
+     * <p>Both duellists are teleported to their spawns as soon as the match is
+     * created, while it is still {@link MatchState#PREGAME} and they are
+     * choosing kits, so "in the arena" starts well before combat does. Rules
+     * about what a duel may do to the world - containment and rollback - key on
+     * this rather than on {@link MatchState#IN_PROGRESS}, because a bucket of
+     * lava emptied at a spawn during kit selection is in the arena just as much
+     * as one emptied mid-fight, and previously was neither prevented nor
+     * restored.
+     *
+     * <p>Rules about how a duellist may be <em>treated</em> still key on
+     * {@code IN_PROGRESS} instead, since those depend on the fight actually
+     * being live.
+     */
+    public boolean isLive()
+    {
+        return getState() != MatchState.ENDED;
+    }
+
     public void setState(MatchState newState)
     {
         state.transition(newState);

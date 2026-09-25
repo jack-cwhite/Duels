@@ -297,11 +297,11 @@ public final class MatchManager
      * the containment guard, to decide what to allow at all - and neither owns
      * the match map.
      */
-    public ArenaInstance getInProgressInstanceAt(Location location)
+    public ArenaInstance getLiveInstanceAt(Location location)
     {
         for (Match match : getActiveMatches())
         {
-            if (match.getState() != MatchState.IN_PROGRESS)
+            if (!match.isLive())
                 continue;
 
             ArenaInstance instance = match.getArenaInstance();

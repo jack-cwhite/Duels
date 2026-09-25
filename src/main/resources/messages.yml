@@ -40,7 +40,7 @@ admin:
   arena-instance-list-entry: '&e#{id} &7(arena &e{arenaId}&7) &7- Type: &e{origin} &7Spawn 1: &e{spawn1} &7Spawn 2: &e{spawn2} &7Ready: &e{ready}'
   arena-bounds-set: '&7Bounds corner &e{corner} &7set for arena &e{id} &7at &e{x}, {y}, {z}'
   arena-bounds-size: '&7Arena &e{id} &7bounds are now &e{sizeX}x{sizeY}x{sizeZ} &7blocks.'
-  arena-bounds-shell-gaps: '&e&l! &7Arena &e{id} &7bounds have &e{gaps} &7non-solid block(s) in the floor or walls. Liquid may sit still instead of flowing, and those blocks will not be restored after a match - bounds normally include the arena''s floor and walls, not just the air inside.'
+  arena-bounds-openings: '&e&l! &7Arena &e{id} &7bounds have &e{openings} &7opening(s) a liquid could escape through. Water or lava near one may sit still instead of flowing, because the flow is blocked rather than redirected. Seal the arena, or move the bounds so the openings fall outside them.'
   arena-bounds-not-set: '&cBounds corner &e{corner} &chas not been set for arena &e{id}'
   arena-invalid-bounds-corner: '&cBounds corner must be &e1 &cor &e2&c, got: &e{corner}'
   arena-boundary-set: '&7Boundary mode for arena &e{id} &7set to &e{mode} &7with a &e{grace}s &7grace period'

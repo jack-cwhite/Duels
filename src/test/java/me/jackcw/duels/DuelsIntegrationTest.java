@@ -18,6 +18,7 @@ import me.jackcw.duels.arena.BlockBox;
 import me.jackcw.duels.challenge.Challenge;
 import me.jackcw.duels.kit.Kit;
 import me.jackcw.duels.match.Match;
+import me.jackcw.duels.match.MatchResult;
 import me.jackcw.duels.match.MatchState;
 import me.jackcw.duels.spectator.SpectateResult;
 import me.jackcw.duels.stats.LeaderboardEntry;
@@ -1372,36 +1373,77 @@ class DuelsIntegrationTest
                 "the maximum corner block is inside the box it is drawn around");
     }
 
+    /**
+     * The normal setup: the admin draws the bounds around the arena's interior,
+     * so every boundary block of the box is air and the real walls sit one block
+     * outside it. Nothing can escape, so nothing should be reported - a check
+     * that only asked "is the box's own outer layer solid?" condemned exactly
+     * this arena.
+     */
     @Test
-    void aSealedBoundsShellReportsNoGaps()
+    void interiorBoundsInsideASealedRoomReportNoOpenings()
     {
-        WorldMock world = server.addSimpleWorld("sealed_shell_world");
-        BlockBox box = BlockBox.of(new Location(world, 0, 64, 0), new Location(world, 4, 67, 4));
+        WorldMock world = server.addSimpleWorld("sealed_interior_world");
+        BlockBox interior = BlockBox.of(new Location(world, 0, 64, 0), new Location(world, 4, 67, 4));
 
-        fillShell(world, box, Material.STONE);
+        sealRoom(world, interior);
 
-        ArenaBoundsValidator.ShellReport report = ArenaBoundsValidator.countShellGaps(box);
+        ArenaBoundsValidator.OpeningReport report = ArenaBoundsValidator.countOpenings(interior);
 
-        assertTrue(report.inspected());
-        assertFalse(report.hasGaps(), "a shell of solid blocks has nothing to warn about");
+        assertFalse(report.hasOpenings(), "a sealed room has nothing to warn about, whatever the box is drawn around");
+    }
+
+    /**
+     * The other way an admin might draw it - around the walls themselves, so the
+     * boundary blocks are the solid wall. A liquid can never occupy those, so
+     * this is equally safe even though the world just outside the box is open
+     * air.
+     */
+    @Test
+    void boundsDrawnAroundTheWallsThemselvesReportNoOpenings()
+    {
+        WorldMock world = server.addSimpleWorld("sealed_walls_world");
+        BlockBox interior = BlockBox.of(new Location(world, 0, 64, 0), new Location(world, 4, 67, 4));
+
+        sealRoom(world, interior);
+
+        BlockBox withWalls = BlockBox.of(new Location(world, -1, 63, -1), new Location(world, 5, 68, 5));
+
+        ArenaBoundsValidator.OpeningReport report = ArenaBoundsValidator.countOpenings(withWalls);
+
+        assertFalse(report.hasOpenings(), "a solid boundary block is not an opening, whatever lies beyond it");
     }
 
     @Test
-    void aHoleInTheFloorOrWallIsReportedAsAGap()
+    void aDoorwayInTheWallIsReportedAsAnOpening()
     {
-        WorldMock world = server.addSimpleWorld("holed_shell_world");
-        BlockBox box = BlockBox.of(new Location(world, 0, 64, 0), new Location(world, 4, 67, 4));
+        WorldMock world = server.addSimpleWorld("doorway_world");
+        BlockBox interior = BlockBox.of(new Location(world, 0, 64, 0), new Location(world, 4, 67, 4));
 
-        fillShell(world, box, Material.STONE);
-        world.getBlockAt(2, 64, 2).setType(Material.AIR);
-        world.getBlockAt(0, 66, 2).setType(Material.AIR);
+        sealRoom(world, interior);
+        world.getBlockAt(-1, 64, 2).setType(Material.AIR);
 
-        ArenaBoundsValidator.ShellReport report = ArenaBoundsValidator.countShellGaps(box);
+        ArenaBoundsValidator.OpeningReport report = ArenaBoundsValidator.countOpenings(interior);
 
         assertTrue(report.inspected());
-        assertEquals(1, report.floorGaps());
-        assertEquals(1, report.wallGaps());
-        assertEquals(2, report.totalGaps());
+        assertEquals(1, report.wallOpenings(), "the boundary block beside the doorway can leak sideways");
+        assertEquals(0, report.floorOpenings());
+    }
+
+    @Test
+    void aHoleInTheFloorIsReportedAsAnOpening()
+    {
+        WorldMock world = server.addSimpleWorld("floor_hole_world");
+        BlockBox interior = BlockBox.of(new Location(world, 0, 64, 0), new Location(world, 4, 67, 4));
+
+        sealRoom(world, interior);
+        world.getBlockAt(2, 63, 2).setType(Material.AIR);
+
+        ArenaBoundsValidator.OpeningReport report = ArenaBoundsValidator.countOpenings(interior);
+
+        assertTrue(report.inspected());
+        assertEquals(1, report.floorOpenings(), "the boundary block above the hole can leak downward");
+        assertEquals(0, report.wallOpenings());
     }
 
     /**
@@ -1410,38 +1452,65 @@ class DuelsIntegrationTest
      * ignore it.
      */
     @Test
-    void anOpenRoofIsNotReportedAsAGap()
+    void anOpenRoofIsNotReportedAsAnOpening()
     {
         WorldMock world = server.addSimpleWorld("open_roof_world");
-        BlockBox box = BlockBox.of(new Location(world, 0, 64, 0), new Location(world, 4, 67, 4));
+        BlockBox interior = BlockBox.of(new Location(world, 0, 64, 0), new Location(world, 4, 67, 4));
 
-        fillShell(world, box, Material.STONE);
+        sealRoom(world, interior);
 
-        for (int x = box.minX() + 1; x <= box.maxX() - 1; x++)
-            for (int z = box.minZ() + 1; z <= box.maxZ() - 1; z++)
-                world.getBlockAt(x, box.maxY(), z).setType(Material.AIR);
+        for (int x = interior.minX(); x <= interior.maxX(); x++)
+            for (int z = interior.minZ(); z <= interior.maxZ(); z++)
+                world.getBlockAt(x, interior.maxY() + 1, z).setType(Material.AIR);
 
-        ArenaBoundsValidator.ShellReport report = ArenaBoundsValidator.countShellGaps(box);
+        ArenaBoundsValidator.OpeningReport report = ArenaBoundsValidator.countOpenings(interior);
 
-        assertTrue(report.inspected());
-        assertFalse(report.hasGaps(), "an open roof is a design choice, not a containment hole");
+        assertFalse(report.hasOpenings(), "an open roof is a design choice, not a containment hole");
     }
 
     /**
-     * Fills the floor and the four side faces of the box, leaving the interior
-     * and the roof interior as they were - the shape an arena's enclosing shell
-     * actually is.
+     * Builds a hand-made arena around the given interior: air inside, a solid
+     * one-block shell immediately outside it, and open air beyond that. The last
+     * part matters - without it the world outside the walls could be solid by
+     * default and a leak test would pass for the wrong reason.
      */
-    private void fillShell(WorldMock world, BlockBox box, Material material)
+    private void sealRoom(WorldMock world, BlockBox interior)
     {
-        for (int x = box.minX(); x <= box.maxX(); x++)
-            for (int z = box.minZ(); z <= box.maxZ(); z++)
-                world.getBlockAt(x, box.minY(), z).setType(material);
+        fillLayer(world, interior.minX() - 2, interior.maxX() + 2, interior.minY() - 2, interior.maxY() + 2,
+                interior.minZ() - 2, interior.maxZ() + 2, Material.AIR);
 
-        for (int y = box.minY() + 1; y <= box.maxY(); y++)
-            for (int x = box.minX(); x <= box.maxX(); x++)
-                for (int z = box.minZ(); z <= box.maxZ(); z++)
-                    if (x == box.minX() || x == box.maxX() || z == box.minZ() || z == box.maxZ())
-                        world.getBlockAt(x, y, z).setType(material);
+        fillLayer(world, interior.minX() - 1, interior.maxX() + 1, interior.minY() - 1, interior.maxY() + 1,
+                interior.minZ() - 1, interior.maxZ() + 1, Material.STONE);
+
+        fillLayer(world, interior.minX(), interior.maxX(), interior.minY(), interior.maxY(),
+                interior.minZ(), interior.maxZ(), Material.AIR);
+    }
+
+    private void fillLayer(WorldMock world, int minX, int maxX, int minY, int maxY, int minZ, int maxZ, Material material)
+    {
+        for (int x = minX; x <= maxX; x++)
+            for (int y = minY; y <= maxY; y++)
+                for (int z = minZ; z <= maxZ; z++)
+                    world.getBlockAt(x, y, z).setType(material);
+    }
+
+    /**
+     * Writes and reads both run on JCore's shared thread pool, so a read
+     * submitted straight after a write could previously overtake it and report
+     * the score from before the match that had just finished. No ticks are
+     * performed and nothing is slept on here deliberately: the point is that a
+     * read issued immediately still sees the write.
+     */
+    @Test
+    void aStatsReadIssuedAfterAResultSeesThatResult()
+    {
+        PlayerMock winner = addPlayer("Winner");
+        PlayerMock loser = addPlayer("Loser");
+
+        plugin.getStatsManager().recordMatch(new MatchResult(
+                1, winner.getUniqueId(), loser.getUniqueId(), winner.getUniqueId(), null, null, System.currentTimeMillis()));
+
+        assertEquals(1, plugin.getStatsManager().getWins(winner.getUniqueId()).join());
+        assertEquals(1, plugin.getStatsManager().getLosses(loser.getUniqueId()).join());
     }
 }
