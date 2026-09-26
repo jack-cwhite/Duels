@@ -23,6 +23,7 @@ import org.bukkit.entity.TNTPrimed;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityCombustEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
@@ -71,7 +72,7 @@ public final class MatchListener implements Listener
         {
             if (attacker != null && matchManager.getMatch(attacker.getUniqueId()) != null)
                 event.setCancelled(true);
-            else if (isUnattributedArenaHazard(event.getCause()) && insideActiveMatchBounds(damaged.getLocation()))
+            else if (isUnattributedArenaHazard(event.getCause()) && matchManager.isInsideUnsafeArena(damaged.getLocation()))
                 event.setCancelled(true);
             return;
         }
@@ -135,6 +136,34 @@ public final class MatchListener implements Listener
     }
 
     /**
+     * Stops a duel's lava or fire setting a bystander alight in the first place.
+     *
+     * <p>Cancelling the damage is not enough on its own. Fire ticks are applied
+     * separately, so a bystander standing in a duel's lava burned for the whole
+     * fight while taking none of the damage - and then took all of it the moment
+     * protection lapsed, because they were still on fire after the arena had been
+     * restored and the lava was gone. Extinguishing them at that point would work
+     * too, but not igniting them is simpler and leaves nothing to clean up.
+     *
+     * <p>Scoped to players with no match of their own, so a duellist still burns
+     * normally: combatants are not protected from their own duel's hazards.
+     * Someone who walked in already alight keeps burning, which is correct - that
+     * fire is not the duel's doing.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onBystanderCombust(EntityCombustEvent event)
+    {
+        if (!(event.getEntity() instanceof Player player))
+            return;
+
+        if (matchManager.getMatch(player.getUniqueId()) != null)
+            return;
+
+        if (matchManager.isInsideUnsafeArena(player.getLocation()))
+            event.setCancelled(true);
+    }
+
+    /**
      * Protects a bystander from a duel's environmental hazards by geometry
      * rather than by attribution.
      *
@@ -163,15 +192,6 @@ public final class MatchListener implements Listener
                 || cause == EntityDamageEvent.DamageCause.FIRE
                 || cause == EntityDamageEvent.DamageCause.FIRE_TICK
                 || cause == EntityDamageEvent.DamageCause.HOT_FLOOR;
-    }
-
-    private boolean insideActiveMatchBounds(Location location)
-    {
-        for (Match match : matchManager.getActiveMatches())
-            if (match.isLive() && match.getArenaInstance().contains(location))
-                return true;
-
-        return false;
     }
 
     private Player resolveAttacker(Entity damager)
@@ -336,4 +356,3 @@ public final class MatchListener implements Listener
         }
     }
 }
-

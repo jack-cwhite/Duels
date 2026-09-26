@@ -483,22 +483,23 @@ lava, fire and hot floor.
 
 | # | Action | Expected | |
 |---|---|---|---|
-| 9.1 | C stands inside the arena bounds while A empties **lava** on them | C takes **no** damage. | [ ] |
-| 9.2 | Same with **fire** / burning | C takes no damage. | [ ] |
-| 9.3 | Same with a **magma block** / hot floor | C takes no damage. | [ ] |
-| 9.4 | A and B damage **each other** with lava and fire | Damage applies **normally** - combatants are not protected from each other. | [ ] |
-| 9.5 | A and B damage each other with TNT | Normal damage. | [ ] |
-| 9.6 | C takes lava damage somewhere unrelated, **outside all bounds** | Normal damage. The protection is geometric, not global. | [ ] |
-| 9.7 | C spectates properly (via the spectator system) during a TNT fight | Takes no damage, is not knocked around. | [ ] |
+| 9.1 | C stands inside the arena bounds while A empties **lava** on them | C takes **no** damage. | [X] |
+| 9.2 | Same with **fire** / burning | C takes no damage. | [X] |
+| 9.3 | Same with a **magma block** / hot floor | C takes no damage. | [X] |
+| 9.4 | A and B damage **each other** with lava and fire | Damage applies **normally** - combatants are not protected from each other. | [X] |
+| 9.5 | A and B damage each other with TNT | Normal damage. | [X] |
+| 9.6 | C takes lava damage somewhere unrelated, **outside all bounds** | Normal damage. The protection is geometric, not global. | [X] |
+| 9.7 | C spectates properly (via the spectator system) during a TNT fight | Takes no damage, is not knocked around. | [X] |
+| 9.8 | C stands in duel-placed lava or fire when the duel ends | C remains protected until the multi-tick arena reset has removed the hazard, and is not left burning afterwards. Fixed in code, covered by automated reset-window and combustion tests, and verified on the live server. | [X] |
 
 ---
 
 ## Sign-off
 
-- [ ] Stages 1-3 pass. Phase 4B's three verification residuals are closed.
-- [ ] Stages 4-9 pass, with Stage 7 weighted most heavily.
+- [X] Stages 1-3 pass. Phase 4B's three verification residuals are closed.
+- [X] Stages 4-9 pass, with Stage 7 weighted most heavily.
 - [ ] `docs/ROADMAP.md` Phase 4B flipped from `[~]` to `[x]`.
-- [ ] Any new issues found are recorded here or raised, not left in chat history.
+- [X] Any new issues found are recorded here or raised, not left in chat history.
 - [ ] `docs/SESSION_CONTEXT.md` updated with the pass date.
 
 ---

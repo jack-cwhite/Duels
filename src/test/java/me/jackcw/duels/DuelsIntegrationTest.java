@@ -30,11 +30,14 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.damage.DamageSource;
+import org.bukkit.damage.DamageType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityCombustByBlockEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.inventory.ItemStack;
@@ -479,6 +482,112 @@ class DuelsIntegrationTest
                 alice, charlie, EntityDamageEvent.DamageCause.ENTITY_ATTACK, 3.0);
         server.getPluginManager().callEvent(attack);
         assertTrue(attack.isCancelled());
+    }
+
+    /**
+     * A match stops being live before its arena is clean. Rollback starts one
+     * tick later and may then span several ticks, so environmental protection
+     * must cover that entire gap rather than disappear with the match entry.
+     */
+    @Test
+    void bystanderRemainsProtectedUntilArenaRollbackCompletes()
+    {
+        WorldMock world = server.addSimpleWorld("post_match_bystander_world");
+        Arena arena = plugin.getArenaManager().createArena("Pit");
+        createReadyInstance(arena, world);
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+        PlayerMock charlie = addPlayer("Charlie");
+        Match match = startInProgressMatch(alice, bob);
+        Location hazardLocation = new Location(world, 0, 64, 5);
+        charlie.setLocation(hazardLocation);
+
+        // One more change than a reset batch guarantees that the reset cannot
+        // finish on its first rollback tick.
+        BlockChangeRollbackStrategy strategy = (BlockChangeRollbackStrategy) plugin.getArenaResetStrategy();
+        int changedBlocks = plugin.getSettings().arenaResetBlocksPerTick() + 1;
+
+        for (int i = 0; i < changedBlocks; i++)
+        {
+            Block block = world.getBlockAt(-32 + i, 63, 0);
+            block.setType(Material.STONE);
+            strategy.onBlockBreak(new BlockBreakEvent(block, alice));
+            block.setType(Material.AIR);
+        }
+
+        plugin.getMatchManager().endMatch(match, alice.getUniqueId());
+
+        assertTrue(plugin.getMatchManager().isInsideUnsafeArena(hazardLocation));
+        EntityDamageEvent immediatelyAfterMatch = new EntityDamageEvent(
+                charlie, EntityDamageEvent.DamageCause.LAVA,
+                DamageSource.builder(DamageType.LAVA).withDamageLocation(hazardLocation).build(), 4.0);
+        server.getPluginManager().callEvent(immediatelyAfterMatch);
+        assertTrue(immediatelyAfterMatch.isCancelled());
+
+        server.getScheduler().performTicks(1L);
+
+        assertTrue(plugin.getMatchManager().isInsideUnsafeArena(hazardLocation),
+                "protection must remain while a multi-tick rollback is still running");
+        EntityDamageEvent duringRollback = new EntityDamageEvent(
+                charlie, EntityDamageEvent.DamageCause.FIRE_TICK,
+                DamageSource.builder(DamageType.ON_FIRE).withDamageLocation(hazardLocation).build(), 1.0);
+        server.getPluginManager().callEvent(duringRollback);
+        assertTrue(duringRollback.isCancelled());
+
+        server.getScheduler().performTicks(5L);
+
+        assertFalse(plugin.getMatchManager().isInsideUnsafeArena(hazardLocation));
+        EntityDamageEvent afterRollback = new EntityDamageEvent(
+                charlie, EntityDamageEvent.DamageCause.LAVA,
+                DamageSource.builder(DamageType.LAVA).withDamageLocation(hazardLocation).build(), 4.0);
+        server.getPluginManager().callEvent(afterRollback);
+        assertFalse(afterRollback.isCancelled(),
+                "an idle arena must not make an unrelated player immune to ordinary hazards");
+    }
+
+    /**
+     * Cancelling damage alone leaves fire ticks on a bystander. Block-caused
+     * combustion is therefore stopped while the arena is unsafe, but not for a
+     * combatant or for somebody outside that arena.
+     */
+    @Test
+    void bystanderCombustionIsBlockedOnlyInsideAnUnsafeArena()
+    {
+        WorldMock world = server.addSimpleWorld("bystander_combustion_world");
+        Arena arena = plugin.getArenaManager().createArena("Pit");
+        createReadyInstance(arena, world);
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+        PlayerMock charlie = addPlayer("Charlie");
+        Match match = startInProgressMatch(alice, bob);
+        Block lava = world.getBlockAt(0, 64, 5);
+        charlie.setLocation(lava.getLocation());
+
+        EntityCombustByBlockEvent bystanderCombustion = new EntityCombustByBlockEvent(lava, charlie, 15.0f);
+        server.getPluginManager().callEvent(bystanderCombustion);
+        assertTrue(bystanderCombustion.isCancelled());
+
+        EntityCombustByBlockEvent combatantCombustion = new EntityCombustByBlockEvent(lava, alice, 15.0f);
+        server.getPluginManager().callEvent(combatantCombustion);
+        assertFalse(combatantCombustion.isCancelled(), "duellists must still burn normally");
+
+        charlie.setLocation(new Location(world, 500, 64, 500));
+        EntityCombustByBlockEvent outsideCombustion = new EntityCombustByBlockEvent(lava, charlie, 15.0f);
+        server.getPluginManager().callEvent(outsideCombustion);
+        assertFalse(outsideCombustion.isCancelled(), "protection must not leak outside the arena");
+
+        charlie.setLocation(lava.getLocation());
+        plugin.getMatchManager().endMatch(match, alice.getUniqueId());
+
+        EntityCombustByBlockEvent duringReset = new EntityCombustByBlockEvent(lava, charlie, 15.0f);
+        server.getPluginManager().callEvent(duringReset);
+        assertTrue(duringReset.isCancelled());
+
+        server.getScheduler().performTicks(2L);
+
+        EntityCombustByBlockEvent afterReset = new EntityCombustByBlockEvent(lava, charlie, 15.0f);
+        server.getPluginManager().callEvent(afterReset);
+        assertFalse(afterReset.isCancelled(), "combustion protection must end once the arena is clean");
     }
 
     @Test

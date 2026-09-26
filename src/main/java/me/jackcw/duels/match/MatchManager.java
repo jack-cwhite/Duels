@@ -43,6 +43,14 @@ public final class MatchManager
     private final Map<UUID, Location> pendingRespawnRestores = new HashMap<>();
     private final Set<UUID> pendingPlayers = new HashSet<>();
 
+    // Arena instances whose match has ended but whose reset has not finished.
+    // A duel's lava and fire are still standing in the arena for the whole of
+    // that window - reverting a large number of block changes takes many ticks
+    // - while the match itself is no longer live. Bystander protection keys off
+    // "is a duel happening here", so without this it lapsed while the hazard
+    // that needed protecting against was still burning.
+    private final Set<Integer> resettingInstanceIds = new HashSet<>();
+
     public MatchManager(Duels plugin)
     {
         this.plugin = plugin;
@@ -328,6 +336,39 @@ public final class MatchManager
         return null;
     }
 
+    /**
+     * Whether this location is inside an arena that is still holding a duel's
+     * mess - either a duel is being fought there, or one has finished and its
+     * arena has not been restored yet.
+     *
+     * <p>Separate from {@link #getLiveInstanceAt} because the two answer
+     * different questions. Containment and rollback care whether a duel is
+     * <em>happening</em>, so that a change is attributed to the right match and
+     * an arena is not still being written to after it ends. Bystander protection
+     * cares whether the arena is still <em>dangerous</em>, which outlasts the
+     * match: the lava a duel poured is standing there for every tick of the
+     * block replay, and the replay can take many ticks.
+     *
+     * <p>Without the second half of this, an unrelated player standing in a
+     * duel's lava took no damage for the whole fight and then took all of it the
+     * instant the fight ended - the protection stopped before the hazard did.
+     */
+    public boolean isInsideUnsafeArena(Location location)
+    {
+        if (getLiveInstanceAt(location) != null)
+            return true;
+
+        for (int instanceId : resettingInstanceIds)
+        {
+            ArenaInstance instance = plugin.getArenaInstanceManager().getInstance(instanceId);
+
+            if (instance != null && instance.contains(location))
+                return true;
+        }
+
+        return false;
+    }
+
     public boolean selectKit(UUID playerId, Kit kit)
     {
         Match match = getMatch(playerId);
@@ -417,8 +458,11 @@ public final class MatchManager
             return;
         }
 
+        resettingInstanceIds.add(instance.getId());
+
         resetStrategy.reset(instance, () ->
         {
+            resettingInstanceIds.remove(instance.getId());
             markProvisionedInstanceReady(instance);
             arenaAllocator.release(instance);
         });
