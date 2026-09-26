@@ -40,7 +40,7 @@ on them:
 - `config.yml` - `stats-storage: SQL`
 - `database.yml` - `type: SQLITE`
 
-**Delete `plugins/Duels/duels.db` before Stage 1** so the migration runs from
+**Delete `plugins/Duels/database.db` before Stage 1** so the migration runs from
 nothing. Back it up first if you care about the existing results.
 
 ### Your existing arenas - keep them, one small addition
@@ -104,9 +104,11 @@ this code, so a defect here is a defect under all of Phase 5. The earlier
 `BLOCKED` note assumed an external MySQL server was needed - it is not, SQLite
 needs no server.
 
-- [X] **1.1** Server starts clean. The console shows the migration applying, and
-  `plugins/Duels/duels.db` appears.
-- [ ] **1.2** Restart with the database already present. The migration is
+- [ ] **1.1** Server starts clean. The console logs `Applied database
+  migration 1.` during `Enabling Duels`, and `plugins/Duels/database.db`
+  appears.
+- [ ] **1.2** Restart with the database already present. The console instead
+  logs `Database schema is already up to date`. The migration is
   recognised as applied and does **not** run again. No duplicate-table or
   duplicate-index errors.
 - [ ] **1.3** Play one duel to a normal death. `/duel top` shows the winner with
