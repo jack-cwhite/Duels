@@ -2,11 +2,10 @@
 
 _Target: Paper 1.21.11, Java 21. Last revised 2026-09-26._
 
-**This is the single list of everything still to run in game.** It was
-consolidated from Part D of `docs/RETEST_PLAN.md` and all six parts of
-`docs/CONTAINMENT_TEST_PLAN.md` so that a run does not mean flipping between
-documents. Those two files keep the rationale and history behind each item; this
-file is the run order.
+**This is the completed consolidated in-game sign-off record.** It combines the
+Phase 4B residual checks with all six parts of `docs/CONTAINMENT_TEST_PLAN.md`,
+so the pass could be run in one order without flipping between documents. All
+stages passed by 2026-09-26.
 
 Tick boxes as you go. Stages are ordered so that earlier ones set up what later
 ones need - Stage 1 wants a fresh database, Stage 3 leaves you with a dynamic
@@ -498,9 +497,9 @@ lava, fire and hot floor.
 
 - [X] Stages 1-3 pass. Phase 4B's three verification residuals are closed.
 - [X] Stages 4-9 pass, with Stage 7 weighted most heavily.
-- [ ] `docs/ROADMAP.md` Phase 4B flipped from `[~]` to `[x]`.
+- [X] `docs/ROADMAP.md` Phase 4B flipped from `[~]` to `[x]`.
 - [X] Any new issues found are recorded here or raised, not left in chat history.
-- [ ] `docs/SESSION_CONTEXT.md` updated with the pass date.
+- [X] `docs/SESSION_CONTEXT.md` updated with the pass date.
 
 ---
 
@@ -538,9 +537,10 @@ Do not report these as bugs.
 These are real requirements before a public release, but they are not part of
 closing the current phase and are not run here.
 
-- **MySQL, MariaDB and PostgreSQL passes.** The dialect-specific SQL is where the
-  backends differ, and SQLite cannot substitute. Procedure is in
-  `docs/TESTING.md` section 10. Tracked in `docs/RELEASE_REVIEW.md`.
+- **Future database migration retests.** MySQL, MariaDB and PostgreSQL have now
+  passed repeated live match/stat checks. Repeat the database matrix whenever
+  migrations or dialect-specific SQL change; procedure is in `docs/TESTING.md`
+  section 10.
 - **The full clean-install release plan**, `docs/TESTING.md`, end to end on a
   fresh server.
 - **The historical V1 suite**, `docs/V1_TEST_PLAN.md`, kept as a reference for

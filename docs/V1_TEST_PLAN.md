@@ -1,10 +1,10 @@
 # Duels v1 sign-off test plan
 
 Consolidated, sequential in-game test suite for the full v1 feature set (Phases
-0-4, 3B, 11 - see `ROADMAP.md`'s "V1 status: complete" table). Supersedes
-`TESTING.md` and `RETEST.md` as the single checklist to run before confirming
-v1 and moving to v2 (Phase 4B onward). Those two files are kept as history and
-do not need to be run separately.
+0-4, 3B, 11 - see `ROADMAP.md`'s "V1 status: complete" table). This is the
+historical V1 sign-off record. `docs/IN_GAME_SUITE.md` contains the later V2 and
+containment acceptance pass; `docs/TESTING.md` remains the clean-install release
+matrix.
 
 Run on a clean Paper 1.21.11 server, Java 21. Two clients cover the main flow;
 three for interference checks; four for concurrent-arena/spectator checks. Use

@@ -59,7 +59,6 @@ See `plugin.yml` for the full list with descriptions. One thing worth knowing if
 
 - [In-game test suite to run now](docs/IN_GAME_SUITE.md)
 - [Manual release test plan](docs/TESTING.md)
-- [Focused retest after the latest fixes](docs/RETEST.md)
 - [JCore and Duels architecture guide](docs/ARCHITECTURE.md)
 - [Current release review](docs/RELEASE_REVIEW.md)
 - [Project state, per-system confidence and progress estimate](docs/SESSION_CONTEXT.md)

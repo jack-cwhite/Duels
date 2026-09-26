@@ -1,10 +1,10 @@
 # Arena Containment - In-Game Test Plan
 
 > **To run this, use `docs/IN_GAME_SUITE.md`.** Every part of this plan has been
-> folded into that consolidated suite (Stages 4-9) along with Part D of
-> `docs/RETEST_PLAN.md`, so a test run happens in one document and one order.
-> This file is kept for the commit-by-commit rationale below and for the detailed
-> sign-off notes on known limitations.
+> folded into that consolidated suite (Stages 4-9), so a test run happens in one
+> document and one order. That suite passed on 2026-09-26. This file is kept for
+> the commit-by-commit rationale below and for the detailed sign-off notes on
+> known limitations.
 
 Covers the arena containment work, in the order it should be tested:
 
@@ -17,7 +17,7 @@ Covers the arena containment work, in the order it should be tested:
 | `dc67306` | Stats reads ordered behind stats writes. |
 | `8028d94` | Containment from `PREGAME` rather than `IN_PROGRESS`; decoration protected; falling blocks tracked; bounds validator corrected to look for openings. |
 
-The integration tests (62 passing) cover the logic. This plan covers what
+The integration suite (68 tests passing) covers the logic. This plan covers what
 MockBukkit cannot simulate - real fire spread, real liquid flow, real explosion
 radii, real template capture - and whether the feedback actually feels right in
 chat.

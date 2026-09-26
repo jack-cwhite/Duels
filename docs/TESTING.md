@@ -2,11 +2,10 @@
 
 > **This is the release gate, not the current phase's test run.** It is the full
 > clean-install matrix across every storage backend, to be run before a release.
-> To close the work currently in progress - the SQLite stats path, post-flow
-> cleanup, structure capture size, and arena containment - use
-> `docs/IN_GAME_SUITE.md` instead. Section 10 below is the part of this plan that
-> is a genuine release blocker today: MySQL, MariaDB and PostgreSQL have no
-> recorded pass.
+> Phase 4B and the consolidated live suite are complete; `docs/IN_GAME_SUITE.md`
+> is retained as that sign-off record. All four database engines have also passed
+> repeated live match/stat checks. What remains here is one end-to-end pass from a
+> genuinely fresh server, including configuration generation and restart/crash paths.
 
 Run this plan on a clean Paper 1.21.11 server with Java 21. Use two clients for the main flow and three clients for interference checks. Four clients are useful for concurrent-arena testing.
 

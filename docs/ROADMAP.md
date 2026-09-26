@@ -19,8 +19,9 @@ exists and needs it.
 ## V1 status: complete
 
 Every phase below the "v1" cutoff is `[x]` done, covered by automated tests, and
-manually verified in-game (see `docs/RETEST.md`). There is no known open bug or gap in
-the standalone feature set.
+manually verified in-game (see `docs/V1_TEST_PLAN.md` and the completed
+`docs/IN_GAME_SUITE.md`). There is no known open bug or gap in the standalone feature
+set.
 
 | Phase | What it covers |
 | --- | --- |
@@ -37,12 +38,12 @@ scope for it. See each phase for its individual status.
 
 ---
 
-## Where the project stands `[2026-09-25]`
+## Where the project stands `[2026-09-26]`
 
 | Phase | Status | Remaining effort |
 | --- | --- | --- |
 | 0, 1, 2, 3, 3B, 4, 11 | `[x]` implemented and verified | - |
-| 4B - Dynamic Arena Provisioning | `[~]` implementation complete, verification open | ~2-3 hours of in-game testing |
+| 4B - Dynamic Arena Provisioning | `[x]` implemented and verified | - |
 | 5 - Deeper Statistics | `[ ]` design settled, no code | ~3-4 sessions |
 | 6 - Vault & Rewards | `[ ]` not designed | ~3-4 sessions |
 | 7 - Matchmaking | `[ ]` not designed | ~3-4 sessions |
@@ -50,18 +51,16 @@ scope for it. See each phase for its individual status.
 | 9 - Network Readiness | `[ ]` not designed | ~2-3 sessions |
 | 10 - Advanced/Optional | `[ ]` deliberately open-ended | not estimated |
 
-**Against the standalone-complete scope target above: roughly 90%.** What remains
-is one in-game test run (`docs/IN_GAME_SUITE.md`) and the release gates in
-`docs/RELEASE_REVIEW.md` - passes on the three non-SQLite SQL dialects and a
-clean-install run of `docs/TESTING.md`. Realistically **one solid testing day plus
-a session of fixes**, assuming the suite turns up small issues rather than a design
-problem.
+**Against the standalone-complete scope target above: roughly 95%.** The complete
+in-game suite has passed, including SQLite, and MySQL, MariaDB and PostgreSQL have each
+been exercised manually with repeated matches and correct statistics. The remaining
+public-release gate is a clean-install run of `docs/TESTING.md`.
 
-**Against this whole roadmap through Phase 9: roughly 65%**, or three to four
+**Against this whole roadmap through Phase 9: roughly 70%**, or three to four
 months at the current cadence, dominated by Phases 6 and 7. Phase 5 is the only
 unstarted phase whose design is already settled, which is why it is next.
 
-Automated coverage at this point: **Duels 63 tests, JCore 303** (1 skipped), both
+Automated coverage at this point: **Duels 68 tests, JCore 303** (1 skipped), both
 green. Per-system confidence, including where coverage is thin and what would be
 worth testing more, is tabulated in `docs/SESSION_CONTEXT.md`.
 
@@ -722,7 +721,7 @@ in without touching match logic.
 
 **Status:** The mandatory, no-external-dependency baseline described below is implemented,
 tested, and verified in-game against the full "## Arena reset (block rollback)" section of
-`docs/RETEST.md` - `ArenaResetStrategy`, `BlockChangeRollbackStrategy`, and the
+`docs/V1_TEST_PLAN.md` - `ArenaResetStrategy`, `BlockChangeRollbackStrategy`, and the
 `MatchManager` wiring that runs it between match end and instance release. The optional
 `SchematicPasteResetStrategy` and its per-arena strategy selection are **not** built and
 remain future work; see the deviations below for why the config surface for choosing a
@@ -904,8 +903,8 @@ functionally complete for a standalone server.
 
 ## Phase 4 - Spectator Mode `[x]`
 
-**Status:** `[x]` Complete. Covered by integration tests and verified in-game against the
-full "## Spectator mode" section of `docs/RETEST.md`.
+**Status:** `[x]` Complete. Covered by integration tests and verified in game through
+the V1 and consolidated acceptance suites.
 
 **Deviations from the design as written below:**
 
@@ -1362,14 +1361,13 @@ competitive complaint. At that point the requirement would be better informed, a
 likely be "hide spectators' identities" or "delay the view" rather than a simple refusal
 flag.
 
-## Phase 4B - Dynamic Arena Provisioning `[~]` (v2)
+## Phase 4B - Dynamic Arena Provisioning `[x]` (v2)
 
-**Status:** `[~]` Everything is implemented, and the ordered manual acceptance
-suite has been run and signed off (`docs/RETEST_PLAN.md`, section B10). The phase
-is held open only by the three residuals below, all of which are verification
-rather than build work. Note that true per-instance *worlds* for dynamic arenas
-are **not** part of this phase - that is a separate deferred idea, and 4B is not
-waiting on it.
+**Status:** `[x]` Implemented and verified. The complete ordered target-Paper suite
+(`docs/IN_GAME_SUITE.md`) passed on 2026-09-26, including structure capture,
+provisioning/recovery, capacity/restart behaviour, measured cleanup, and arena
+containment. True per-instance *worlds* are not required by the present feature set;
+the shared pooled-world decision is recorded below.
 
 The complete implementation architecture, lifecycle, persistence model, failure
 handling, UX, incremental build order, and test plan are defined in
@@ -1443,41 +1441,22 @@ there, computes real spawn/bounds from the offsets, and registers a normal
    corners/template, dynamic health/retry, and safe retirement. Structure preview
    no longer depends on gameplay bounds; mode activation checks the captured
    template rather than requiring the arena to already be dynamic.
-9. `[~]` The ordered target-Paper in-game, capacity and restart suite has been run
-   and signed off in `docs/RETEST_PLAN.md` (B10), which superseded the removed
-   `IN_GAME_TEST_PLAN.md`. Three residuals remain before sign-off, listed under
-   "Remaining before 4B sign-off" below.
+9. `[x]` The ordered target-Paper in-game, capacity, restart, stats, cleanup and
+   containment suite has been run and signed off in `docs/IN_GAME_SUITE.md`.
 10. `[x]` Exclusive per-arena type: STATIC uses only hand-built playable copies;
     DYNAMIC uses one non-playable source build and generated playable copies
     only. Existing one-copy static arenas have explicit guarded conversion;
     legacy dynamic sources migrate safely. Type-specific GUI and suite updated.
 
-### Remaining before 4B sign-off
+### Verification completed
 
-Run as **Stages 1-3 of `docs/IN_GAME_SUITE.md`**, which consolidates these three
-with the containment suite so the whole outstanding pass happens in one document.
-
-1. **The SQL stats path has never been exercised in game.** B10 records this as
-   `BLOCKED` because the test server was switched to YAML storage and no external
-   MySQL instance was available. That reason does not actually apply: the shipped
-   default is `stats-storage: SQL` with `type: SQLITE`, which needs no external
-   server at all, so the whole `SqlStatsRepository` path including its migrations
-   can be verified as-is. This is also on Phase 5's critical path, since Phase 5 is
-   entirely SQL query work. Stage 1.
-2. **Post-flow cleanup has never been positively checked.** No projectiles, dropped
-   items, temporary effects, spectators, pending players, countdowns or edit
-   sessions may survive their owning flow. The existing note is explicit that this
-   was inferred from the absence of reported problems rather than measured - no
-   entity or task count was captured before and after a match. `/duels diagnostics`
-   was built to close this: it reports every manager's live counters and diffs them
-   against a saved baseline, so the check is two commands rather than a hand count.
-   Stage 2.
-3. **Structure capture size awaits a target-Paper retest.** Fixed in code, never
-   re-verified live. Stage 3.
-
-A MySQL/MariaDB pass is deliberately *not* a 4B blocker. SQLite covers the
-repository logic and is what a small server runs; the dialect-specific SQL needs
-its own pass before release, tracked as release-readiness work rather than here.
+- SQLite migrations, match writes, reads and leaderboard output passed in game.
+- `/duels diagnostics baseline`/`compare` measured clean post-flow state.
+- Structure capture size was re-verified on target Paper.
+- Stages 4-9 of `docs/IN_GAME_SUITE.md` passed, including real physics,
+  simultaneous matches, restart/recovery, bystander isolation and post-reset safety.
+- MySQL, MariaDB and PostgreSQL were also exercised manually with repeated matches;
+  statistics tracked correctly on every backend.
 
 ### Resolved implementation decisions
 
@@ -1491,6 +1470,18 @@ its own pass before release, tracked as release-readiness work rather than here.
   main-thread publication only after preparation succeeds.
 - Persist dynamic instance health so interrupted provisioning, matches, resets, and
   cleanup cannot make a dirty or partial slot allocatable after restart.
+- Keep the shared, bounded void-world grid as the baseline. It is simpler and materially
+  cheaper than a loaded world per duel. Use player-scoped time/weather for cosmetic
+  variation; reconsider a world per pooled `ArenaInstance` only if a future feature
+  needs authoritative world-scoped weather, time, gamerules, spawning, dimension rules,
+  or whole-world discard. Never create a fresh world per match.
+- Compare each captured structure's real edge-to-edge separation with the dynamic
+  world's chunk send distance and warn once per arena when a neighbouring slot may be
+  visible. The warning is advisory because visible neighbouring arenas may be an
+  intentional layout choice.
+- Keep network placement independent of local coordinates: a future network allocator
+  chooses a backend/capacity target, while each Paper backend continues to own its local
+  world and slot implementation.
 
 ## Phase 5 - Deeper Statistics & Tracking `[ ]` (v2)
 
@@ -1835,46 +1826,15 @@ mutations) or a command that deep-links straight to it (visual/spatial actions);
 
 ## Deferred (Not Rejected)
 
-These items from the existing V1 review remain intentionally deferred, restated here so
-- **Dynamic arena world layout needs a proper design pass before Phase 4B closes.**
-  Raised by Jack on 2026-09-26: concurrent matches in adjacent slots were
-  confirmed working, so the remaining questions are layout and presentation
-  rather than correctness, and he wants them planned deliberately rather than
-  patched item by item. Open questions to settle together: whether one shared
-  world with a padded grid stays the model or each generated copy gets its own
-  world; how separation should relate to `view-distance` (see the visibility note
-  below); whether per-arena time of day, weather and mob spawning are wanted,
-  since those need world isolation rather than distance; and what happens to the
-  saved `dynamic-layout.yml` if the model changes under an existing deployment.
-  Deferred deliberately, not forgotten - nothing here blocks the current
-  in-game suite.
-- Guaranteeing generated arenas are out of each other's view. Raised by Jack on
-  2026-09-26 while running Stage 8 of the in-game suite, which he could not test
-  because the shipped geometry puts neighbouring slots hundreds of blocks apart.
-  The gap is that `slot-padding` is an absolute block count while visibility
-  depends on the server's `view-distance`, so the two are only related by the
-  defaults happening to be generous: a slot-filling template at
-  `slot-padding: 16` leaves 32 blocks between arenas, well inside any view
-  distance, and nothing warns the admin. Three options were weighed. (1) Validate
-  rather than derive - at startup, compare `slot-padding * 2` against
-  `view-distance * 16` and log a warning naming both numbers when the padding is
-  short. Cheap, needs no layout change, and fits the standing requirement that a
-  stranger's misconfiguration produce a clear diagnostic rather than a subtle
-  symptom; it does not stop them proceeding, which is correct, because an admin
-  may genuinely want arenas visible. (2) Derive padding from the template size,
-  as Jack suggested. Rejected as stated: scaling padding with the arena does not
-  change the quantity that matters, which is edge-to-edge distance, and a large
-  arena is no more visible than a small one at the same separation. Deriving
-  padding from `view-distance` would work, but baking it in conflicts with the
-  saved layout deliberately winning over config so slot coordinates cannot drift.
-  (3) One world per generated copy. Gives true isolation and would also solve
-  weather, time and mob-spawning bleed, but each loaded world carries its own
-  chunk map, entity tracker and tick cost, and 64 of them is a serious standing
-  overhead for a problem that distance already solves. Worth revisiting only if
-  per-arena world state (time of day, weather) becomes a wanted feature, at which
-  point isolation is the actual requirement and visibility comes free.
-  Recommendation: do (1) when convenient; leave (3) to Phase 4B's completion.
-the roadmap has one place tracking all deferred work:
+These items remain intentionally deferred, restated here so the roadmap has one place
+tracking all deferred work:
+
+- **Per-instance dynamic worlds.** The shared pooled void world remains the chosen
+  baseline. Revisit only if a real feature needs authoritative independent weather,
+  time, gamerules, spawning, dimension behaviour, or whole-world discard. If that
+  trigger occurs, use one reusable world per pooled `ArenaInstance`, not one newly
+  created world per duel. Visibility alone is handled by spacing plus the implemented
+  send-distance diagnostic.
 
 - `MatchFactory`/allocation service abstraction - trigger condition (arena modes, teams,
   or remote servers) hasn't happened; Phase 1-3 above will re-evaluate this naturally.

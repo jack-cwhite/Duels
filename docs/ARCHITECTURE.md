@@ -46,6 +46,21 @@ mixes the two kinds of playable copy.
 The implementation architecture and recovery model are specified in
 `docs/PHASE_4B_DESIGN.md`.
 
+The chosen baseline is one bounded, persisted slot grid in one Duels-owned void
+world. A loaded world per duel would multiply world/chunk/tick lifecycle overhead
+without helping the current gameplay requirements. If a future feature needs only
+different visual time or weather, use Paper's player-scoped presentation APIs. If it
+needs authoritative independent weather, time, gamerules, spawning, dimension rules,
+or whole-world discard, reconsider one reusable world per pooled `ArenaInstance` -
+never a freshly created world for each match.
+
+Slot visibility is a presentation concern rather than an allocation invariant. When a
+template is provisioned or recovered, `DynamicArenaWorldManager` compares its real
+captured footprint's edge-to-edge separation with the world's chunk send distance and
+logs one advisory warning per arena if an adjacent slot may be visible. It does not
+silently move persisted slots or refuse provisioning, because neighbouring arenas may
+be an intentional admin choice.
+
 This dynamic mode means creating arena copies inside one Paper server. It does
 not mean creating new Minecraft servers. The match, spectator, reset, and
 player-restoration systems continue to work against a playable `ArenaInstance`
@@ -66,6 +81,9 @@ deployment needs them. A standalone server must not need those services.
 
 The important invariant is therefore: deployment-specific allocation and
 routing sit at the boundary, while the local match lifecycle remains reusable.
+A future network allocator should choose a backend by identity and capacity, not by
+knowing that backend's world name or slot coordinates. The selected Paper backend
+continues to own its local shared-world (or any future per-instance-world) details.
 
 ## JCore's central object
 

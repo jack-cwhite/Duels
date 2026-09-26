@@ -1,8 +1,8 @@
 # Phase 4B Design: Arena Selection and Dynamic Provisioning
 
-_Implementation status: core capture, provisioning, selection, recovery, and
-exclusive per-arena STATIC/DYNAMIC setup are implemented. Target-Paper manual
-verification remains before this phase is declared complete._
+_Implementation status: complete and verified. Core capture, provisioning,
+selection, recovery, exclusive per-arena STATIC/DYNAMIC setup, and the full
+target-Paper acceptance suite passed by 2026-09-26._
 
 ## Revised per-arena type decision (2026-09-21)
 
@@ -30,8 +30,8 @@ selects one using `source adopt` and resolves the others deliberately.
 The type cannot be casually toggled after instances/templates exist. Dynamic
 template recapture/clear requires retiring generated copies first. The one
 source cannot be deleted while its template or generated copies still exist.
-`docs/RETEST_PLAN.md` is the current acceptance route; the hybrid
-scenarios later in this historical design are not test instructions.
+`docs/IN_GAME_SUITE.md` is the completed acceptance record; the hybrid scenarios
+later in this historical design are not test instructions.
 
 ## Purpose
 
@@ -46,25 +46,26 @@ This phase creates arena copies inside one Paper server. It does not create new 
 server processes and does not implement cross-server matchmaking; those are Phase 9
 concerns.
 
-## Current behaviour and the missing capability
+## Starting point and capability added
 
-`Arena` is already the template/policy object and `ArenaInstance` is already one
-physical copy. `StaticArenaAllocator` claims a ready registered instance, `MatchManager`
-uses it for the duel, `BlockChangeRollbackStrategy` cleans it, and the allocator releases
-it afterward.
+Before Phase 4B, `Arena` was already the template/policy object and `ArenaInstance`
+was already one physical copy. `StaticArenaAllocator` claimed a ready registered
+instance, `MatchManager` used it for the duel, `BlockChangeRollbackStrategy` cleaned it,
+and the allocator released it afterward.
 
-The first Phase 4B increment has added two allocation requests:
+Phase 4B added two allocation requests:
 
 ```text
 allocate()          -> any enabled arena
 allocate(arenaId)   -> one selected template only
 ```
 
-`ArenaProvisioningMode` is also persisted with a safe `STATIC` default. What is still
-missing is the structure template, the dedicated world and slots, asynchronous
-preparation, player/admin selection surfaces, and failure/restart recovery.
+`ArenaProvisioningMode` is persisted with a safe `STATIC` default. The completed phase
+adds structure templates, the dedicated world and slots, asynchronous preparation,
+player/admin selection surfaces, and failure/restart recovery around that original
+instance lifecycle.
 
-## Why this is the next phase
+## Why this phase came next
 
 Phase 3 supplied persistent physical instances and Phase 3B supplied the reset-before-
 release lifecycle. Dynamic provisioning can now create another normal instance instead
@@ -72,18 +73,19 @@ of inventing a second match system. Arena selection is also needed before matchm
 a later queue must be able to request a template using the same operation as a direct
 challenge.
 
-Building this before deeper statistics or rewards keeps the risk local to arena
+Building this before deeper statistics or rewards kept the risk local to arena
 acquisition. Those later systems can continue consuming completed matches without caring
 how their arena was obtained.
 
 ## Representative scenario
 
-Castle has one manually built instance and is configured `DYNAMIC`. One Castle duel is
-already active when a second Castle challenge is accepted. Duels reserves both players,
-finds no free Castle copy, reserves slot 7, loads the slot's chunks, pastes Castle's
-current template revision, derives its two spawns and gameplay bounds, persists a ready
-`ArenaInstance`, and only then moves the players. When the match ends, rollback completes
-before slot 7's instance returns to the free pool. A third Castle duel reuses that copy
+Castle has one hand-built non-playable SOURCE and is configured `DYNAMIC`. One duel is
+already using its only provisioned Castle copy when a second Castle challenge is
+accepted. Duels reserves both players, finds no free playable copy, reserves slot 7,
+loads the slot's chunks, pastes Castle's current template revision, derives its two
+spawns and gameplay bounds, persists a ready `ArenaInstance`, and only then moves the
+players. When the match ends, rollback completes before slot 7's instance returns to the
+free pool. A third Castle duel reuses that copy
 without another paste.
 
 ## Required behaviour
@@ -243,6 +245,19 @@ refuses dynamic provisioning rather than modifying it.
 One world is sufficient for the single-server scaling target. When it reaches its
 configured capacity, the correct next network-scale answer is another Paper backend,
 not silently creating unlimited worlds.
+
+This remains the chosen architecture after the Phase 4B closeout review. A world per
+duel would repeatedly pay world lifecycle and standing world-management costs for no
+current gameplay requirement. Cosmetic per-player time/weather can be presented without
+world isolation. Reconsider one reusable world per pooled `ArenaInstance` only if a
+future feature needs authoritative independent weather, time, gamerules, spawning,
+dimension rules, or whole-world discard; do not create a new world for each match.
+
+When an arena is provisioned or recovered, the implementation compares the captured
+template's real edge-to-edge separation from the next usable slot with the dynamic
+world's chunk send distance. It logs one advisory warning per arena when a neighbour
+may be visible. The check does not mutate persisted geometry or block provisioning,
+because visibility may be acceptable for that deployment.
 
 ### 6. Slots use a fixed persisted grid
 
@@ -722,6 +737,7 @@ compared before extracting reusable infrastructure.
   justifies it.
 - Add rotation/mirroring when administrators need multiple orientations from one source.
 - Add template entities only after ownership and cleanup rules are designed.
-- Add multiple dynamic worlds only if one Paper backend genuinely exhausts a safe slot
-  layout; network scaling should normally add backends instead.
+- Add multiple dynamic worlds only for a concrete world-scoped isolation requirement,
+  or if one Paper backend genuinely exhausts a safe slot layout; network scaling should
+  normally add backends instead.
 - Move any abstraction to JCore only after another real plugin needs it.
