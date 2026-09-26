@@ -518,6 +518,14 @@ spread gap and the detached-block drop gap together.
   45/45 (33/33 in `DuelsIntegrationTest`), and `mvn -o clean package`
   (without `-DskipTests`) succeeds and auto-deploys cleanly again.
 
+  **Superseded `[2026-09-26]`:** the bounds exemption described above no longer
+  exists. Bounds became strictly mandatory, so `boundsRequired`,
+  `isBoundsRequired()` and `exemptFromBoundsRequirement()` were removed and
+  `isReady()` now requires `hasBounds()` outright. The key is still accepted by
+  the serializer's field whitelist so older files load, but it is ignored.
+  `spectatingAnArenaWithoutBoundsIsRefused` now clears the corners on a live
+  instance instead, which exercises the same defensive check.
+
   **Live re-verification, confirmed working:** re-ran with the
   `duels_dynamic_arenas` folder still renamed/missing. Console now shows:
   ```

@@ -442,7 +442,7 @@ report it rather than continuing.
 | 7.3 | C empties a lava bucket outside the arena and lets it flow | Flows normally. Not cancelled at any boundary. | [X] |
 | 7.4 | C builds / breaks / TNTs far away with **no match running at all** | Entirely normal. | [X] |
 | 7.5 | C's TNT outside the arena blasts **into** the live arena | Blocks inside the arena are still tracked and **restored** at match end. | [X] |
-| 7.6 | A duel in an arena copy with **no bounds configured**. You cannot reach this state through the admin flow - `ArenaInstance.boundsRequired` defaults to `true`, so `isReady()` is false until both corners are set and the copy will not be handed a match. It only exists on **upgrade**: a record written before the bounds requirement has no `boundsRequired` key, and the serializer grandfathers it in. To reproduce, stop the server, open `plugins/Duels/arena-instances.yml`, delete the `boundsRequired`, `boundsCorner1` and `boundsCorner2` keys from one copy, and start up again | Startup logs a warning naming the copy and telling you to set bounds. The copy still hosts duels, and inside one nothing is restricted, nothing is rolled back and spectating is refused - exactly as it behaved before bounds existed. Restore the file afterwards. | [ ] |
+| 7.6 | An arena copy with **no bounds configured** | **Not applicable - the state no longer exists.** Bounds are mandatory: `isReady()` requires `hasBounds()`, there is no way to clear bounds once set, and `setBounds` refuses while a copy is in use. A copy without bounds is not ready, is never offered to a match, and is named in a startup warning telling you to set them. The optional-bounds escape hatch that used to make this testable has been removed. | [-] |
 | 7.7 | Ordinary world fire and lava spread somewhere with no arena nearby | Behaves exactly as vanilla. | [X] |
 
 ---
@@ -459,15 +459,15 @@ that would stop it; these items only become testable if an admin narrows
 `slot-padding` or captures a template that nearly fills its slot, which is worth
 remembering before treating the defaults as the only configuration.
 
-8.3 is testable today and should be run: it checks that two concurrent resets do
-not interfere, which matters because rollback keys its tracked blocks *and* its
-decoration snapshot by instance id.
+8.3 is testable today and passes: two concurrent resets do not interfere, which
+matters because rollback keys its tracked blocks *and* its decoration snapshot by
+instance id.
 
 | # | Action | Expected | |
 |---|---|---|---|
 | 8.1 | Match 1 detonates TNT hard against the wall facing Match 2's slot | Match 2's arena is **physically unchanged**. | [-] |
 | 8.2 | Match 1 floods lava toward Match 2's slot | Flow stops at Match 1's bounds. | [-] |
-| 8.3 | Two provisioned matches run at once and both end | Each arena restored independently; neither reset damages the other, and decoration in each returns to its own arena's recorded positions. | [ ] |
+| 8.3 | Two provisioned matches run at once and both end | Each arena restored independently; neither reset damages the other, and decoration in each returns to its own arena's recorded positions. | [X] |
 
 Neighbouring slots being **visible** to each other is a separate, deferred item.
 Padding is currently a fixed block count, while whether a neighbour is visible

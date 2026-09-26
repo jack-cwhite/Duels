@@ -50,4 +50,21 @@ class ArenaInstanceSerializerTest
         assertEquals(ArenaInstanceOrigin.SOURCE, restored.getOrigin());
         assertEquals(null, restored.getDynamicSlotIndex());
     }
+
+    /**
+     * Bounds are now mandatory and "boundsRequired" is no longer written, but
+     * every file written by an earlier build still carries it. The field
+     * whitelist throws on any key it does not recognise, so dropping it there
+     * would make every existing arena-instances.yml fail to load - this pins
+     * that it stays accepted and ignored.
+     */
+    @Test
+    void aRecordStillCarryingTheOldBoundsRequiredKeyLoads()
+    {
+        ArenaInstanceSerializer serializer = new ArenaInstanceSerializer(new SerializerManager());
+
+        ArenaInstance instance = serializer.deserialize(2, Map.of("arenaId", 1, "boundsRequired", true));
+
+        assertEquals(1, instance.getArenaId());
+    }
 }

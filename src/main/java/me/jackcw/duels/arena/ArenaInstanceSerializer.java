@@ -10,6 +10,9 @@ import java.util.Set;
 
 public final class ArenaInstanceSerializer implements RepositorySerializer<ArenaInstance>
 {
+    // "boundsRequired" is no longer written and no longer means anything - bounds
+    // are mandatory. It stays accepted here because this whitelist throws on any
+    // key it does not know, and every file written by an earlier build has it.
     private static final Set<String> FIELDS = Set.of("arenaId", "origin", "dynamic", "spawn1", "spawn2", "boundsCorner1", "boundsCorner2", "boundsRequired");
     private static final Set<String> DYNAMIC_FIELDS = Set.of("slot", "templateRevision", "size", "state");
     private static final Set<String> SIZE_FIELDS = Set.of("x", "y", "z");
@@ -36,7 +39,6 @@ public final class ArenaInstanceSerializer implements RepositorySerializer<Arena
         data.put("spawn2", serializerManager.serialize(instance.getSpawn2()));
         data.put("boundsCorner1", serializerManager.serialize(instance.getBoundsCorner1()));
         data.put("boundsCorner2", serializerManager.serialize(instance.getBoundsCorner2()));
-        data.put("boundsRequired", instance.isBoundsRequired());
 
         return data;
     }
@@ -75,12 +77,6 @@ public final class ArenaInstanceSerializer implements RepositorySerializer<Arena
         instance.setSpawn2(serializerManager.deserialize(map.get("spawn2"), Location.class));
         instance.setBoundsCorner1(serializerManager.deserialize(map.get("boundsCorner1"), Location.class));
         instance.setBoundsCorner2(serializerManager.deserialize(map.get("boundsCorner2"), Location.class));
-
-        // A record saved before the bounds requirement existed has no
-        // "boundsRequired" key; grandfather it in so it keeps working
-        // without bounds instead of silently losing readiness on upgrade.
-        if (!(map.get("boundsRequired") instanceof Boolean required) || !required)
-            instance.exemptFromBoundsRequirement();
 
         return instance;
     }

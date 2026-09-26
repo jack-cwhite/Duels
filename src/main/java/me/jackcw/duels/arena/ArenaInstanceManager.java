@@ -36,27 +36,28 @@ public final class ArenaInstanceManager
         for (ArenaInstance instance : repository.findAll())
             instances.put(instance.getId(), instance);
 
-        warnAboutLegacyBoundlessInstances(logger);
+        warnAboutBoundlessInstances(logger);
     }
 
     /**
-     * Instances saved before bounds became mandatory for new copies keep
-     * working without them, but an admin should still be nudged to close the
-     * gap - a boundless copy silently skips rollback, spectating and
-     * out-of-bounds enforcement.
+     * Bounds are mandatory, so a copy without them is simply not ready and will
+     * never be handed a match. That is the intended outcome rather than a bug,
+     * but it is silent: an admin upgrading from a build where bounds were
+     * optional would find an arena that used to work has quietly stopped being
+     * offered, with nothing in the log explaining why.
      */
-    private void warnAboutLegacyBoundlessInstances(Logger logger)
+    private void warnAboutBoundlessInstances(Logger logger)
     {
         for (ArenaInstance instance : instances.values())
         {
-            if (instance.isBoundsRequired() || instance.hasBounds())
+            if (instance.hasBounds())
                 continue;
 
             logger.warning("Arena instance #" + instance.getId() + " (arena #" + instance.getArenaId()
-                    + ") has no gameplay bounds set. It predates the bounds requirement so it will keep "
-                    + "hosting matches, but without bounds it cannot support rollback, spectating or "
-                    + "out-of-bounds protection. Set bounds for it in /duels arena instance bounds "
-                    + instance.getId() + " <1|2> when convenient.");
+                    + ") has no gameplay bounds set, so it is not ready and will not host matches. "
+                    + "Bounds are required: without them there is no region to roll back, contain a "
+                    + "fight inside, or let a spectator watch. Set them with /duels arena instance "
+                    + "bounds " + instance.getId() + " <1|2>.");
         }
     }
 

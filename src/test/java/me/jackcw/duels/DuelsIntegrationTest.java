@@ -892,19 +892,22 @@ class DuelsIntegrationTest
         assertEquals(SpectateResult.MATCH_UNAVAILABLE, plugin.getSpectatorManager().start(charlie, match));
     }
 
+    /**
+     * Bounds are mandatory, so a match cannot start in a boundless arena at all
+     * - the instance never becomes ready. The corners are therefore cleared on
+     * the live instance after the match is under way, which is the one shape
+     * this state can still take: it reaches the defensive check in
+     * SpectatorManager rather than letting a null bounds box reach the code that
+     * would build a spectator's camera box from it.
+     */
     @Test
     void spectatingAnArenaWithoutBoundsIsRefused()
     {
-        WorldMock world = server.addSimpleWorld("no_bounds_world");
-        Arena arena = plugin.getArenaManager().createArena("Unbounded");
-        ArenaInstance instance = createReadyInstance(arena, world);
+        Match match = startSpectatableMatch("no_bounds_world", "Unbounded");
+        ArenaInstance instance = match.getArenaInstance();
+
         instance.setBoundsCorner1(null);
         instance.setBoundsCorner2(null);
-        instance.exemptFromBoundsRequirement();
-        plugin.getArenaInstanceManager().save(instance);
-
-        Match match = plugin.getMatchManager().startMatch(addPlayer("Alice"), addPlayer("Bob"));
-        assertNotNull(match);
 
         assertEquals(SpectateResult.NO_BOUNDS, plugin.getSpectatorManager().start(addPlayer("Charlie"), match));
     }

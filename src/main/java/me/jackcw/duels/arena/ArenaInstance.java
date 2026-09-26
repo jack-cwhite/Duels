@@ -24,7 +24,6 @@ public final class ArenaInstance
     private Integer templateRevision;
     private ArenaStructureSize structureSize;
     private DynamicArenaState dynamicState;
-    private boolean boundsRequired = true;
 
     public ArenaInstance(int id, int arenaId)
     {
@@ -159,26 +158,10 @@ public final class ArenaInstance
         return boundsCorner1 != null && boundsCorner2 != null;
     }
 
-    public boolean isBoundsRequired()
-    {
-        return boundsRequired;
-    }
-
-    /**
-     * Marks this instance as predating the bounds requirement, so it keeps
-     * working without bounds instead of being retroactively made not-ready.
-     * Only the serializer should call this, when loading a record saved
-     * before {@link #boundsRequired} existed.
-     */
-    public void exemptFromBoundsRequirement()
-    {
-        boundsRequired = false;
-    }
-
     public boolean isReady()
     {
         return spawn1 != null && spawn2 != null && (!isProvisioned() || dynamicState == DynamicArenaState.READY)
-                && (hasBounds() || !boundsRequired);
+                && hasBounds();
     }
 
     /**

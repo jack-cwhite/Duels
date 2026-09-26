@@ -1836,6 +1836,18 @@ mutations) or a command that deep-links straight to it (visual/spatial actions);
 ## Deferred (Not Rejected)
 
 These items from the existing V1 review remain intentionally deferred, restated here so
+- **Dynamic arena world layout needs a proper design pass before Phase 4B closes.**
+  Raised by Jack on 2026-09-26: concurrent matches in adjacent slots were
+  confirmed working, so the remaining questions are layout and presentation
+  rather than correctness, and he wants them planned deliberately rather than
+  patched item by item. Open questions to settle together: whether one shared
+  world with a padded grid stays the model or each generated copy gets its own
+  world; how separation should relate to `view-distance` (see the visibility note
+  below); whether per-arena time of day, weather and mob spawning are wanted,
+  since those need world isolation rather than distance; and what happens to the
+  saved `dynamic-layout.yml` if the model changes under an existing deployment.
+  Deferred deliberately, not forgotten - nothing here blocks the current
+  in-game suite.
 - Guaranteeing generated arenas are out of each other's view. Raised by Jack on
   2026-09-26 while running Stage 8 of the in-game suite, which he could not test
   because the shipped geometry puts neighbouring slots hundreds of blocks apart.
