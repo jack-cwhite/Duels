@@ -242,24 +242,24 @@ right material with different properties". Fences, walls and stairs reconnect to
 their new neighbours when pasted, so their block state legitimately changes.
 Only a *material* mismatch means a block was never placed.
 
-- [ ] **3.1** On the dynamic arena's source instance, set the two **structure
+- [X] **3.1** On the dynamic arena's source instance, set the two **structure
   capture corners deliberately wider than the gameplay bounds** - include the
   small building and a few blocks of surrounding platform on every side. Capture
   the template. Chat reports the captured size.
-- [ ] **3.2** The reported capture size **counts both corner blocks** - a
+- [X] **3.2** The reported capture size **counts both corner blocks** - a
   selection from X=10 to X=12 reads as **3**, not 2. Check this against the
   coordinates chat echoed when you clicked each corner.
-- [ ] **3.3** Provision one copy, then run `/duels diagnostics template <arenaId>`.
+- [X] **3.3** Provision one copy, then run `/duels diagnostics template <arenaId>`.
   Clean result: "Blocks stored in file" equals the recorded volume, no "file size
   disagrees" line, and the copy "matches the template across all N blocks". This
   is the item that proves the **full captured volume** is pasted rather than a
   volume trimmed to the gameplay bounds.
-- [ ] **3.4** Provision several more copies, then run the command again. Every
+- [X] **3.4** Provision several more copies, then run the command again. Every
   copy reports its own slot index and origin, the output ends with "No copy
   overlaps another, and each fits inside its own slot", and each copy matches the
   template. Then fly out and confirm visually that the copies are separated by
   the configured padding rather than touching.
-- [ ] **3.5** Walk the outermost copy's **captured margin** - the ground you
+- [X] **3.5** Walk the outermost copy's **captured margin** - the ground you
   included outside the gameplay bounds in 3.1. It is present. This is a sanity
   check on the command itself: if 3.3 passed but the margin is missing here, the
   command is comparing the wrong region and that is the finding to report.
@@ -284,15 +284,15 @@ above. Confirm the following there - no new building needed:
 
 | # | Check | Expected | |
 |---|---|---|---|
-| 4.1 | Coordinates chat reported when you clicked corner 1 | Match the block you actually stood on. | [ ] |
-| 4.2 | Size chat reported when you clicked corner 2 | Counts both corners inclusively - a span of 5 blocks along one axis reads as **5**, not 4. | [ ] |
-| 4.3 | **Right-click** the corner 1 tool | Teleports you to the middle of that corner block, not its edge. | [ ] |
-| 4.4 | Left-click **air** with a corner tool, standing anywhere with nothing in reach | Falls back to your own current position - the old stand-here workflow still works. | [ ] |
-| 4.5 | Set a **spawn** with the spawn tool | Uses your exact position **and facing** - spawns deliberately ignore whatever block you clicked. | [ ] |
-| 4.6 | Right-click the spawn tool | Teleports back, facing the direction you originally set it from. | [ ] |
-| 4.7 | Try setting a bounds corner on an arena **currently in use by a live match** | Refused as in-use. | [ ] |
-| 4.8 | Look at the **aqua particle frame** around your platform's bounds | Wraps the tracked volume: the bottom rail sits under the lowest included block, the top rail sits **above** the highest, not sitting on top of it. | [ ] |
-| 4.9 | The advisory that fired when you set bounds on the open platform | Correctly reports openings - that's expected here. The no-advisory contrast case is Stage 4b, next. | [ ] |
+| 4.1 | Coordinates chat reported when you clicked corner 1 | Match the block you actually stood on. | [X] |
+| 4.2 | Size chat reported when you clicked corner 2 | Counts both corners inclusively - a span of 5 blocks along one axis reads as **5**, not 4. | [X] |
+| 4.3 | **Right-click** the corner 1 tool | Teleports you to the middle of that corner block, not its edge. | [X] |
+| 4.4 | Left-click **air** with a corner tool, standing anywhere with nothing in reach | Falls back to your own current position - the old stand-here workflow still works. | [X] |
+| 4.5 | Set a **spawn** with the spawn tool | Uses your exact position **and facing** - spawns deliberately ignore whatever block you clicked. | [X] |
+| 4.6 | Right-click the spawn tool | Teleports back, facing the direction you originally set it from. | [X] |
+| 4.7 | Try setting a bounds corner on an arena **currently in use by a live match** | Refused as in-use. | [X] |
+| 4.8 | Look at the **aqua particle frame** around your platform's bounds | Wraps the tracked volume: the bottom rail sits under the lowest included block, the top rail sits **above** the highest, not sitting on top of it. | [X] |
+| 4.9 | The advisory that fired when you set bounds on the open platform | Correctly reports openings - that's expected here. The no-advisory contrast case is Stage 4b, next. | [X] |
 
 ### Stage 4b - The openings advisory itself (needs the sealed box)
 
@@ -319,22 +319,28 @@ stage work:
 3. Equip the bounds corner 2 tool. Move to the **diagonally opposite interior
    corner, at the top** - stand so your head is against the roof, look straight
    up, and **left-click the roof block above you**.
-4. Chat should report a **3x3x3** box. If it reports anything else, your walls
-   aren't where you think they are - recheck the build before continuing.
-5. This floor-block-to-roof-block convention is what puts the four walls exactly
-   one block *outside* the tracked box, which is what makes them immune later,
-   and matches the convention recommended for real sealed arenas.
+4. Chat should report a **3x5x3** box - `{sizeX}x{sizeY}x{sizeZ}`. Not 3x3x3: the
+   interior is 3x3x3, but you clicked the **floor block** and the **roof block**,
+   so the Y span is floor + 3 interior + roof = **5**. X and Z stay at 3 because
+   both clicks were on interior columns. If either horizontal figure reads 4 or 5,
+   a click landed on a roof or floor block sitting over a *wall* rather than over
+   the interior - right-click each corner tool to teleport to the block it
+   actually recorded and confirm both are interior columns.
+5. This floor-block-to-roof-block convention leaves the **four walls** one block
+   outside the tracked box, which is what makes them immune later. The floor and
+   roof are deliberately inside it, so blocks broken out of them during a duel
+   are recorded and restored.
 
 Now the checks:
 
 | # | Action | Expected | |
 |---|---|---|---|
-| 4.10 | With the box fully sealed (just built, bounds just set per above) | **No** advisory printed - only the corner + size lines. **This is the case your two real open-platform arenas cannot produce**, which is the whole reason this box exists. | [ ] |
-| 4.11 | Punch a single 1-block hole through the middle of one wall, at mid-height | Nothing prints yet - the advisory is computed when a bounds corner is set, not continuously as the world changes. | [ ] |
-| 4.12 | Re-click the **same** corner 2 block (the roof block from step 3 above) to force a recheck | Advisory now fires, naming **1** opening. | [ ] |
-| 4.13 | Patch the hole with a block, re-click corner 2 again | Advisory clears - back to no advisory, matching 4.10. | [ ] |
-| 4.14 | Punch two separate 1-block holes (different walls this time), re-click corner 2 | Advisory names **2** openings. | [ ] |
-| 4.15 | Remove the entire roof, re-click corner 2 | **No** advisory. An open top is a valid design - liquid cannot escape upward, so only side openings are flagged. | [ ] |
+| 4.10 | With the box fully sealed (just built, bounds just set per above) | **No** advisory printed - only the corner + size lines. **This is the case your two real open-platform arenas cannot produce**, which is the whole reason this box exists. | [X] |
+| 4.11 | Punch a single 1-block hole through the middle of one wall, at mid-height | Nothing prints yet - the advisory is computed when a bounds corner is set, not continuously as the world changes. | [X] |
+| 4.12 | Re-click the **same** corner 2 block (the roof block from step 3 above) to force a recheck | Advisory now fires, naming **1** opening. | [X] |
+| 4.13 | Patch the hole with a block, re-click corner 2 again | Advisory clears - back to no advisory, matching 4.10. | [X] |
+| 4.14 | Punch two separate 1-block holes (different walls this time), re-click corner 2 | Advisory names **2** openings. | [X] |
+| 4.15 | Remove the entire roof, re-click corner 2 | **No** advisory. An open top is a valid design - liquid cannot escape upward, so only side openings are flagged. | [X] |
 
 ### Stage 4c - Legacy arenas *(skip if this doesn't apply to you)*
 
@@ -345,8 +351,8 @@ legacy to check - skip straight to 4d.
 
 | # | Action | Expected | |
 |---|---|---|---|
-| 4.16 | Start the server with that arena's old bounds left untouched | Loads normally - no errors, no bounds warnings. | [ ] |
-| 4.17 | Run a match in it, breaking blocks on its lowest-X face, lowest-Z face and floor | All allowed, all restored - this is the face the old raw-coordinate comparison used to wrongly exclude. | [ ] |
+| 4.16 | Start the server with that arena's old bounds left untouched | Loads normally - no errors, no bounds warnings. | [-] |
+| 4.17 | Run a match in it, breaking blocks on its lowest-X face, lowest-Z face and floor | All allowed, all restored - this is the face the old raw-coordinate comparison used to wrongly exclude. | [-] |
 
 ### Stage 4d - Template capture regression (dynamic arena)
 
@@ -355,10 +361,10 @@ re-validates the capture *tooling* itself - the corner clicks and the frame.
 
 | # | Action | Expected | |
 |---|---|---|---|
-| 4.18 | On the dynamic arena's source, set both structure corners by **clicking blocks**, then recapture the template | Succeeds. Reported dimensions match what's actually built. | [ ] |
-| 4.19 | Right-click a structure corner tool | Teleports to the middle of that corner block. | [ ] |
-| 4.20 | Look at the **orange structure frame** on the source | Wraps the capture volume with the same correction as the aqua bounds frame - not sitting a block low. | [ ] |
-| 4.21 | Provision a fresh copy from the recaptured template and play a match in it | Pastes, plays, and resets normally. | [ ] |
+| 4.18 | On the dynamic arena's source, set both structure corners by **clicking blocks**, then recapture the template | Succeeds. Reported dimensions match what's actually built. | [X] |
+| 4.19 | Right-click a structure corner tool | Teleports to the middle of that corner block. | [X] |
+| 4.20 | Look at the **orange structure frame** on the source | Wraps the capture volume with the same correction as the aqua bounds frame - not sitting a block low. | [X] |
+| 4.21 | Provision a fresh copy from the recaptured template and play a match in it | Pastes, plays, and resets normally. | [X] |
 
 ---
 
