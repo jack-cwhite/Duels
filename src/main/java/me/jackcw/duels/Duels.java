@@ -453,7 +453,7 @@ public class Duels extends JavaPlugin
         // with dynamic provisioning simply unavailable (and its instance
         // records skipped-and-logged by YamlRepository) until it's restored.
         dynamicArenaSlotManager = new DynamicArenaSlotManager(this);
-        dynamicArenaWorldManager = new DynamicArenaWorldManager(dynamicArenaSlotManager);
+        dynamicArenaWorldManager = new DynamicArenaWorldManager(dynamicArenaSlotManager, getLogger());
         if (dynamicArenaSlotManager.hasPersistedLayout())
         {
             try

@@ -89,8 +89,14 @@ public final class DynamicArenaRecovery
             return;
         }
 
+        var world = plugin.getServer().getWorld(plugin.getDynamicArenaSlotManager().getOrCreateLayout().worldName());
+
         for (ArenaInstance instance : instances)
         {
+            if (world != null)
+                plugin.getDynamicArenaWorldManager().warnIfAdjacentSlotsMayBeVisible(
+                        world, instance.getArenaId(), instance.getStructureSize());
+
             switch (instance.getDynamicState())
             {
                 case READY, FAILED -> { }

@@ -5,15 +5,22 @@ import org.bukkit.World;
 import org.bukkit.WorldCreator;
 
 import java.io.File;
+import java.util.HashSet;
+import java.util.OptionalInt;
+import java.util.Set;
+import java.util.logging.Logger;
 
 /** Creates or verifies the one world owned by Duels for provisioned arenas. */
 public final class DynamicArenaWorldManager
 {
     private final DynamicArenaSlotManager slotManager;
+    private final Logger logger;
+    private final Set<Integer> visibilityWarnings = new HashSet<>();
 
-    public DynamicArenaWorldManager(DynamicArenaSlotManager slotManager)
+    public DynamicArenaWorldManager(DynamicArenaSlotManager slotManager, Logger logger)
     {
         this.slotManager = slotManager;
+        this.logger = logger;
     }
 
     public World getOrCreateWorld()
@@ -39,6 +46,35 @@ public final class DynamicArenaWorldManager
 
         slotManager.setWorldId(world.getUID());
         return world;
+    }
+
+    /**
+     * Warns when this arena's real captured footprint can enter the chunk-send
+     * range of an adjacent slot. This is advisory rather than validation:
+     * neighbouring arenas may deliberately be visible, and changing persisted
+     * grid geometry automatically would move existing copies.
+     */
+    public void warnIfAdjacentSlotsMayBeVisible(World world, int arenaId, ArenaStructureSize size)
+    {
+        DynamicArenaLayout layout = slotManager.getOrCreateLayout();
+        OptionalInt separation = layout.minimumAdjacentSeparation(size);
+
+        if (separation.isEmpty())
+            return;
+
+        int sendDistanceChunks = world.getSendViewDistance();
+        if (sendDistanceChunks < 0)
+            sendDistanceChunks = world.getViewDistance();
+
+        int sendDistanceBlocks = sendDistanceChunks * 16;
+        if (!layout.mayExposeAdjacentSlot(size, sendDistanceChunks) || !visibilityWarnings.add(arenaId))
+            return;
+
+        logger.warning("Dynamic arena #" + arenaId + " can be only " + separation.getAsInt()
+                + " blocks from the next slot, while world '" + world.getName() + "' sends chunks up to "
+                + sendDistanceChunks + " chunks (approximately " + sendDistanceBlocks + " blocks). Players near an edge may see "
+                + "a neighbouring arena. Increase dynamic-arenas.slot-padding before first use, rebuild the generated pool with a "
+                + "larger layout, reduce the world's send distance, or accept that arenas may be visible.");
     }
 
     /**

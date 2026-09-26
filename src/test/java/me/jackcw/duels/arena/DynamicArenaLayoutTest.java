@@ -34,4 +34,24 @@ class DynamicArenaLayoutTest
         assertFalse(slot.fits(new ArenaStructureSize(101, 10, 90)));
         assertFalse(slot.fits(new ArenaStructureSize(100, 10, 91)));
     }
+
+    @Test
+    void visibilitySeparationUsesTheRealTemplateFootprint()
+    {
+        DynamicArenaLayout layout = new DynamicArenaLayout(1, "duels_dynamic", null, 64, 8, 256, 256, 16, 64);
+
+        assertEquals(32, layout.minimumAdjacentSeparation(new ArenaStructureSize(256, 20, 256)).orElseThrow());
+        assertEquals(238, layout.minimumAdjacentSeparation(new ArenaStructureSize(50, 20, 50)).orElseThrow());
+        assertTrue(layout.mayExposeAdjacentSlot(new ArenaStructureSize(256, 20, 256), 2));
+        assertFalse(layout.mayExposeAdjacentSlot(new ArenaStructureSize(50, 20, 50), 10));
+    }
+
+    @Test
+    void aSingleSlotLayoutHasNoAdjacentVisibilityRisk()
+    {
+        DynamicArenaLayout layout = new DynamicArenaLayout(1, "duels_dynamic", null, 1, 1, 256, 256, 16, 64);
+
+        assertTrue(layout.minimumAdjacentSeparation(new ArenaStructureSize(256, 20, 256)).isEmpty());
+        assertFalse(layout.mayExposeAdjacentSlot(new ArenaStructureSize(256, 20, 256), 32));
+    }
 }

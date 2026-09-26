@@ -54,6 +54,7 @@ public final class DynamicArenaProvisioner
         try
         {
             world = worldManager.getOrCreateWorld();
+            worldManager.warnIfAdjacentSlotsMayBeVisible(world, arena.getId(), template.size());
             // Persist the non-ready record before changing the world. If the
             // server stops during a paste, startup sees PROVISIONING and never
             // allocates this potentially partial slot.
@@ -105,6 +106,7 @@ public final class DynamicArenaProvisioner
             if (instance.getDynamicState() == DynamicArenaState.FAILED)
                 instanceManager.setDynamicState(instance, DynamicArenaState.PROVISIONING);
             World world = worldManager.getOrCreateWorld();
+            worldManager.warnIfAdjacentSlotsMayBeVisible(world, instance.getArenaId(), instance.getStructureSize());
             DynamicArenaSlot slot = slotManager.getOrCreateLayout().slot(instance.getDynamicSlotIndex());
             addChunkTickets(world, slot, instance.getStructureSize());
             CompletableFuture<?>[] chunkLoads = chunkLoads(world, slot, instance.getStructureSize()).toArray(CompletableFuture[]::new);
