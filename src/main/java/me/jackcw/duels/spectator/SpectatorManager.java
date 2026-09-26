@@ -143,6 +143,14 @@ public final class SpectatorManager
 
         clearPersisted(uuid);
 
+        // Mirrors MatchManager.forgetParticipant for the spectator side of the
+        // same problem - a spectator whose session ends normally (leaving via
+        // /duel leave, or being ejected because the match they watched ended)
+        // never fires PlayerQuitEvent, so without this BoundaryEnforcer keeps
+        // tracking them under a match they are no longer attached to for as
+        // long as they stay online.
+        plugin.getBoundaryEnforcer().forget(uuid);
+
         return true;
     }
 

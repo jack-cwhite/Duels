@@ -489,6 +489,12 @@ public final class MatchManager
     private void forgetParticipant(UUID playerId)
     {
         matches.remove(playerId);
+
+        // A match ending is the only other place besides PlayerQuitEvent that
+        // stops a duelist being live - without this, BoundaryEnforcer keeps
+        // tracking them under a match that no longer exists for as long as
+        // they stay connected to the server.
+        plugin.getBoundaryEnforcer().forget(playerId);
     }
 
     private void prepareForMatch(Player player)
