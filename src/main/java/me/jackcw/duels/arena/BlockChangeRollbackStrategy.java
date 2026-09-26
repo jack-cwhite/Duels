@@ -9,7 +9,9 @@ import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
 import org.bukkit.entity.AreaEffectCloud;
+import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Hanging;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
@@ -32,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.HashSet;
 
 /**
@@ -56,6 +59,15 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
     private final int blocksPerTick;
 
     private final Map<Integer, Deque<BlockState>> changesByInstanceId = new HashMap<>();
+
+    // Where each instance's decoration stood before the match changed anything.
+    // Blocks are restorable because a BlockState records its own position, but
+    // an armour stand that falls into an explosion crater has no event to
+    // cancel and no state to replay: ordinary entity physics move it, and the
+    // block replay then rebuilds the floor around wherever it landed, leaving
+    // it embedded. Recording the positions once, at the point the instance is
+    // first tracked, gives the reset something to put them back to.
+    private final Map<Integer, Map<UUID, Location>> decorationByInstanceId = new HashMap<>();
 
     // Instances whose match has ended but whose rollback has not started yet.
     // Changes landing in this window still belong to the match that caused
@@ -272,6 +284,7 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
 
             if (changes == null || changes.isEmpty())
             {
+                restoreDecoration(instance);
                 onComplete.run();
                 return;
             }
@@ -286,6 +299,7 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
                 if (changes.isEmpty())
                 {
                     taskHolder[0].cancel();
+                    restoreDecoration(instance);
                     onComplete.run();
                 }
             }, 0L, 1L);
@@ -303,7 +317,8 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
      * Decoration - item frames, paintings, armour stands - is deliberately
      * left alone: {@link ArenaContainmentGuard} already protects it from the
      * duel itself, so it belongs to the arena rather than to the match that
-     * just ended.
+     * just ended. Where a duel displaces it anyway, {@link #restoreDecoration}
+     * puts it back once the blocks are in place.
      *
      * <p>Skipped entirely when the instance has no bounds, matching every
      * other bounds-gated behaviour here: without a defined box there is no
@@ -327,6 +342,64 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
         }
     }
 
+    /**
+     * Every item frame, painting and armour stand currently inside the
+     * instance's bounds, keyed by entity id so a stand blown clear out of the
+     * box can still be found afterwards.
+     */
+    private Map<UUID, Location> snapshotDecoration(ArenaInstance instance)
+    {
+        Map<UUID, Location> positions = new HashMap<>();
+        BlockBox bounds = instance.getBoundsBox();
+
+        if (bounds == null)
+            return positions;
+
+        BoundingBox box = new BoundingBox(
+                bounds.minX(), bounds.minY(), bounds.minZ(),
+                bounds.maxCornerX(), bounds.maxCornerY(), bounds.maxCornerZ());
+
+        for (Entity entity : bounds.world().getNearbyEntities(box))
+            if (entity instanceof Hanging || entity instanceof ArmorStand)
+                positions.put(entity.getUniqueId(), entity.getLocation());
+
+        return positions;
+    }
+
+    /**
+     * Puts displaced decoration back and puts out anything still alight.
+     *
+     * <p>Must run <em>after</em> the block replay, not before: teleporting a
+     * stand back while its crater is still open simply drops it again.
+     *
+     * <p>{@link ArenaContainmentGuard} prevents decoration being damaged or set
+     * on fire in the first place, so in a correctly guarded match this finds
+     * nothing to do. It exists for the displacement that guard cannot prevent -
+     * no event fires when gravity or blast knockback moves an entity - and the
+     * fire ticks are cleared as a backstop for any ignition path that reaches a
+     * stand without an {@code EntityCombustEvent}.
+     */
+    private void restoreDecoration(ArenaInstance instance)
+    {
+        Map<UUID, Location> positions = decorationByInstanceId.remove(instance.getId());
+
+        if (positions == null)
+            return;
+
+        for (Map.Entry<UUID, Location> entry : positions.entrySet())
+        {
+            Entity entity = plugin.getServer().getEntity(entry.getKey());
+
+            if (entity == null || !entity.isValid())
+                continue;
+
+            entity.setFireTicks(0);
+
+            if (!entity.getLocation().equals(entry.getValue()))
+                entity.teleport(entry.getValue());
+        }
+    }
+
     private boolean track(BlockState previousState)
     {
         ArenaInstance instance = resolveTrackableInstance(previousState.getLocation());
@@ -334,7 +407,16 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
         if (instance == null)
             return false;
 
-        Deque<BlockState> changes = changesByInstanceId.computeIfAbsent(instance.getId(), id -> new ArrayDeque<>());
+        Deque<BlockState> changes = changesByInstanceId.computeIfAbsent(instance.getId(), id ->
+        {
+            // Tracking always runs before the world actually changes - that is
+            // the whole point of recording the prior BlockState - so the first
+            // tracked change is the last moment at which decoration is still
+            // where the arena put it. Even the explosion that knocks a stand
+            // over is tracked before the blocks under it go.
+            decorationByInstanceId.put(id, snapshotDecoration(instance));
+            return new ArrayDeque<>();
+        });
 
         // Past the ceiling, further changes are simply not tracked - the match
         // still plays out normally, but the arena may be left partially

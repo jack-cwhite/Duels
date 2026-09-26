@@ -20,6 +20,7 @@ import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.block.BlockIgniteEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityCombustEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.hanging.HangingBreakEvent;
@@ -199,6 +200,23 @@ public final class ArenaContainmentGuard implements Listener
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onDecorationDamaged(EntityDamageEvent event)
+    {
+        if (!(event.getEntity() instanceof Hanging) && !(event.getEntity() instanceof ArmorStand))
+            return;
+
+        if (matchManager.getLiveInstanceAt(event.getEntity().getLocation()) != null)
+            event.setCancelled(true);
+    }
+
+    /**
+     * Fire ticks are set separately from damage, so cancelling
+     * {@link EntityDamageEvent} alone leaves a stand that lava or a fire charge
+     * reached burning for the rest of the match: it takes no damage and is never
+     * destroyed, but it is visibly alight, which is not "survives untouched".
+     * Cancelling combustion stops the fire ticks ever being applied.
+     */
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onDecorationCombust(EntityCombustEvent event)
     {
         if (!(event.getEntity() instanceof Hanging) && !(event.getEntity() instanceof ArmorStand))
             return;

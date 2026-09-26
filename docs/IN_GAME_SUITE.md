@@ -372,29 +372,29 @@ re-validates the capture *tooling* itself - the corner clicks and the frame.
 
 A and B are duelling. Every action here should be **cancelled with a message**.
 
-| # | Action | Expected | |
-|---|---|---|---|
-| 5.1 | A places a block well inside the arena | Succeeds. Removed again when the match ends. | [ ] |
-| 5.2 | A stands inside, aims past the bounds edge, places a block outside | Cancelled. `You can only build inside the arena bounds.` | [ ] |
-| 5.3 | A spam-clicks that same outside spot for ~10s | At most one message every 2 seconds. | [ ] |
-| 5.4 | A **breaks** one of the marker blocks outside the bounds edge | Cancelled, same message. Marker survives. | [ ] |
-| 5.5 | A empties a **lava bucket** outside the bounds | Cancelled, same message. No lava appears. | [ ] |
-| 5.6 | A **fills** a bucket from a source outside the bounds | Cancelled, same message. Source survives. | [ ] |
-| 5.7 | A **flint-and-steels** a block outside the bounds | Cancelled, same message. No fire. | [ ] |
-| 5.8 | Repeat 5.2 as **B**, and again with B as an operator | Same result - no participant is exempt. There is deliberately no bypass permission. | [ ] |
-| 5.9 | A disconnects mid-match and rejoins, then retries 5.2 | Message appears immediately - no stale throttle state. | [ ] |
-| 5.10 | **During kit selection**, before either player has picked a kit, A tries 5.2 | Cancelled, same message. Both duellists are teleported into the arena the moment the match is created, so containment starts there rather than when combat does. | [ ] |
-| 5.11 | **During kit selection**, A empties a lava bucket *inside* the arena, then the match runs and ends | Allowed at the time and **rolled back** at match end, like any other in-bounds change. Previously this was neither prevented nor restored. | [ ] |
-| 5.12 | Repeat 5.11 during the **grace countdown** | Same result. | [ ] |
+| # | Action | Expected |     |
+|---|---|---|-----|
+| 5.1 | A places a block well inside the arena | Succeeds. Removed again when the match ends. | [X] |
+| 5.2 | A stands inside, aims past the bounds edge, places a block outside | Cancelled. `You can only build inside the arena bounds.` | [X] |
+| 5.3 | A spam-clicks that same outside spot for ~10s | At most one message every 2 seconds. | [X] |
+| 5.4 | A **breaks** one of the marker blocks outside the bounds edge | Cancelled, same message. Marker survives. | [X] |
+| 5.5 | A empties a **lava bucket** outside the bounds | Cancelled, same message. No lava appears. | [X] |
+| 5.6 | A **fills** a bucket from a source outside the bounds | Cancelled, same message. Source survives. | [X] |
+| 5.7 | A **flint-and-steels** a block outside the bounds | Cancelled, same message. No fire. | [X] |
+| 5.8 | Repeat 5.2 as **B**, and again with B as an operator | Same result - no participant is exempt. There is deliberately no bypass permission. | [X] |
+| 5.9 | A disconnects mid-match and rejoins, then retries 5.2 | Message appears immediately - no stale throttle state. | [X] |
+| 5.10 | **During kit selection**, before either player has picked a kit, A tries 5.2 | Cancelled, same message. Both duellists are teleported into the arena the moment the match is created, so containment starts there rather than when combat does. | [X] |
+| 5.11 | **During kit selection**, A empties a lava bucket *inside* the arena, then the match runs and ends | Allowed at the time and **rolled back** at match end, like any other in-bounds change. Previously this was neither prevented nor restored. | [X] |
+| 5.12 | Repeat 5.11 during the **grace countdown** | Same result. | [X] |
 
 ### Stage 5b - WARNING boundary mode (the two-sided check)
 
 Set the arena's boundary mode to `WARNING` so a duellist can physically leave the
 bounds and stay outside.
 
-| # | Action | Expected | |
-|---|---|---|---|
-| 5.13 | A walks outside the bounds, then tries to build back **into** the arena | Cancelled. Containment is two-sided: it is about the blocks, not about where the player is standing. | [ ] |
+| # | Action | Expected |     |
+|---|---|---|-----|
+| 5.13 | A walks outside the bounds, then tries to build back **into** the arena | Cancelled. Containment is two-sided: it is about the blocks, not about where the player is standing. | [X] |
 
 ---
 
@@ -410,21 +410,21 @@ there's no wall to visibly stop it against, a cancelled flow can look like it
 simply freezes in mid-air. That's the correct, documented behaviour; don't
 mistake it for a bug.
 
-| # | Action | Expected | |
-|---|---|---|---|
-| 6.1 | TNT detonated in the middle of the arena | Normal crater. **No item drops.** Fully restored at match end. | [ ] |
-| 6.2 | TNT at ground level near the bounds edge, lit **with a redstone torch** | Ground destroyed up to the boundary line; markers just outside untouched; the crater is restored at match end. No message. | [ ] |
-| 6.3 | TNT placed against the small building, within the bounds height you set | Damage confined within the bounds box; nothing above the height you set for corner 2 changes. | [ ] |
-| 6.4 | Lava bucket emptied near the bounds edge | Flow spreads normally inside and **stops at the boundary**, even with no wall there to stop it visibly. Nothing outside changes. Arena restored afterwards. | [ ] |
-| 6.5 | Water bucket emptied near the bounds edge | Spreads inward normally and stops at the same line. | [ ] |
-| 6.6 | Flint and steel on a flammable block inside, near the bounds edge | Fire spreads inside the bounds but **does not cross it**. Nothing outside catches or burns away. | [ ] |
-| 6.7 | TNT detonated right **on** the boundary line | Blocks inside destroyed and restored; blocks outside untouched. The blast is trimmed, not cancelled. | [ ] |
-| 6.8 | A long TNT-and-lava fight, ~1 minute | Chat stays clean of containment messages. Arena restored, allowing for the documented `arena-reset-max-tracked-block-changes` ceiling. | [ ] |
-| 6.9 | **Known behaviour, not a failure, and likely by default on an open platform:** empty lava right beside the bounds edge | The lava may sit completely still even though there's open space just past it. Minecraft picks a fluid's spread direction before the event fires, so vetoing the escape does not redirect it. Nothing escapes regardless - if this looks wrong, it isn't. | [ ] |
-| 6.10 | **Sand or gravel floor:** blow a crater under it with TNT inside the bounds, let it settle, then end the match | The rearranged floor is restored to its original arrangement. A falling block is an entity in flight, so neither a break nor a place event fires - this was unrestored before `EntityChangeBlockEvent` was tracked. | [ ] |
+| # | Action | Expected |     |
+|---|---|---|-----|
+| 6.1 | TNT detonated in the middle of the arena | Normal crater. **No item drops.** Fully restored at match end. | [X] |
+| 6.2 | TNT at ground level near the bounds edge, lit **with a redstone torch** | Ground destroyed up to the boundary line; markers just outside untouched; the crater is restored at match end. No message. | [X] |
+| 6.3 | TNT placed against the small building, within the bounds height you set | Damage confined within the bounds box; nothing above the height you set for corner 2 changes. | [X] |
+| 6.4 | Lava bucket emptied near the bounds edge | Flow spreads normally inside and **stops at the boundary**, even with no wall there to stop it visibly. Nothing outside changes. Arena restored afterwards. | [X] |
+| 6.5 | Water bucket emptied near the bounds edge | Spreads inward normally and stops at the same line. | [X] |
+| 6.6 | Flint and steel on a flammable block inside, near the bounds edge | Fire spreads inside the bounds but **does not cross it**. Nothing outside catches or burns away. | [X] |
+| 6.7 | TNT detonated right **on** the boundary line | Blocks inside destroyed and restored; blocks outside untouched. The blast is trimmed, not cancelled. | [X] |
+| 6.8 | A long TNT-and-lava fight, ~1 minute | Chat stays clean of containment messages. Arena restored, allowing for the documented `arena-reset-max-tracked-block-changes` ceiling. | [X] |
+| 6.9 | **Known behaviour, not a failure, and likely by default on an open platform:** empty lava right beside the bounds edge | The lava may sit completely still even though there's open space just past it. Minecraft picks a fluid's spread direction before the event fires, so vetoing the escape does not redirect it. Nothing escapes regardless - if this looks wrong, it isn't. | [X] |
+| 6.10 | **Sand or gravel floor:** blow a crater under it with TNT inside the bounds, let it settle, then end the match | The rearranged floor is restored to its original arrangement. A falling block is an entity in flight, so neither a break nor a place event fires - this was unrestored before `EntityChangeBlockEvent` was tracked. | [X] |
 | 6.11 | Hang **item frames with items in them**, a painting and an armour stand somewhere inside the bounds - the small building's walls work well - then fight a TNT-and-lava match around them | All survive untouched. No frame breaks, no item pops out, the armour stand is not knocked over, nothing drops. Decoration is entities, so the rollback cannot record it - it is protected instead, exactly as walls would be. | [ ] |
-| 6.12 | Punch an item frame inside a live arena as a duellist | Nothing happens - the item stays in the frame. | [ ] |
-| 6.13 | Punch the same item frame with **no match running** | Normal vanilla behaviour: the item pops out. Protection is scoped to a live arena, not permanent. | [ ] |
+| 6.12 | Punch an item frame inside a live arena as a duellist | Nothing happens - the item stays in the frame. | [X] |
+| 6.13 | Punch the same item frame with **no match running** | Normal vanilla behaviour: the item pops out. Protection is scoped to a live arena, not permanent. | [X] |
 
 ---
 
