@@ -422,10 +422,10 @@ mistake it for a bug.
 | 6.8 | A long TNT-and-lava fight, ~1 minute | Chat stays clean of containment messages. Arena restored, allowing for the documented `arena-reset-max-tracked-block-changes` ceiling. | [X] |
 | 6.9 | **Known behaviour, not a failure, and likely by default on an open platform:** empty lava right beside the bounds edge | The lava may sit completely still even though there's open space just past it. Minecraft picks a fluid's spread direction before the event fires, so vetoing the escape does not redirect it. Nothing escapes regardless - if this looks wrong, it isn't. | [X] |
 | 6.10 | **Sand or gravel floor:** blow a crater under it with TNT inside the bounds, let it settle, then end the match | The rearranged floor is restored to its original arrangement. A falling block is an entity in flight, so neither a break nor a place event fires - this was unrestored before `EntityChangeBlockEvent` was tracked. | [X] |
-| 6.11 | Hang **item frames with items in them**, a painting and an armour stand somewhere inside the bounds - the small building's walls work well - then fight a TNT-and-lava match around them | All survive untouched. No frame breaks, no item pops out, nothing drops, and the armour stand is back where you put it once the arena resets. Decoration is entities, so the rollback cannot replay it the way it replays blocks - it is protected from damage instead, exactly as walls are, and its position is recorded and reapplied for the one thing protection cannot prevent: gravity. | [ ] |
+| 6.11 | Hang **item frames with items in them**, a painting and an armour stand somewhere inside the bounds - the small building's walls work well - then fight a TNT-and-lava match around them | All survive untouched. No frame breaks, no item pops out, nothing drops, and the armour stand is back where you put it once the arena resets. Decoration is entities, so the rollback cannot replay it the way it replays blocks - it is protected from damage instead, exactly as walls are, and its position is recorded and reapplied for the one thing protection cannot prevent: gravity. | [X] |
 | 6.12 | Punch an item frame inside a live arena as a duellist | Nothing happens - the item stays in the frame. | [X] |
 | 6.13 | Punch the same item frame with **no match running** | Normal vanilla behaviour: the item pops out. Protection is scoped to a live arena, not permanent. | [X] |
-| 6.14 | Stand an armour stand on a block you can blow up, spill **lava** onto it, then detonate TNT under it | The stand never catches fire, and after the reset it is standing exactly where you left it rather than sunk into the restored floor. Combustion is cancelled alongside damage, and the stand's position is recorded when the match first changes a block and reapplied *after* the block replay - putting it back before the crater is filled would only drop it again. | [ ] |
+| 6.14 | Stand an armour stand on a block you can blow up, spill **lava** onto it, then detonate TNT under it | The stand never catches fire, and after the reset it is standing exactly where you left it rather than sunk into the restored floor. Combustion is cancelled alongside damage, and the stand's position is recorded when the match first changes a block and reapplied *after* the block replay - putting it back before the crater is filled would only drop it again. | [X] |
 
 ---
 
@@ -437,29 +437,42 @@ report it rather than continuing.
 
 | # | Action | Expected | |
 |---|---|---|---|
-| 7.1 | While A and B duel, **C** builds freely right outside the bounds edge | Completely unrestricted. No message. | [ ] |
-| 7.2 | C detonates TNT outside the arena, away from any bounds | Normal vanilla explosion, **normal item drops**. | [ ] |
-| 7.3 | C empties a lava bucket outside the arena and lets it flow | Flows normally. Not cancelled at any boundary. | [ ] |
-| 7.4 | C builds / breaks / TNTs far away with **no match running at all** | Entirely normal. | [ ] |
-| 7.5 | C's TNT outside the arena blasts **into** the live arena | Blocks inside the arena are still tracked and **restored** at match end. | [ ] |
-| 7.6 | A duel in an arena with **no bounds configured** | Nothing restricted, nothing rolled back - unchanged from before bounds existed. | [ ] |
-| 7.7 | Ordinary world fire and lava spread somewhere with no arena nearby | Behaves exactly as vanilla. | [ ] |
+| 7.1 | While A and B duel, **C** builds freely right outside the bounds edge | Completely unrestricted. No message. | [X] |
+| 7.2 | C detonates TNT outside the arena, away from any bounds | Normal vanilla explosion, **normal item drops**. | [X] |
+| 7.3 | C empties a lava bucket outside the arena and lets it flow | Flows normally. Not cancelled at any boundary. | [X] |
+| 7.4 | C builds / breaks / TNTs far away with **no match running at all** | Entirely normal. | [X] |
+| 7.5 | C's TNT outside the arena blasts **into** the live arena | Blocks inside the arena are still tracked and **restored** at match end. | [X] |
+| 7.6 | A duel in an arena copy with **no bounds configured**. You cannot reach this state through the admin flow - `ArenaInstance.boundsRequired` defaults to `true`, so `isReady()` is false until both corners are set and the copy will not be handed a match. It only exists on **upgrade**: a record written before the bounds requirement has no `boundsRequired` key, and the serializer grandfathers it in. To reproduce, stop the server, open `plugins/Duels/arena-instances.yml`, delete the `boundsRequired`, `boundsCorner1` and `boundsCorner2` keys from one copy, and start up again | Startup logs a warning naming the copy and telling you to set bounds. The copy still hosts duels, and inside one nothing is restricted, nothing is rolled back and spectating is refused - exactly as it behaved before bounds existed. Restore the file afterwards. | [ ] |
+| 7.7 | Ordinary world fire and lava spread somewhere with no arena nearby | Behaves exactly as vanilla. | [X] |
 
 ---
 
 ## Stage 8 - Dynamic arenas sharing one world
 
-Needs two simultaneous provisioned matches in **adjacent grid slots** of
-`duels_dynamic_arenas`.
+8.1 and 8.2 are **unreachable at the shipped geometry, not passing.** A slot is
+`slot-width: 256` wide with `slot-padding: 16` either side, so neighbouring
+slots' origins sit 288 blocks apart, and a real arena occupies far less than its
+slot - leaving a couple of hundred blocks of air between one arena's wall and the
+next one's. TNT reaches about 8 blocks and lava flows 7, so nothing a match can
+do gets anywhere near its neighbour. `ArenaContainmentGuard` is still the thing
+that would stop it; these items only become testable if an admin narrows
+`slot-padding` or captures a template that nearly fills its slot, which is worth
+remembering before treating the defaults as the only configuration.
+
+8.3 is testable today and should be run: it checks that two concurrent resets do
+not interfere, which matters because rollback keys its tracked blocks *and* its
+decoration snapshot by instance id.
 
 | # | Action | Expected | |
 |---|---|---|---|
-| 8.1 | Match 1 detonates TNT hard against the wall facing Match 2's slot | Match 2's arena is **physically unchanged**. | [ ] |
-| 8.2 | Match 1 floods lava toward Match 2's slot | Flow stops at Match 1's bounds. | [ ] |
-| 8.3 | Both matches end | Each arena restored independently; neither reset damages the other. | [ ] |
+| 8.1 | Match 1 detonates TNT hard against the wall facing Match 2's slot | Match 2's arena is **physically unchanged**. | [-] |
+| 8.2 | Match 1 floods lava toward Match 2's slot | Flow stops at Match 1's bounds. | [-] |
+| 8.3 | Two provisioned matches run at once and both end | Each arena restored independently; neither reset damages the other, and decoration in each returns to its own arena's recorded positions. | [ ] |
 
-This only tests that one match cannot *alter* a neighbour. Neighbouring slots
-being **visible** to each other is a separate, deferred item.
+Neighbouring slots being **visible** to each other is a separate, deferred item.
+Padding is currently a fixed block count, while whether a neighbour is visible
+depends on the server's `view-distance` - so the two are not related by anything
+except the defaults happening to be generous. See the note in `docs/ROADMAP.md`.
 
 ---
 

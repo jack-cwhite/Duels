@@ -1836,6 +1836,32 @@ mutations) or a command that deep-links straight to it (visual/spatial actions);
 ## Deferred (Not Rejected)
 
 These items from the existing V1 review remain intentionally deferred, restated here so
+- Guaranteeing generated arenas are out of each other's view. Raised by Jack on
+  2026-09-26 while running Stage 8 of the in-game suite, which he could not test
+  because the shipped geometry puts neighbouring slots hundreds of blocks apart.
+  The gap is that `slot-padding` is an absolute block count while visibility
+  depends on the server's `view-distance`, so the two are only related by the
+  defaults happening to be generous: a slot-filling template at
+  `slot-padding: 16` leaves 32 blocks between arenas, well inside any view
+  distance, and nothing warns the admin. Three options were weighed. (1) Validate
+  rather than derive - at startup, compare `slot-padding * 2` against
+  `view-distance * 16` and log a warning naming both numbers when the padding is
+  short. Cheap, needs no layout change, and fits the standing requirement that a
+  stranger's misconfiguration produce a clear diagnostic rather than a subtle
+  symptom; it does not stop them proceeding, which is correct, because an admin
+  may genuinely want arenas visible. (2) Derive padding from the template size,
+  as Jack suggested. Rejected as stated: scaling padding with the arena does not
+  change the quantity that matters, which is edge-to-edge distance, and a large
+  arena is no more visible than a small one at the same separation. Deriving
+  padding from `view-distance` would work, but baking it in conflicts with the
+  saved layout deliberately winning over config so slot coordinates cannot drift.
+  (3) One world per generated copy. Gives true isolation and would also solve
+  weather, time and mob-spawning bleed, but each loaded world carries its own
+  chunk map, entity tracker and tick cost, and 64 of them is a serious standing
+  overhead for a problem that distance already solves. Worth revisiting only if
+  per-arena world state (time of day, weather) becomes a wanted feature, at which
+  point isolation is the actual requirement and visibility comes free.
+  Recommendation: do (1) when convenient; leave (3) to Phase 4B's completion.
 the roadmap has one place tracking all deferred work:
 
 - `MatchFactory`/allocation service abstraction - trigger condition (arena modes, teams,
