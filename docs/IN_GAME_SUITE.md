@@ -209,14 +209,14 @@ different state.
   Their saved row is kept deliberately so they are restored on next join -
   confirm they are. The live spectator-session count still returns to baseline;
   the surviving row is on disk, not a live session.
-- [ ] **2.4** Quit during the **kit selection** countdown, and separately during
+- [X] **2.4** Quit during the **kit selection** countdown, and separately during
   the **grace** countdown. Both compares clean - in particular "Live countdowns"
   and "Scheduled plugin tasks" return to baseline, which is the part that was
   previously impossible to check. The arena is released and the quitter takes the
   loss.
-- [ ] **2.5** Leave an **edit session** open, then disconnect. Edit sessions and
+- [X] **2.5** Leave an **edit session** open, then disconnect. Edit sessions and
   capture drafts return to baseline, and the arena is not left locked as in-use.
-- [ ] **2.6** After all of the above, `/duels diagnostics` reports zero live
+- [X] **2.6** After all of the above, `/duels diagnostics` reports zero live
   matches, zero pending players and zero tracked block changes, and `/duels`
   reports every arena free.
 
@@ -224,18 +224,47 @@ different state.
 
 ## Stage 3 - Structure capture size
 
-Fixed in code, never re-verified on the target Paper build.
+Fixed in code, never re-verified on the target Paper build. The defect this stage
+exists to catch is a capture or paste that gets **trimmed to the gameplay bounds**
+instead of covering the full selection. That is invisible from inside the arena -
+everything you would walk on is present, and only the captured margin outside the
+bounds is missing - so do not try to check it by eye.
 
-- [ ] **3.1** Capture a template whose structure corners are deliberately
-  **larger than the gameplay bounds** - include the walls and some surrounding
-  ground.
-- [ ] **3.2** Provision a copy and compare it against the source build **block
-  for block**. The full captured volume is pasted, not a volume trimmed to the
-  gameplay bounds.
-- [ ] **3.3** The reported capture size matches the corners you clicked, counting
-  both corner blocks - a selection from X=10 to X=12 reads as **3**, not 2.
-- [ ] **3.4** Provision several copies. No two overlap, and none sits partly
-  inside another's slot.
+**Use the command.** `/duels diagnostics template <arenaId>` reads the stored
+structure file and compares every generated copy against it block for block,
+spread over ticks so it does not stall the server. It reports the recorded size,
+the size actually written to the file, how many blocks the file holds, every
+copy's slot and origin, whether any copy overlaps another, and any block that
+differs from the template. Run it instead of comparing builds manually.
+
+One line in its output is expected and is **not** a finding: "N blocks are the
+right material with different properties". Fences, walls and stairs reconnect to
+their new neighbours when pasted, so their block state legitimately changes.
+Only a *material* mismatch means a block was never placed.
+
+- [ ] **3.1** On the dynamic arena's source instance, set the two **structure
+  capture corners deliberately wider than the gameplay bounds** - include the
+  small building and a few blocks of surrounding platform on every side. Capture
+  the template. Chat reports the captured size.
+- [ ] **3.2** The reported capture size **counts both corner blocks** - a
+  selection from X=10 to X=12 reads as **3**, not 2. Check this against the
+  coordinates chat echoed when you clicked each corner.
+- [ ] **3.3** Provision one copy, then run `/duels diagnostics template <arenaId>`.
+  Clean result: "Blocks stored in file" equals the recorded volume, no "file size
+  disagrees" line, and the copy "matches the template across all N blocks". This
+  is the item that proves the **full captured volume** is pasted rather than a
+  volume trimmed to the gameplay bounds.
+- [ ] **3.4** Provision several more copies, then run the command again. Every
+  copy reports its own slot index and origin, the output ends with "No copy
+  overlaps another, and each fits inside its own slot", and each copy matches the
+  template. Then fly out and confirm visually that the copies are separated by
+  the configured padding rather than touching.
+- [ ] **3.5** Walk the outermost copy's **captured margin** - the ground you
+  included outside the gameplay bounds in 3.1. It is present. This is a sanity
+  check on the command itself: if 3.3 passed but the margin is missing here, the
+  command is comparing the wrong region and that is the finding to report.
+
+Leave the copies in place. Stage 8 reuses them.
 
 ---
 

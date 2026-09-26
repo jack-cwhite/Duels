@@ -15,6 +15,7 @@ import me.jackcw.duels.arena.ArenaTemplateCaptureResult;
 import me.jackcw.duels.arena.ArenaTemplateDefinition;
 import me.jackcw.duels.arena.ArenaTemplateManager;
 import me.jackcw.duels.arena.ArenaTemplateStatus;
+import me.jackcw.duels.arena.ArenaTemplateVerifier;
 import me.jackcw.duels.arena.DynamicArenaProvisioner;
 import me.jackcw.duels.arena.DynamicArenaState;
 import me.jackcw.duels.arena.BoundaryMode;
@@ -67,6 +68,7 @@ public final class DuelsCommand
     private final KitDetailMenu kitDetailMenu;
     private final KitEditMenu kitEditMenu;
     private final DuelsDiagnostics diagnostics;
+    private final ArenaTemplateVerifier templateVerifier;
 
     public DuelsCommand(Duels plugin)
     {
@@ -87,6 +89,7 @@ public final class DuelsCommand
         this.kitDetailMenu = plugin.getKitDetailMenu();
         this.kitEditMenu = plugin.getKitEditMenu();
         this.diagnostics = plugin.getDiagnostics();
+        this.templateVerifier = new ArenaTemplateVerifier(plugin);
     }
 
     public CommandNode build()
@@ -350,7 +353,7 @@ public final class DuelsCommand
                 .child(
                         CommandBuilder.command("diagnostics")
                                 .description("Show Duels' live internal state, or compare it against a baseline")
-                                .usage("/duels diagnostics [baseline|compare]")
+                                .usage("/duels diagnostics [baseline|compare|template <arenaId>]")
                                 .permission("duels.admin.diagnostics")
                                 .alias("diag")
                                 .executes(this::showDiagnostics)
@@ -365,8 +368,38 @@ public final class DuelsCommand
                                                 .description("Show what has changed since your baseline")
                                                 .usage("/duels diagnostics compare")
                                                 .permission("duels.admin.diagnostics")
-                                                .executes(this::compareDiagnostics)))
+                                                .executes(this::compareDiagnostics))
+                                .child(
+                                        CommandBuilder.command("template")
+                                                .description("Check a dynamic arena's generated copies against the structure file they came from")
+                                                .usage("/duels diagnostics template <arenaId>")
+                                                .permission("duels.admin.diagnostics")
+                                                .argument("arenaId", ArgumentTypes.integer())
+                                                .executes(this::verifyTemplate)))
                 .build();
+    }
+
+    /**
+     * Spread over ticks rather than answered immediately, so the sender is told
+     * it has started and the report follows once the walk finishes.
+     */
+    private void verifyTemplate(CommandContext context)
+    {
+        CommandSender sender = context.getSender();
+        int arenaId = context.get("arenaId");
+
+        sender.sendMessage(StringUtil.color("&7Comparing arena " + arenaId + "'s generated copies against their template..."));
+
+        templateVerifier.verify(arenaId).whenComplete((lines, throwable) ->
+        {
+            if (throwable != null)
+            {
+                sender.sendMessage(StringUtil.color("&cVerification failed: " + throwable.getMessage()));
+                return;
+            }
+
+            sendLines(sender, lines);
+        });
     }
 
     private void showDiagnostics(CommandContext context)
