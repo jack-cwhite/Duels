@@ -34,6 +34,7 @@ import me.jackcw.duels.spectator.SpectatorManager;
 import me.jackcw.duels.stats.MatchRecord;
 import me.jackcw.duels.stats.MatchRecordSerializer;
 import me.jackcw.duels.stats.StatsManager;
+import me.jackcw.duels.stats.StatsStorageType;
 import me.jackcw.jcore.JCore;
 import me.jackcw.jcore.storage.YamlFile;
 import me.jackcw.jcore.storage.YamlRepository;
@@ -477,6 +478,27 @@ public class Duels extends JavaPlugin
         challengeManager = new ChallengeManager(jCore.tasks(), settings, new ChallengeExpiryHandler(jCore.messages())::onExpire);
         playerStateManager = new PlayerStateManager(jCore.files().yaml("playerstates.yml", true), jCore.serializers());
         statsManager = new StatsManager(this);
+
+        // StatsManager already registered its migration by this point, but
+        // JCore only connects and runs migrations on first real use - left
+        // alone, a bad database.yml would not surface until the first match
+        // ends and the result is silently lost. Stats are a core feature, not
+        // an optional one a plugin might never touch, so it is worth forcing
+        // that first connection now instead, where a failure lands in the
+        // startup console rather than after someone's already played a duel.
+        if (settings.statsStorage() == StatsStorageType.SQL)
+        {
+            try
+            {
+                jCore.database();
+            }
+            catch (RuntimeException exception)
+            {
+                getLogger().log(Level.SEVERE, "Could not connect to the stats database or run its migrations; "
+                        + "match results will fail to save until this is resolved. Check database.yml.", exception);
+            }
+        }
+
         matchManager = new MatchManager(this);
 
         // Ordering matters: SpectatorManager reads MatchManager, and

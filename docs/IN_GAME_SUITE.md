@@ -104,7 +104,7 @@ this code, so a defect here is a defect under all of Phase 5. The earlier
 `BLOCKED` note assumed an external MySQL server was needed - it is not, SQLite
 needs no server.
 
-- [ ] **1.1** Server starts clean. The console shows the migration applying, and
+- [X] **1.1** Server starts clean. The console shows the migration applying, and
   `plugins/Duels/duels.db` appears.
 - [ ] **1.2** Restart with the database already present. The migration is
   recognised as applied and does **not** run again. No duplicate-table or
