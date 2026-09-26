@@ -79,6 +79,7 @@ public final class DuelsDiagnostics
             int captureDrafts,
             int pendingChallenges,
             int boundaryTrackedPlayers,
+            boolean boundaryCheckTaskActive,
             int trackedInstances,
             int trackedBlockChanges,
             int resettingInstances,
@@ -114,6 +115,7 @@ public final class DuelsDiagnostics
                 plugin.getArenaEditManager().getCaptureDraftCount(),
                 plugin.getChallengeManager().getChallengeCount(),
                 plugin.getBoundaryEnforcer().getTrackedPlayerCount(),
+                plugin.getBoundaryEnforcer().isCheckTaskActive(),
                 rollback == null ? 0 : rollback.getTrackedInstanceCount(),
                 rollback == null ? 0 : rollback.getTrackedChangeCount(),
                 rollback == null ? 0 : rollback.getResettingInstanceCount(),
@@ -218,6 +220,7 @@ public final class DuelsDiagnostics
         lines.add(line("Edit sessions", snapshot.editSessions()));
         lines.add(line("Capture drafts", snapshot.captureDrafts()));
         lines.add(line("Boundary-tracked players", snapshot.boundaryTrackedPlayers()));
+        lines.add(line("Boundary check task active", snapshot.boundaryCheckTaskActive()));
         lines.add(line("Instances holding rollback data", snapshot.trackedInstances()));
         lines.add(line("Tracked block changes", snapshot.trackedBlockChanges()));
         lines.add(line("Instances resetting", snapshot.resettingInstances()));
@@ -315,6 +318,7 @@ public final class DuelsDiagnostics
         addDelta(lines, "Edit sessions", baseline.editSessions(), now.editSessions());
         addDelta(lines, "Capture drafts", baseline.captureDrafts(), now.captureDrafts());
         addDelta(lines, "Boundary-tracked players", baseline.boundaryTrackedPlayers(), now.boundaryTrackedPlayers());
+        addDelta(lines, "Boundary check task active", baseline.boundaryCheckTaskActive(), now.boundaryCheckTaskActive());
         addDelta(lines, "Instances holding rollback data", baseline.trackedInstances(), now.trackedInstances());
         addDelta(lines, "Tracked block changes", baseline.trackedBlockChanges(), now.trackedBlockChanges());
         addDelta(lines, "Instances resetting", baseline.resettingInstances(), now.resettingInstances());
@@ -339,7 +343,20 @@ public final class DuelsDiagnostics
                 + " &7(" + (delta > 0 ? "&c+" : "&a") + delta + "&7)");
     }
 
+    private static void addDelta(List<String> lines, String label, boolean before, boolean after)
+    {
+        if (before == after)
+            return;
+
+        lines.add("&7" + label + ": &f" + before + " &7-> &f" + after);
+    }
+
     private static String line(String label, int value)
+    {
+        return "&7" + label + ": &f" + value;
+    }
+
+    private static String line(String label, boolean value)
     {
         return "&7" + label + ": &f" + value;
     }

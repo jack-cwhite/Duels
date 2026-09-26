@@ -124,6 +124,18 @@ public final class BoundaryEnforcer
         return tracked.size();
     }
 
+    /**
+     * Whether the periodic check task is currently registered with the
+     * scheduler. Reported by {@code /duels diagnostics} so a leaked task can
+     * be told apart from the many other things "Scheduled plugin tasks" could
+     * mean - this is the one that would keep running forever if something ever
+     * stopped {@link #outOfBoundsSince} from emptying.
+     */
+    public boolean isCheckTaskActive()
+    {
+        return checkTask != null;
+    }
+
     public void shutdown()
     {
         outOfBoundsSince.clear();
