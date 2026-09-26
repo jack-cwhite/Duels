@@ -8,6 +8,10 @@ import me.jackcw.duels.match.MatchState;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
+import org.bukkit.entity.AreaEffectCloud;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.Item;
+import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
@@ -20,6 +24,7 @@ import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
 import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.util.BoundingBox;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -261,6 +266,8 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
         {
             resettingInstanceIds.remove(instance.getId());
 
+            clearTransientEntities(instance);
+
             Deque<BlockState> changes = changesByInstanceId.remove(instance.getId());
 
             if (changes == null || changes.isEmpty())
@@ -283,6 +290,41 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
                 }
             }, 0L, 1L);
         }, 1L);
+    }
+
+    /**
+     * Removes leftover arrows, potion clouds and dropped items from the
+     * instance's bounds before it is handed to another match.
+     *
+     * <p>These are entities, not blocks, so nothing above tracks or restores
+     * them - an arrow stuck in a wall, or a lingering splash/lingering-potion
+     * cloud, would otherwise still be there for whichever match claims this
+     * instance next, silently affecting a fight neither combatant caused.
+     * Decoration - item frames, paintings, armour stands - is deliberately
+     * left alone: {@link ArenaContainmentGuard} already protects it from the
+     * duel itself, so it belongs to the arena rather than to the match that
+     * just ended.
+     *
+     * <p>Skipped entirely when the instance has no bounds, matching every
+     * other bounds-gated behaviour here: without a defined box there is no
+     * region to sweep.
+     */
+    private void clearTransientEntities(ArenaInstance instance)
+    {
+        BlockBox bounds = instance.getBoundsBox();
+
+        if (bounds == null)
+            return;
+
+        BoundingBox box = new BoundingBox(
+                bounds.minX(), bounds.minY(), bounds.minZ(),
+                bounds.maxCornerX(), bounds.maxCornerY(), bounds.maxCornerZ());
+
+        for (Entity entity : bounds.world().getNearbyEntities(box))
+        {
+            if (entity instanceof Projectile || entity instanceof AreaEffectCloud || entity instanceof Item)
+                entity.remove();
+        }
     }
 
     private boolean track(BlockState previousState)
