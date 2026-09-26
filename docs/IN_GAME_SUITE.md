@@ -24,15 +24,25 @@ minutes. Stage 4 remains the longest single stage.
 for every bystander and regression check. Stage 8 needs two simultaneous
 matches, so four accounts, or two plus patience.
 
-**Build and install.**
+**Build and install.** JCore installs into your local Maven repository; Duels
+shades it in. Duels' own `pom.xml` copies the finished jar into the test server's
+`plugins/` folder as part of `package`, so **do not copy it yourself** - a second
+copy under a different filename leaves Paper loading Duels twice, two instances
+fighting over the same config, database, listeners and arenas.
 
 ```powershell
 cd C:\Users\jncwh\Development\JCore
-mvn clean install
+mvn -o clean install -DskipTests
 cd C:\Users\jncwh\Development\Duels
-mvn clean package
-Copy-Item .\target\Duels-1.0-SNAPSHOT.jar 'C:\path\to\paper\plugins\Duels.jar' -Force
+mvn -o clean package -DskipTests
 ```
+
+**Then restart the server.** A rebuild is not live until the Paper process
+restarts - the running server is still holding the old jar's classes. This is the
+single easiest way to waste an hour: chasing a bug in a build the server never
+loaded, or re-confirming a fix that isn't actually running. After any rebuild,
+`stop`, start, and check `plugins/` contains exactly one Duels jar.
+
 
 **Config.** Confirm the shipped defaults are in effect, because Stage 1 depends
 on them:
@@ -104,19 +114,19 @@ this code, so a defect here is a defect under all of Phase 5. The earlier
 `BLOCKED` note assumed an external MySQL server was needed - it is not, SQLite
 needs no server.
 
-- [ ] **1.1** Server starts clean. The console logs `Applied database
+- [X] **1.1** Server starts clean. The console logs `Applied database
   migration 1.` during `Enabling Duels`, and `plugins/Duels/database.db`
   appears.
-- [ ] **1.2** Restart with the database already present. The console instead
+- [X] **1.2** Restart with the database already present. The console instead
   logs `Database schema is already up to date`. The migration is
   recognised as applied and does **not** run again. No duplicate-table or
   duplicate-index errors.
-- [ ] **1.3** Play one duel to a normal death. `/duel top` shows the winner with
+- [X] **1.3** Play one duel to a normal death. `/duel top` shows the winner with
   one win **immediately** - not after a restart. (This is the read-after-write
   ordering added in `dc67306`.)
-- [ ] **1.4** Play a duel ending by **disconnect**. The quitter takes the loss
+- [X] **1.4** Play a duel ending by **disconnect**. The quitter takes the loss
   and the survivor takes the win.
-- [ ] **1.5** Inspect the tables directly with any SQLite browser or `sqlite3`:
+- [X] **1.5** Inspect the tables directly with any SQLite browser or `sqlite3`:
 
   ```sql
   SELECT * FROM duels_matches;
@@ -127,10 +137,10 @@ needs no server.
   `duels_match_participants` rows. `won` is true for exactly one of the pair.
   `kit_id` is populated when a kit was used and `NULL` when the duel was
   bare-fisted.
-- [ ] **1.6** Play a duel in a **dynamic** arena. Its `arena_id` is the
+- [X] **1.6** Play a duel in a **dynamic** arena. Its `arena_id` is the
   **template's** arena id, not the per-copy instance id. Stats are per arena, not
   per generated copy, and this is the only place that distinction is visible.
-- [ ] **1.7** Stop the server with `stop` mid-session. Hikari shuts the pool down
+- [X] **1.7** Stop the server with `stop` mid-session. Hikari shuts the pool down
   cleanly - no "pool suspended" warning, no scheduler warnings, no exception
   during disable.
 
@@ -145,19 +155,57 @@ now measures it.
 **How to use the command.** `/duels diagnostics baseline` before the flow,
 `/duels diagnostics compare` after it. **Unchanged rows are omitted**, so a clean
 flow prints "Nothing changed since your baseline" and *anything printed at all is
-a finding*. `/duels diagnostics` on its own prints the full table plus which
+worth investigating* - though see step 6 below before calling it a finding.
+`/duels diagnostics` on its own prints the full table plus which
 matches and instances are involved. Do not hand-count anything.
+
+**Run every item in this exact order.** The rows are cheap to read but easy to
+misread, and almost every confusing result in Stage 2 has come from taking a
+reading at the wrong moment rather than from a real leak.
+
+1. **Settle first.** Get both players standing still, out of any match, with no
+   pending challenges. Then wait **35 seconds** before baselining. Challenges
+   schedule an expiry task that lives for `duel-request-expiry-time` (default
+   **30s**), so a baseline taken seconds after a `/duel` command captures a
+   countdown that is still ticking away underneath you.
+2. **Baseline.** `/duels diagnostics baseline`.
+3. **Run the flow** for the single item you are on. One item per baseline - do
+   not chain two.
+4. **Settle again, the same 35 seconds**, before comparing. Everything Duels
+   schedules is either immediate or bounded by a config value; the longest is the
+   30s challenge expiry. Waiting past it means anything still pending is a real
+   leak rather than a timer you caught mid-flight.
+5. **Compare.** `/duels diagnostics compare`. "Nothing changed since your
+   baseline" is a pass.
+6. **If a row prints, do not report it yet.** Wait another 35 seconds and compare
+   again. A row that clears on the second compare was a timer in flight and is
+   not a finding - note the timing and move on. A row that persists across two
+   compares 35 seconds apart **is** a finding: report it with the row name, the
+   numbers, and what you did.
+
+**Reading a "Scheduled plugin tasks" delta.** This row is a single total of every
+pending Bukkit task the plugin owns, with no breakdown, so it cannot tell you
+*what* leaked on its own. Narrow it before reporting:
+
+- Did **"Live countdowns"** change too? If so it is a countdown. If countdowns
+  read 0 while tasks read non-zero, a countdown's task outlived its state - a
+  real bug.
+- Did **"Boundary check task active"** flip to `true`? That is the boundary
+  enforcer's periodic check, which should retire itself once everybody is back in
+  bounds.
+- Neither, and it persists past 35 seconds? Report it as unattributed, with the
+  exact flow.
 
 Take a **fresh baseline before each item** - each leaves the server in a slightly
 different state.
 
-- [ ] **2.1** Baseline, then fight a duel using **bows and splash potions** so
+- [X] **2.1** Baseline, then fight a duel using **bows and splash potions** so
   projectiles and effect clouds are in play, kill the loser, compare. Clean: no
   arrows stuck in blocks, no lingering clouds, no dropped items, no pending
   players.
-- [ ] **2.2** Repeat with a **spectator** attached who leaves via `/duel leave`.
+- [X] **2.2** Repeat with a **spectator** attached who leaves via `/duel leave`.
   Clean.
-- [ ] **2.3** Repeat with a spectator who **disconnects instead of leaving**.
+- [X] **2.3** Repeat with a spectator who **disconnects instead of leaving**.
   Their saved row is kept deliberately so they are restored on next join -
   confirm they are. The live spectator-session count still returns to baseline;
   the surviving row is on disk, not a live session.
