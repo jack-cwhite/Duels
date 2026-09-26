@@ -4,10 +4,13 @@ import me.jackcw.duels.DuelsSettings;
 import me.jackcw.duels.arena.ArenaSelection;
 import me.jackcw.jcore.task.TaskManager;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -19,6 +22,13 @@ public final class ChallengeManager
     private final DuelsSettings settings;
     private final Consumer<Challenge> onExpire;
     private final List<Challenge> challenges = new ArrayList<>();
+
+    // The scheduled expiry for each pending challenge, kept so that a challenge
+    // leaving the list early - accepted, declined, or dropped when a player
+    // quits - takes its timer with it. Without the handle there was nothing to
+    // cancel, so every challenge ever issued left a task sitting in Bukkit's
+    // scheduler until its original expiry time came round.
+    private final Map<Challenge, BukkitTask> expiryTasks = new HashMap<>();
 
     public ChallengeManager(TaskManager taskManager, DuelsSettings settings, Consumer<Challenge> onExpire)
     {
@@ -50,9 +60,26 @@ public final class ChallengeManager
         challenges.add(challenge);
 
         if (expirySeconds > 0)
-            taskManager.runSyncLater(() -> expire(challenge), expirySeconds * TICKS_PER_SECOND);
+            expiryTasks.put(challenge, taskManager.runSyncLater(() -> expire(challenge), expirySeconds * TICKS_PER_SECOND));
 
         return true;
+    }
+
+    /**
+     * The one way a challenge leaves the list. Centralised because its expiry
+     * task has to be cancelled alongside it, and there are six paths that drop a
+     * challenge - accepting, declining either way round, expiring, a stale
+     * claim being released, and a player quitting. Cancelling at each of those
+     * call sites instead would mean one missed site is a leak nobody notices.
+     */
+    private boolean discard(Challenge challenge)
+    {
+        BukkitTask expiryTask = expiryTasks.remove(challenge);
+
+        if (expiryTask != null)
+            expiryTask.cancel();
+
+        return challenges.remove(challenge);
     }
 
     /**
@@ -84,7 +111,7 @@ public final class ChallengeManager
         if (challenge == null)
             return null;
 
-        challenges.remove(challenge);
+        discard(challenge);
 
         return challenge;
     }
@@ -96,7 +123,7 @@ public final class ChallengeManager
         if (challenge == null)
             return null;
 
-        challenges.remove(challenge);
+        discard(challenge);
 
         return challenge;
     }
@@ -124,7 +151,7 @@ public final class ChallengeManager
 
     public void remove(Challenge challenge)
     {
-        challenges.remove(challenge);
+        discard(challenge);
     }
 
     /** Claims a challenge while delayed arena preparation is in progress. */
@@ -150,7 +177,7 @@ public final class ChallengeManager
         challenge.setClaimed(false);
         if (!Instant.MAX.equals(challenge.getExpiry()) && !challenge.getExpiry().isAfter(Instant.now()))
         {
-            challenges.remove(challenge);
+            discard(challenge);
             if (onExpire != null)
                 onExpire.accept(challenge);
             return false;
@@ -161,7 +188,8 @@ public final class ChallengeManager
     public void removeAll(UUID... playerIds)
     {
         for (UUID playerId : playerIds)
-            challenges.removeIf(challenge -> challenge.getChallenger().equals(playerId) || challenge.getChallenged().equals(playerId));
+            for (Challenge challenge : getChallenges(playerId))
+                discard(challenge);
     }
 
     public Challenge getChallengeBetween(UUID uuid1, UUID uuid2)
@@ -209,7 +237,7 @@ public final class ChallengeManager
         if (challenge.isClaimed())
             return;
 
-        if (!challenges.remove(challenge))
+        if (!discard(challenge))
             return;
 
         if (onExpire != null)
