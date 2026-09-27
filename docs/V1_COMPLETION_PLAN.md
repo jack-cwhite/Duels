@@ -72,8 +72,11 @@ or debuffs, which limits game-mode variety.
 
 ### Desired behaviour
 
-- Kits can store validated potion effects, including amplifier, duration and particle/
-  icon visibility where the supported Paper API exposes them appropriately.
+- Kits can store validated holder-only potion effects, including level, ambient,
+  particle and icon visibility. Kit effects are permanent match baselines rather than
+  finite-duration effects; instant effects are rejected.
+- A stronger temporary same-type effect can replace the baseline. When it expires, or
+  milk removes effects, the required kit baseline returns while the match remains live.
 - Applied kit effects are part of the immutable match kit snapshot. Editing a live kit
   affects future matches only.
 - Player restoration removes duel effects and restores the player's captured effects on
@@ -91,8 +94,8 @@ or debuffs, which limits game-mode variety.
   belongs to the existing kit and player-state lifecycle.
 - Build chat interactions with Paper's Adventure `Component`, `ClickEvent` and
   `HoverEvent` APIs. Do not use raw JSON, packets or NMS for supported interactions.
-- A Duels-owned `RematchManager` (or an extension of the challenge boundary if that
-  remains cohesive after inspection) owns pending offers, expiry and pair uniqueness.
+- A Duels-owned `RematchManager` owns post-match eligibility/context, while the existing
+  challenge boundary owns the pending pair invitation, expiry claim and acceptance.
 - A rematch stores identities and the requested previous configuration, not live
   `Player`, `Match`, `ArenaInstance` or mutable `Kit` references.
 - Acceptance revalidates both players, permissions, kit availability and arena policy,
@@ -103,8 +106,9 @@ or debuffs, which limits game-mode variety.
 
 - Disconnect, queue entry, new challenge/match, expiry or plugin disable invalidates a
   pending rematch.
-- If the previous arena or kit is no longer valid, explain why and either use an agreed
-  fallback or require a new challenge; do not silently change match rules.
+- If the previous arena is no longer valid, explain why and require a new challenge; do
+  not silently change templates. Rematches always reopen kit selection against current
+  valid kit snapshots.
 - Invalid potion identifiers or values fail visibly during admin editing/loading rather
   than partially applying a kit.
 
@@ -122,6 +126,9 @@ same interaction vocabulary.
 - Every generated click action is also tested through its underlying command/service.
 - A new player can challenge, accept, rematch, spectate and inspect statistics without
   being required to type an undisclosed command.
+
+The agreed implementation, ownership, configuration and test sequence is specified in
+`docs/PHASE_5_5_DESIGN.md`.
 
 ## Phase 6 - Reliable Outcomes and Vault Rewards
 

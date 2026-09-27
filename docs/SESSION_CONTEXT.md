@@ -167,10 +167,28 @@ Treat both numbers as effort estimates, not deadlines.
 
 ## Current development target: Phase 5.5 design and implementation
 
-Phase 4B and Phase 5 are closed. Begin with the kit-effect data/lifecycle design, then
-clickable Adventure interactions and rematches. After that, follow Phases 6-9 in
+Phase 4B and Phase 5 are closed. Phase 5.5's product decisions and implementation
+sequence are agreed in `docs/PHASE_5_5_DESIGN.md`; implementation has not started.
+Begin with the kit-effect model/persistence slice, then its admin and runtime lifecycle,
+clickable Adventure interactions, and rematches. After that, follow Phases 6-9 in
 `docs/V1_COMPLETION_PLAN.md`. The final public-release matrix happens after the network
 phase so later features are included in the same clean-install evidence.
+
+### Phase 5.5 agreed decisions
+
+- Kit effects apply only to their holder and form a permanent match baseline. Stronger
+  temporary same-type effects may override it; on expiration or milk removal the kit
+  baseline returns. Instant effects and finite built-in durations are not part of this
+  phase.
+- Effect administration is GUI-first with complete command fallbacks. Persist canonical
+  registry keys, user-facing levels and configurable ambient/particle/icon flags.
+- Every clickable message's visible text and hover content is configurable. Duels owns
+  the Adventure composition for now; clicks invoke fixed, validated command paths.
+- A rematch preserves the prior arena template, allocates a fresh available instance,
+  and reopens kit selection. It uses mutual consent and a dedicated configurable expiry;
+  it never reserves an arena while pending or silently falls back to another template.
+- No JCore production change is planned. Reconsider extraction only after a second
+  minigame demonstrates the same requirement.
 
 ### Phase 5 implemented decisions
 

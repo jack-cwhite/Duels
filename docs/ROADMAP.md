@@ -1520,13 +1520,15 @@ cases are automated; live testing covered every result path, composite filters,
 offline lookup, paging, restart persistence, and all leaderboard categories. See
 `docs/PHASE_5_STATISTICS.md` for the design and reset boundary.
 
-## Phase 5.5 - Kit Depth & Player Experience `[ ]` (V1 product)
+## Phase 5.5 - Kit Depth & Player Experience `[~]` (V1 product)
 
 Add potion effects/debuffs to immutable kit snapshots, Adventure-based clickable
 interactions, and a safe mutual-consent rematch flow before later systems add more
 entry points into matches. Commands remain validated fallbacks and click actions reuse
-the same application paths. The complete architecture, failure cases and acceptance
-boundary are in `docs/V1_COMPLETION_PLAN.md`.
+the same application paths. Product behaviour and the implementation sequence are now
+agreed; implementation has not started. The complete data model, ownership, failure,
+testing and commit plan is in `docs/PHASE_5_5_DESIGN.md`; the public-V1 boundary remains
+in `docs/V1_COMPLETION_PLAN.md`.
 
 ## Phase 6 - Vault Integration & Rewards `[ ]` (V1 product)
 
