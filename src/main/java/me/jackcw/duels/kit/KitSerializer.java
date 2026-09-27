@@ -3,15 +3,20 @@ package me.jackcw.duels.kit;
 import me.jackcw.jcore.serialization.RepositorySerializer;
 import me.jackcw.jcore.serialization.SerializerManager;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class KitSerializer implements RepositorySerializer<Kit>
 {
     private static final int CONTENTS_SIZE = 36;
     private static final int ARMOR_SIZE = 4;
+    private static final Set<String> EFFECT_FIELDS = Set.of("type", "level", "ambient", "particles", "icon");
 
     private final SerializerManager serializerManager;
 
@@ -52,6 +57,22 @@ public class KitSerializer implements RepositorySerializer<Kit>
         if (kit.getIcon() != null)
             data.put("icon", serializerManager.serialize(kit.getIcon()));
 
+        if (!kit.getEffects().isEmpty())
+        {
+            List<Map<String, Object>> effects = new ArrayList<>();
+            for (KitEffect effect : kit.getEffects())
+            {
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("type", effect.typeKey().toString());
+                entry.put("level", effect.level());
+                entry.put("ambient", effect.ambient());
+                entry.put("particles", effect.particles());
+                entry.put("icon", effect.icon());
+                effects.add(entry);
+            }
+            data.put("effects", effects);
+        }
+
         return data;
     }
 
@@ -78,7 +99,64 @@ public class KitSerializer implements RepositorySerializer<Kit>
         if (map.get("icon") != null)
             kit.setIcon(serializerManager.deserialize(map.get("icon"), ItemStack.class));
 
+        if (map.containsKey("effects"))
+        {
+            if (!(map.get("effects") instanceof List<?> effects))
+                throw new IllegalArgumentException("Kit " + id + " effects: expected a list");
+
+            for (int index = 0; index < effects.size(); index++)
+            {
+                KitEffect effect = deserializeEffect(id, index, effects.get(index));
+                if (kit.getEffect(effect.typeKey()) != null)
+                    throw new IllegalArgumentException("Kit " + id + " effects[" + index + "].type: duplicate '" + effect.typeKey() + "'");
+                kit.setEffect(effect);
+            }
+        }
+
         return kit;
+    }
+
+    private static KitEffect deserializeEffect(int kitId, int index, Object value)
+    {
+        String path = "Kit " + kitId + " effects[" + index + "]";
+        if (!(value instanceof Map<?, ?> map))
+            throw new IllegalArgumentException(path + ": expected a map");
+
+        for (Object field : map.keySet())
+            if (!(field instanceof String name) || !EFFECT_FIELDS.contains(name))
+                throw new IllegalArgumentException(path + ": unknown field '" + field + "'");
+
+        if (!(map.get("type") instanceof String text) || !text.contains(":"))
+            throw new IllegalArgumentException(path + ".type: expected a namespaced registry key");
+
+        NamespacedKey key = NamespacedKey.fromString(text);
+        if (key == null)
+            throw new IllegalArgumentException(path + ".type: invalid registry key '" + text + "'");
+
+        Object rawLevel = map.get("level");
+        if (!(rawLevel instanceof Integer level))
+            throw new IllegalArgumentException(path + ".level: expected an integer from 1 to 255");
+
+        boolean ambient = requireBoolean(map, "ambient", path);
+        boolean particles = requireBoolean(map, "particles", path);
+        boolean icon = requireBoolean(map, "icon", path);
+
+        try
+        {
+            return new KitEffect(key, level, ambient, particles, icon);
+        }
+        catch (IllegalArgumentException exception)
+        {
+            String field = exception.getMessage().startsWith("Effect level") ? "level" : "type";
+            throw new IllegalArgumentException(path + "." + field + ": " + exception.getMessage(), exception);
+        }
+    }
+
+    private static boolean requireBoolean(Map<?, ?> map, String field, String path)
+    {
+        if (!(map.get(field) instanceof Boolean value))
+            throw new IllegalArgumentException(path + "." + field + ": expected a boolean");
+        return value;
     }
 
     private Map<String, Object> serializeSlots(ItemStack[] items)

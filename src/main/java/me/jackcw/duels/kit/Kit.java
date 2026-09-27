@@ -1,11 +1,13 @@
 package me.jackcw.duels.kit;
 
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class Kit
 {
@@ -15,6 +17,7 @@ public final class Kit
     private ItemStack[] armor;
     private ItemStack offHand;
     private ItemStack icon;
+    private final Map<NamespacedKey, KitEffect> effects = new LinkedHashMap<>();
 
     public Kit(int id, String name)
     {
@@ -77,6 +80,29 @@ public final class Kit
         this.icon = icon;
     }
 
+    public List<KitEffect> getEffects()
+    {
+        return List.copyOf(effects.values());
+    }
+
+    public KitEffect getEffect(NamespacedKey typeKey)
+    {
+        return effects.get(typeKey);
+    }
+
+    public void setEffect(KitEffect effect)
+    {
+        if (effect == null)
+            throw new IllegalArgumentException("Effect cannot be null");
+
+        effects.put(effect.typeKey(), effect);
+    }
+
+    public boolean removeEffect(NamespacedKey typeKey)
+    {
+        return effects.remove(typeKey) != null;
+    }
+
     public void apply(Player player)
     {
         player.getInventory().setStorageContents(contents != null ? contents : new ItemStack[36]);
@@ -94,6 +120,7 @@ public final class Kit
         copy.armor = cloneItems(armor);
         copy.offHand = offHand != null ? offHand.clone() : null;
         copy.icon = icon != null ? icon.clone() : null;
+        copy.effects.putAll(effects);
 
         return copy;
     }
