@@ -5,6 +5,8 @@ import me.jackcw.duels.Duels;
 import me.jackcw.duels.arena.BoundaryEnforcer;
 import me.jackcw.duels.challenge.Challenge;
 import me.jackcw.duels.challenge.ChallengeManager;
+import me.jackcw.duels.kit.Kit;
+import me.jackcw.duels.kit.KitEffect;
 import me.jackcw.duels.match.Match;
 import me.jackcw.duels.match.MatchConclusion;
 import me.jackcw.duels.match.MatchManager;
@@ -27,6 +29,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityCombustEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityPotionEffectEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent.RegainReason;
 import org.bukkit.event.entity.AreaEffectCloudApplyEvent;
@@ -35,6 +38,7 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.potion.PotionEffect;
 
 import java.util.List;
 import java.util.UUID;
@@ -262,6 +266,46 @@ public final class MatchListener implements Listener
         UUID sourceId = source.getUniqueId();
         return !sourceId.equals(target.getUniqueId())
                 && !sourceId.equals(targetMatch.getOpponent(target.getUniqueId()));
+    }
+
+    /**
+     * Keeps a kit's permanent effect baselines fixed for as long as the kit is
+     * held - not weakened, not strengthened, not removed.
+     *
+     * <p>An earlier version of this let a genuinely stronger same-type effect
+     * take over, matching normal Minecraft effect precedence. Live testing
+     * showed that let a duellist gain more than their kit was balanced to
+     * grant (a stray Strength potion) or push a debuff further than intended
+     * (a stronger Poison from an opponent), so a baseline's effect type is now
+     * simply immutable while the kit that defines it is held - only an
+     * identical-strength change (the kit reapplying its own baseline) is ever
+     * allowed through.
+     */
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onPotionEffectChange(EntityPotionEffectEvent event)
+    {
+        if (!(event.getEntity() instanceof Player player))
+            return;
+
+        Match match = matchManager.getMatch(player.getUniqueId());
+
+        if (match == null)
+            return;
+
+        Kit kit = match.getSelectedKit(player.getUniqueId());
+
+        if (kit == null)
+            return;
+
+        KitEffect baseline = kit.getEffect(event.getModifiedType().getKey());
+
+        if (baseline == null)
+            return;
+
+        PotionEffect newEffect = event.getNewEffect();
+
+        if (newEffect == null || newEffect.getAmplifier() != baseline.amplifier())
+            event.setCancelled(true);
     }
 
     @EventHandler

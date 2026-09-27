@@ -30,12 +30,16 @@ challenge/match lifecycle rather than creating a parallel one.
   such as Weakness, Slowness, Poison, or Wither configured on the holder's kit.
 - Kit effects are permanent match baselines. They are applied with the selected kit at
   the end of kit selection, so they are present during the grace period and combat.
-- A stronger temporary effect of the same type may replace the kit baseline. When it
-  expires, the kit baseline returns.
-- Milk and other removal mechanics remove ordinary effects normally. Any required kit
-  baseline returns on the following server tick.
-- A weaker or equal same-type effect does not downgrade a stronger kit baseline. This
-  follows normal Minecraft effect precedence.
+- A kit effect baseline cannot be changed by anything else for as long as the kit holds
+  it - not weakened, not strengthened, not removed. This was revised after live testing
+  (see the superseded reconsideration trigger below): allowing a stronger same-type
+  effect to override the baseline meant a duellist could gain more than their kit was
+  balanced to grant (a stray Strength potion) or have a debuff pushed further than the
+  kit intended (a stronger Poison from an opponent's item), either of which is exactly
+  the kind of advantage kit effects exist to keep fixed and predictable.
+- Milk and other removal mechanics still remove ordinary effects normally. A kit
+  baseline itself is simply never removed while the kit is held - there is nothing to
+  restore afterwards.
 - Different effect types remain independent and behave normally.
 - Kit effects have no configured duration. Their lifetime is the applied kit's lifetime
   in that match. Player-created potions/items continue to define their own durations.
@@ -110,7 +114,7 @@ Kit application
 
 Potion-effect change event
   -> ask the participant's Match for the applied snapshot
-  -> retain a stronger temporary effect, or restore the kit baseline next tick
+  -> deny any change to a baseline's effect type outright
 
 Match completion
   -> capture runtime rematch context from the completed Match
@@ -563,10 +567,9 @@ restart without data loss.
 
 1. Record the applied `Kit` snapshot on `Match`.
 2. Apply baselines with the kit before grace/combat.
-3. Add the effect-change listener and next-tick revalidation.
-4. Register lifecycle cleanup and diagnostics if any scheduled rechecks are retained.
-5. Add unit/service tests for stronger temporary effects, milk/removal, expiry, match
-   end, disconnect, shutdown, and live-kit edits.
+3. Add the effect-change listener that denies any change to a baseline's effect type.
+4. Add unit/service tests for weaker/stronger/equal attempts, milk/removal, match end,
+   disconnect, shutdown, and live-kit edits.
 
 **Checkpoint:** effects behave correctly through every match exit and player state is
 restored exactly.
@@ -631,15 +634,12 @@ whole phase into one implementation commit.
 
 - Baselines are applied after kit selection and before grace/combat.
 - Positive and negative effects both work.
-- Removing a baseline restores it next tick while the match remains live.
-- A stronger temporary same-type effect remains until expiration, then the baseline
-  returns.
-- A weaker same-type effect cannot downgrade the baseline.
-- Milk removes temporary effects; required baselines return; unrelated removed effects
-  do not return.
+- A weaker, equal, or stronger same-type attempt cannot change the baseline.
+- Milk and other removal mechanics cannot remove a baseline while the kit is held, but
+  still remove unrelated temporary effects normally.
 - Normal win, environmental death, boundary forfeit, pre-combat/combat disconnect,
   plugin disable, and join recovery leave no kit effect and restore captured effects.
-- A scheduled recheck after match end does nothing.
+- Once a match ends, its former baseline's effect type is no longer protected.
 
 ### Interactive message tests
 
@@ -693,7 +693,7 @@ Phase 5.5 is complete when:
 - kits persist validated holder-only permanent effects/debuffs;
 - effect management is fully available through configurable GUI and command fallbacks;
 - active matches use immutable effect snapshots;
-- stronger temporary effects, milk, expiry, cleanup, and original-state restoration
+- baseline immutability, milk/removal denial, cleanup, and original-state restoration
   follow the agreed semantics;
 - challenge/help/result/rematch interactions use configurable Adventure components and
   the existing validated command/service paths;
@@ -715,5 +715,10 @@ Phase 5.5 is complete when:
   overload holder baselines.
 - Add rematch persistence only if networks or restart-spanning player journeys create a
   real product need.
-- Revisit same-type stacking only if Paper/Minecraft exposes a supported source-aware
-  effect stack or real playtesting shows the stronger-temporary policy is confusing.
+- Revisit baseline immutability only if a real kit design needs a same-type effect to be
+  legitimately strengthened or weakened mid-match by something other than the kit
+  itself; nothing in the current kit set does. (Superseded: the original policy allowed
+  a stronger temporary effect to override the baseline. Live testing showed this let a
+  duellist gain more from a stray potion than their kit was balanced to grant - or push
+  a debuff further than the kit intended - so the policy was tightened to full
+  immutability instead.)

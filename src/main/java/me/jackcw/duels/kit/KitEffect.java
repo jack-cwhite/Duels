@@ -2,6 +2,7 @@ package me.jackcw.duels.kit;
 
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
+import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
 /** A permanent effect baseline belonging to the holder of one kit. */
@@ -24,5 +25,17 @@ public record KitEffect(NamespacedKey typeKey, int level, boolean ambient, boole
     public PotionEffectType resolveType()
     {
         return Registry.MOB_EFFECT.get(typeKey);
+    }
+
+    /** Amplifier is zero-based; {@link #level} is the one-based value an admin configured. */
+    public int amplifier()
+    {
+        return level - 1;
+    }
+
+    /** No configured duration - a kit baseline lasts exactly as long as the kit itself does. */
+    public PotionEffect toPotionEffect()
+    {
+        return new PotionEffect(resolveType(), PotionEffect.INFINITE_DURATION, amplifier(), ambient, particles, icon);
     }
 }

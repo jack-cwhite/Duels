@@ -110,6 +110,9 @@ public final class Kit
         player.getInventory().setArmorContents(armor != null ? armor : new ItemStack[4]);
 
         player.getInventory().setItemInOffHand(offHand != null ? offHand : new ItemStack(Material.AIR));
+
+        for (KitEffect effect : effects.values())
+            player.addPotionEffect(effect.toPotionEffect());
     }
 
     public Kit copy()

@@ -22,6 +22,7 @@ import me.jackcw.duels.arena.ArenaBoundsValidator;
 import me.jackcw.duels.arena.BlockBox;
 import me.jackcw.duels.challenge.Challenge;
 import me.jackcw.duels.kit.Kit;
+import me.jackcw.duels.kit.KitEffectMutationResult;
 import me.jackcw.duels.diagnostics.DuelsDiagnostics;
 import me.jackcw.duels.match.Match;
 import me.jackcw.duels.match.MatchResult;
@@ -53,6 +54,8 @@ import org.bukkit.event.entity.EntityCombustByBlockEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -569,6 +572,103 @@ class DuelsIntegrationTest
         assertEquals(MatchState.IN_PROGRESS, match.getState());
         assertNotNull(match.getCombatStartedAt());
         assertTrue(match.getCombatStartedAt() >= match.getStartedAt());
+    }
+
+    /** Starts a match with one kit already carrying a Speed II baseline, past kit selection. */
+    private Match startMatchWithSpeedBaseline(PlayerMock alice, PlayerMock bob, WorldMock world)
+    {
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        createReadyInstance(arena, world);
+
+        Kit kit = plugin.getKitManager().createKit("Speedster");
+        assertEquals(KitEffectMutationResult.Status.SUCCESS,
+                plugin.getKitManager().addEffect(kit.getId(), "minecraft:speed", 2).status());
+
+        Match match = plugin.getMatchManager().startMatch(alice, bob);
+        assertNotNull(match);
+
+        server.getScheduler().performTicks((plugin.getSettings().kitSelectionSeconds() + 1) * 20L);
+        assertEquals(MatchState.GRACE, match.getState());
+
+        return match;
+    }
+
+    @Test
+    void kitEffectBaselineIsAppliedAfterKitSelection()
+    {
+        WorldMock world = server.addSimpleWorld("kit_effect_apply_world");
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+        startMatchWithSpeedBaseline(alice, bob, world);
+
+        PotionEffect speed = alice.getPotionEffect(PotionEffectType.SPEED);
+        assertNotNull(speed, "the kit's Speed II baseline must be applied once kit selection ends");
+        assertEquals(1, speed.getAmplifier(), "level 2 is amplifier 1");
+        assertTrue(speed.isInfinite(), "a kit baseline lasts exactly as long as the kit does, not a fixed duration");
+    }
+
+    @Test
+    void weakerAttemptCannotDowngradeKitEffectBaseline()
+    {
+        WorldMock world = server.addSimpleWorld("kit_effect_downgrade_world");
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+        startMatchWithSpeedBaseline(alice, bob, world);
+
+        alice.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 200, 0));
+
+        PotionEffect speed = alice.getPotionEffect(PotionEffectType.SPEED);
+        assertNotNull(speed);
+        assertEquals(1, speed.getAmplifier(), "a weaker same-type effect must not downgrade the kit baseline");
+    }
+
+    @Test
+    void strongerAttemptCannotOverrideKitEffectBaseline()
+    {
+        WorldMock world = server.addSimpleWorld("kit_effect_override_world");
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+        startMatchWithSpeedBaseline(alice, bob, world);
+
+        alice.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 200, 2));
+
+        PotionEffect speed = alice.getPotionEffect(PotionEffectType.SPEED);
+        assertNotNull(speed);
+        assertEquals(1, speed.getAmplifier(),
+                "a stronger same-type effect must not override the kit baseline either - it could grant more than the kit was balanced to give");
+    }
+
+    @Test
+    void kitEffectBaselineCannotBeRemovedWhileTheKitIsHeld()
+    {
+        WorldMock world = server.addSimpleWorld("kit_effect_removal_world");
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+        startMatchWithSpeedBaseline(alice, bob, world);
+
+        // Simulates either a milk bucket or natural expiry - both remove the
+        // active effect through the same event.
+        alice.removePotionEffect(PotionEffectType.SPEED);
+
+        PotionEffect speed = alice.getPotionEffect(PotionEffectType.SPEED);
+        assertNotNull(speed, "a kit baseline cannot be removed by milk or anything else while the kit is held");
+        assertEquals(1, speed.getAmplifier());
+    }
+
+    @Test
+    void kitEffectBaselineDoesNotSurviveMatchEnd()
+    {
+        WorldMock world = server.addSimpleWorld("kit_effect_cleanup_world");
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+        Match match = startMatchWithSpeedBaseline(alice, bob, world);
+
+        assertNotNull(alice.getPotionEffect(PotionEffectType.SPEED));
+
+        plugin.getMatchManager().endMatch(match, bob.getUniqueId());
+
+        assertNull(alice.getPotionEffect(PotionEffectType.SPEED),
+                "a kit baseline must not outlive the match that applied it");
     }
 
     @Test

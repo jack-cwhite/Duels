@@ -628,7 +628,16 @@ public final class MatchManager
             return;
 
         kit.apply(player);
-        match.recordAppliedKit(player.getUniqueId(), kit.getId());
+
+        UUID playerId = player.getUniqueId();
+        match.recordAppliedKit(playerId, kit.getId());
+
+        // A default kit (nobody clicked one during selection) never went
+        // through recordSelectedKit, but the effect-lifecycle listener needs
+        // the exact applied snapshot for every match, not only ones with an
+        // explicit choice - so the kit that was actually put on the player is
+        // always the one recorded here too.
+        match.recordSelectedKit(playerId, kit);
     }
 
     private Kit resolveKit(Match match, UUID playerId)
