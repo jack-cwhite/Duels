@@ -17,7 +17,7 @@ Covers the arena containment work, in the order it should be tested:
 | `dc67306` | Stats reads ordered behind stats writes. |
 | `8028d94` | Containment from `PREGAME` rather than `IN_PROGRESS`; decoration protected; falling blocks tracked; bounds validator corrected to look for openings. |
 
-The integration suite (68 tests passing) covers the logic. This plan covers what
+The integration suite (70 tests passing) covers the logic. This plan covers what
 MockBukkit cannot simulate - real fire spread, real liquid flow, real explosion
 radii, real template capture - and whether the feedback actually feels right in
 chat.

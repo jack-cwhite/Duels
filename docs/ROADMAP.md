@@ -38,7 +38,7 @@ scope for it. See each phase for its individual status.
 
 ---
 
-## Where the project stands `[2026-09-26]`
+## Where the project stands `[2026-09-27]`
 
 | Phase | Status | Remaining effort |
 | --- | --- | --- |
@@ -60,7 +60,7 @@ public-release gate is a clean-install run of `docs/TESTING.md`.
 months at the current cadence, dominated by Phases 6 and 7. Phase 5 is the only
 unstarted phase whose design is already settled, which is why it is next.
 
-Automated coverage at this point: **Duels 68 tests, JCore 303** (1 skipped), both
+Automated coverage at this point: **Duels 70 tests, JCore 303** (1 skipped), both
 green. Per-system confidence, including where coverage is thin and what would be
 worth testing more, is tabulated in `docs/SESSION_CONTEXT.md`.
 
@@ -1482,6 +1482,12 @@ there, computes real spawn/bounds from the offsets, and registers a normal
 - Keep network placement independent of local coordinates: a future network allocator
   chooses a backend/capacity target, while each Paper backend continues to own its local
   world and slot implementation.
+- Treat `max-slots` as a hard global bound across every dynamic arena on that backend.
+  Reuse ready copies before provisioning; never create another world automatically.
+  When occupied plus reserved slots reach the maximum, preserve that reason through
+  match preparation, leave players unchanged, and expose occupied/reserved/available
+  counts through diagnostics and the admin arena menus. Retirement is the explicit way
+  to clear an unwanted copy and return its slot.
 
 ## Phase 5 - Deeper Statistics & Tracking `[ ]` (v2)
 

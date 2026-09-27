@@ -1,6 +1,6 @@
 # Duels Current Session Context
 
-_Last verified: 2026-09-26_
+_Last verified: 2026-09-27_
 
 This file is the compact handoff for a new development session. Read it before
 starting work, then inspect the relevant source files before changing code.
@@ -17,9 +17,16 @@ range. Per-instance worlds remain a future option only if a real feature needs
 authoritative world-scoped isolation; if introduced, they should be pooled per
 `ArenaInstance`, not created afresh for every duel.
 
+Dynamic capacity is a hard global slot bound per backend (64 by default). Ready
+copies are reused first; a full pool never creates another world. Occupied,
+reserved, available and maximum counts are visible in admin arena menus and
+`/duels diagnostics`. Capacity failure reaches players as a distinct message and
+does not mutate either participant. Retiring a copy is the explicit way to return
+its slot.
+
 Verification at this handoff:
 
-- `mvn -o test`: 68 tests passed, 0 failures, 0 errors, 0 skipped. JCore: 303
+- `mvn -o test`: 70 tests passed, 0 failures, 0 errors, 0 skipped. JCore: 303
   passed, 1 skipped.
 - The shaded jar builds successfully. The final configured copy into the local
   test-server plugin folder can fail while that server has the old jar locked.
@@ -92,7 +99,7 @@ does differently, and a manual pass proves one run rather than an invariant.
 | Arena containment and bounds | **High** | Strong automated coverage - 6 containment tests, 6 bounds-geometry tests, 5 openings-advisory tests - plus the completed live physics pass for fluid/fire spread, explosions, falling blocks, simultaneous matches and bystander safety. |
 | Block-change rollback | **Medium-high** | Automated for basic, explosion, ceiling and double-reset cases. The tracked-change ceiling is a known, documented cliff rather than a bug. |
 | Spectators | **Medium-high** | Automated for disconnect, eject, forfeit-while-spectated and detached-session finish. In-game pass done. Less real-world mileage than matches simply because fewer people use it. |
-| Dynamic arena provisioning and recovery | **Medium-high** | The complete live capture/provision/restart/capacity/recovery suite passed. `DynamicArenaProvisioner` and `DynamicArenaRecovery` still have no end-to-end automated coverage because MockBukkit does not implement the required world-generation and structure APIs; layout and visibility maths are tested in isolation. |
+| Dynamic arena provisioning and recovery | **Medium-high** | The complete live capture/provision/restart/capacity/recovery suite passed. Automated tests now cover the hard slot limit, reservations, capacity reporting, reuse after retirement, player-safe capacity failure, layout maths and visibility. `DynamicArenaProvisioner` and `DynamicArenaRecovery` still have no full structure/world end-to-end coverage because MockBukkit does not implement those APIs. |
 | Stats, YAML backend | **Medium** | Automated read-after-write ordering; in-game pass. |
 | Stats, SQL backend | **High** | SQLite has automated coverage and passed the live migration/write/read/leaderboard flow. All supported external backends also tracked repeated matches correctly in manual testing. |
 | Non-SQLite dialects (MySQL, MariaDB, PostgreSQL) | **Medium-high** | Each backend passed repeated live match/stat checks. They are not covered automatically and the exact tested engine versions were not recorded, so future migration work should repeat the matrix. |

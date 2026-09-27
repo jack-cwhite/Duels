@@ -293,6 +293,13 @@ once provisioned instances exist; changing it requires an explicit future migrat
 deleting the dynamic pool. This prevents a configuration edit from moving the logical
 coordinates of existing arenas.
 
+`max-slots` is a hard global bound for this backend's dynamic world, not a per-arena
+limit. Occupied generated copies and short-lived provisioning reservations are counted
+separately. The authoritative occupied/reserved/available/maximum snapshot is shown in
+admin arena menus and `/duels diagnostics`. Reaching the bound never creates another
+world: match preparation returns a distinct capacity result, leaves both players
+untouched, and tells them why no copy can be prepared.
+
 `dynamic-layout.yml` owns layout/world identity. Slot occupancy is not duplicated there;
 it is reconstructed from persisted provisioned `ArenaInstance` records.
 
@@ -530,7 +537,7 @@ schematics.
 | Failure | Required response |
 | --- | --- |
 | Missing/invalid template | Do not enable dynamic mode; manual instances remain usable. |
-| No free slot | Return capacity failure; do not mutate players or consume the challenge. |
+| No free slot | Return a distinct capacity failure; do not mutate players or consume the challenge. Tell both players that the generated pool is full; diagnostics and admin menus show occupied/reserved/available/maximum counts. |
 | Chunk load timeout/failure | Mark provisioning failed, keep/recover the slot record, and return players to non-pending state. |
 | Structure load/paste exception | Quarantine or clean the slot; never publish the instance as ready. |
 | Instance persistence failure | Do not start a match; retain enough slot state to prevent overlap. |

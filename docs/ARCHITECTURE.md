@@ -61,6 +61,14 @@ logs one advisory warning per arena if an adjacent slot may be visible. It does 
 silently move persisted slots or refuse provisioning, because neighbouring arenas may
 be an intentional admin choice.
 
+The grid is also a hard capacity boundary. `DynamicArenaSlotManager` reports occupied,
+short-lived reserved, available, and maximum slot counts without creating dynamic files
+on a static-only server. Allocation always reuses a suitable ready copy first. If no
+suitable copy or unused slot exists, match preparation returns an explicit capacity
+failure without changing either player or automatically creating another world. Admin
+menus and `/duels diagnostics` expose the same authoritative counts; retiring a
+generated copy clears it in bounded batches before making its slot available again.
+
 This dynamic mode means creating arena copies inside one Paper server. It does
 not mean creating new Minecraft servers. The match, spectator, reset, and
 player-restoration systems continue to work against a playable `ArenaInstance`
