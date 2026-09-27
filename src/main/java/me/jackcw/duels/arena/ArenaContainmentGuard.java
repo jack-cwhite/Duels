@@ -24,6 +24,7 @@ import org.bukkit.event.entity.EntityCombustEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.hanging.HangingBreakEvent;
+import org.bukkit.event.player.PlayerArmorStandManipulateEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -196,6 +197,24 @@ public final class ArenaContainmentGuard implements Listener
     {
         if (matchManager.getLiveInstanceAt(event.getEntity().getLocation()) != null)
             event.setCancelled(true);
+    }
+
+    /**
+     * Stops a duellist equipping themselves from an arena's decorative armour
+     * stands, or otherwise rearranging their gear.
+     *
+     * <p>This is a direct action rather than propagation - the player aimed at
+     * a specific stand - so it is reported the same way a denied block place or
+     * break is, rather than silently, matching the categorisation above.
+     */
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onArmorStandManipulate(PlayerArmorStandManipulateEvent event)
+    {
+        if (matchManager.getLiveInstanceAt(event.getRightClicked().getLocation()) == null)
+            return;
+
+        event.setCancelled(true);
+        sendDeniedMessage(event.getPlayer());
     }
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
