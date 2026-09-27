@@ -91,7 +91,7 @@ This phase deliberately has no upgrade migration because all current data is
 test data. Before running this build against an existing installation, remove:
 
 - SQL: `duels_match_participants`, then `duels_matches`, and the test database's
-  `jcore_migrations` table/row so migration 1 creates the new schema; or
+  `duels_migrations` table/row so migration 1 creates the new schema; or
 - YAML: `stats.yml`.
 
 Deleting the SQLite database file is the simplest local reset. Arena, kit,
