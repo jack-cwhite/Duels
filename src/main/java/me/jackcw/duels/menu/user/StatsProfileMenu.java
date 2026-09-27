@@ -16,7 +16,6 @@ import me.jackcw.jcore.message.MessageManager;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
-import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.SkullMeta;
@@ -174,8 +173,9 @@ public final class StatsProfileMenu
     {
         ItemStack head = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) head.getItemMeta();
-        OfflinePlayer owner = Bukkit.getOfflinePlayer(target.id());
-        meta.setOwningPlayer(owner);
+        Player online = Bukkit.getPlayer(target.id());
+        if (online != null)
+            meta.setOwningPlayer(online);
         meta.displayName(StatsMenuItems.color("&a" + target.name()));
 
         List<Component> lore = new ArrayList<>();
@@ -264,6 +264,12 @@ public final class StatsProfileMenu
                     if (found.isEmpty())
                     {
                         messages.send(context.player(), Message.STATS_PLAYER_NOT_FOUND, "player", name);
+                        context.reopen();
+                        return;
+                    }
+                    if (found.get().id().equals(session.target().id()))
+                    {
+                        messages.send(context.player(), Message.STATS_CANNOT_COMPARE_SELF);
                         context.reopen();
                         return;
                     }

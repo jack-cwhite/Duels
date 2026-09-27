@@ -16,6 +16,12 @@ public record StatsQuery(
         Long endedAfter,
         Long endedBefore)
 {
+    public StatsQuery
+    {
+        if (playerId != null && playerId.equals(opponentId))
+            throw new IllegalArgumentException("A player cannot be their own statistics opponent");
+    }
+
     public static StatsQuery forPlayer(UUID playerId)
     {
         return new StatsQuery(playerId, null, null, null, null, null, null);

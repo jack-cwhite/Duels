@@ -259,6 +259,15 @@ disconnect, and kit-selection disconnect. Then verify:
 Restart and repeat representative filtered profile, history and leaderboard reads
 to confirm persistence.
 
+**Passed 2026-09-27:** the full statistics product acceptance run passed on fresh
+SQLite and fresh YAML storage, including both restart checks. The run covered every
+result path above, composite/directional filters, offline and self-opponent handling,
+history and leaderboard pagination beyond 45 rows, and every leaderboard category.
+Synthetic offline leaderboard entries exposed Mojang profile lookup rate limiting;
+offline heads now deliberately remain generic and the repeated live run produced no
+profile-fetch warnings. The fresh Phase 5 schema still needs the external MySQL,
+MariaDB and PostgreSQL matrix repeated before release.
+
 ## 11. Configuration and failure behavior
 
 - Set an invalid `stats-storage`; verify a clear warning and documented fallback.

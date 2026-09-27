@@ -24,6 +24,8 @@ remain queryable.
 When viewing somebody else, right-clicking Opponent is a one-step head-to-head
 filter against the viewer. Left-clicking accepts any recorded player name, which
 is how A can inspect B versus C without being involved in those matches.
+A request to compare the viewed player against themselves is rejected with a
+clear message instead of producing a meaningless empty result.
 
 The Match History screen uses the same active filters and retrieves 45 records
 at a time. Each record exposes both kits, arena, result, date, session duration,
@@ -84,6 +86,9 @@ queries scan memory.
 
 Player UUIDs are authoritative. Participant names are stored with each result
 so offline profiles and leaderboard names do not depend on a live Mojang lookup.
+Offline entries deliberately use a generic player head; attempting to resolve
+skins for a full historical leaderboard can rate-limit the server. Online
+players still show their live skin.
 
 ## Fresh schema boundary
 
@@ -112,7 +117,10 @@ Automated coverage proves:
 - all existing match, arena, spectator, containment, and provisioning tests
   continue to pass.
 
-The remaining acceptance boundary is visual/in-game: exercise every menu path,
-all leaderboard categories, chat-based offline-opponent selection, Back/Next
-navigation, and history wording against a fresh SQL database and fresh
-`stats.yml`.
+Live acceptance passed on 2026-09-27 against fresh SQLite and fresh YAML storage.
+It covered normal defeat, environmental death, boundary forfeit, combat/grace/
+kit-selection disconnects, all individual and composite filters, directional kits,
+offline lookup, self-comparison rejection, history and leaderboard paging beyond 45
+records, all leaderboard categories, Back/Next navigation, and restart persistence.
+The acceptance run also confirmed that offline leaderboard/profile entries use generic
+heads without triggering Mojang profile lookups or rate-limit warnings.

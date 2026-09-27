@@ -13,7 +13,6 @@ import me.jackcw.jcore.menu.ConfiguredMenu;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
-import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.SkullMeta;
@@ -135,8 +134,9 @@ public final class LeaderboardMenu
     {
         ItemStack head = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) head.getItemMeta();
-        OfflinePlayer owner = Bukkit.getOfflinePlayer(entry.playerId());
-        meta.setOwningPlayer(owner);
+        Player online = Bukkit.getPlayer(entry.playerId());
+        if (online != null)
+            meta.setOwningPlayer(online);
         meta.displayName(StatsMenuItems.color("&f" + entry.playerName()));
         meta.lore(List.of(
                 StatsMenuItems.color("&7" + metric.displayName() + ": &a" + formatValue(entry, metric)),

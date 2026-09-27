@@ -45,6 +45,18 @@ class StatsAnalyticsTest
         assertNull(stats.averageCombatDurationMillis());
     }
 
+    @Test
+    void oneWinAndOneLossIsFiftyPercent()
+    {
+        PlayerStats stats = StatsAnalytics.summarize(List.of(
+                entry(1, true, 1_000L, 2_000L, MatchEndReason.DEFEAT),
+                entry(2, false, 3_000L, 4_000L, MatchEndReason.DEFEAT)));
+
+        assertEquals(1, stats.wins());
+        assertEquals(1, stats.losses());
+        assertEquals(50.0, stats.winRate());
+    }
+
     private MatchHistoryEntry entry(long id, boolean won, Long combatStartedAt, long endedAt, MatchEndReason reason)
     {
         return new MatchHistoryEntry(id, player, "Player", opponent, "Opponent", won, 2,

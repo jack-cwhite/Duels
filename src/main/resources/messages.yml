@@ -123,6 +123,7 @@ duel:
   kit-selection-closed: '&cKit selection is not currently open!'
   stats-load-failed: '&cYour duel statistics could not be loaded. Please try again later.'
   stats-player-not-found: '&cNo duel statistics were found for &e{player}&c.'
+  stats-cannot-compare-self: '&cA player cannot be compared against themselves.'
   no-kits-allowed: '&7No kits are enabled in this arena - this will be a bare-fisted duel!'
   challenge-expired: '&7Your duel challenge to &e{player} &7has &cexpired!'
   no-arena-available: '&cNo arenas are available right now. Try again in a moment.'

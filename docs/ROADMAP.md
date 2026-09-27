@@ -44,7 +44,7 @@ scope for it. See each phase for its individual status.
 | --- | --- | --- |
 | 0, 1, 2, 3, 3B, 4, 11 | `[x]` implemented and verified | - |
 | 4B - Dynamic Arena Provisioning | `[x]` implemented and verified | - |
-| 5 - Deeper Statistics | `[~]` implemented; in-game acceptance pending | one acceptance pass |
+| 5 - Deeper Statistics | `[x]` implemented and verified | - |
 | 6 - Vault & Rewards | `[ ]` not designed | ~3-4 sessions |
 | 7 - Matchmaking | `[ ]` not designed | ~3-4 sessions |
 | 8 - ELO/MMR/SBMM | `[ ]` not designed | ~2-3 sessions |
@@ -52,15 +52,15 @@ scope for it. See each phase for its individual status.
 | 10 - Advanced/Optional | `[ ]` deliberately open-ended | not estimated |
 
 **Against the standalone-complete scope target above: roughly 95%.** The complete
-in-game suite has passed, including SQLite, and MySQL, MariaDB and PostgreSQL have each
-been exercised manually with repeated matches and correct statistics. The remaining
-public-release gate is a clean-install run of `docs/TESTING.md`.
+in-game suite has passed, including fresh Phase 5 SQLite and YAML storage. MySQL,
+MariaDB and PostgreSQL were exercised against the earlier statistics schema; their
+fresh Phase 5 schema matrix and the clean-install run of `docs/TESTING.md` remain
+public-release gates.
 
-**Against this whole roadmap through Phase 9: roughly 75%**, still dominated by
-Phases 6 and 7. Phase 5 is implemented and becomes complete after its fresh-storage
-in-game acceptance pass.
+**Against this whole roadmap through Phase 9: roughly 80%**, still dominated by
+Phases 6 and 7. Phase 5 is complete.
 
-Automated coverage at this point: **Duels 73 tests, JCore 303** (1 skipped), both
+Automated coverage at this point: **Duels 75 tests, JCore 303** (1 skipped), both
 green. Per-system confidence, including where coverage is thin and what would be
 worth testing more, is tabulated in `docs/SESSION_CONTEXT.md`.
 
@@ -1489,7 +1489,7 @@ there, computes real spawn/bounds from the offsets, and registers a normal
   counts through diagnostics and the admin arena menus. Retirement is the explicit way
   to clear an unwanted copy and return its slot.
 
-## Phase 5 - Deeper Statistics & Tracking `[~]` (v2)
+## Phase 5 - Deeper Statistics & Tracking `[x]` (v2)
 
 ### Problem / Opportunity
 
@@ -1513,13 +1513,16 @@ introducing a parallel tracking system.
 
 ### Implemented scope
 
-The complete filterable statistics system is implemented and awaiting its ordered
-in-game acceptance pass. It records lifecycle/combat/end timestamps, nullable
+The complete filterable statistics system is implemented and has passed its ordered
+in-game acceptance pass on fresh SQLite and YAML storage. It records lifecycle/combat/
+end timestamps, nullable
 pre-combat kits, structured end reasons/state/damage causes, and participant names.
 `StatsQuery` composes opponent, both kit directions, arena and time. Profiles,
 database-paged history, offline lookup and five leaderboard categories are exposed
 through `/duel stats [player]` and `/duel top`. SQL/YAML parity and lifecycle edge
-cases are automated. See `docs/PHASE_5_STATISTICS.md` for the design and reset boundary.
+cases are automated; live testing covered every result path, composite filters,
+offline lookup, paging, restart persistence, and all leaderboard categories. See
+`docs/PHASE_5_STATISTICS.md` for the design and reset boundary.
 
 ## Phase 6 - Vault Integration & Rewards `[ ]` (v2)
 

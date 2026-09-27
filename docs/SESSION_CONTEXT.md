@@ -8,9 +8,9 @@ starting work, then inspect the relevant source files before changing code.
 ## Current state
 
 Duels V1 is complete, tested, and manually verified on a real Paper server.
-Phases 0-4B and 11 are done. Phase 5 is implemented and awaiting its in-game
-statistics acceptance pass. Arena containment/bounds and dynamic provisioning
-have passed the complete target-Paper run in `docs/IN_GAME_SUITE.md`.
+Phases 0-5 and 11 are done. Phase 5's filterable statistics and match-history
+system passed its in-game acceptance run. Arena containment/bounds and dynamic
+provisioning have passed the complete target-Paper run in `docs/IN_GAME_SUITE.md`.
 
 The shared pooled void world remains the dynamic-arena baseline. It now warns
 when a captured arena's real footprint can enter an adjacent slot's chunk-send
@@ -27,16 +27,17 @@ its slot.
 
 Verification at this handoff:
 
-- `mvn clean package`: 73 tests passed, 0 failures, 0 errors, 0 skipped. JCore: 303
+- `mvn clean package`: 75 tests passed, 0 failures, 0 errors, 0 skipped. JCore: 303
   passed, 1 skipped.
 - The shaded jar builds successfully and was copied into the local test-server
   plugin folder.
 - Manual in-game testing passed for arena management, matches, kits, bounds,
   instancing, dynamic provisioning/recovery, rollback, spectators,
   GUI/command parity, advancements, diagnostics and containment.
-- The V1 schema was exercised on SQLite, MySQL, MariaDB and PostgreSQL. Phase 5's
-  fresh schema is automatically verified on SQLite and still needs the ordered
-  external-backend acceptance pass before release.
+- Phase 5 passed fresh SQLite and fresh YAML live write/read/filter/history/
+  leaderboard testing, including restart persistence. The earlier schema was
+  exercised on MySQL, MariaDB and PostgreSQL; Phase 5's fresh schema still needs
+  that external-backend matrix repeated before release.
 
 ## V1 features now implemented
 
@@ -76,8 +77,8 @@ Verification at this handoff:
   schematic reset path is not implemented.
 - There is no matchmaking queue, ranked/MMR system, Vault reward integration,
   cross-server matchmaking, or Velocity companion plugin.
-- Statistics are useful baseline tracking, not the future deep stats/product
-  analytics system.
+- Filterable profiles, match history, head-to-head queries and leaderboards are
+  complete. Ranked ratings and more advanced analytics remain later phases.
 - A durable pending-outcome/retry record is deferred until rewards and other
   consumers require guaranteed delivery.
 
@@ -102,8 +103,8 @@ does differently, and a manual pass proves one run rather than an invariant.
 | Block-change rollback | **Medium-high** | Automated for basic, explosion, ceiling and double-reset cases. The tracked-change ceiling is a known, documented cliff rather than a bug. |
 | Spectators | **Medium-high** | Automated for disconnect, eject, forfeit-while-spectated and detached-session finish. In-game pass done. Less real-world mileage than matches simply because fewer people use it. |
 | Dynamic arena provisioning and recovery | **Medium-high** | The complete live capture/provision/restart/capacity/recovery suite passed. Automated tests now cover the hard slot limit, reservations, capacity reporting, reuse after retirement, player-safe capacity failure, layout maths and visibility. `DynamicArenaProvisioner` and `DynamicArenaRecovery` still have no full structure/world end-to-end coverage because MockBukkit does not implement those APIs. |
-| Stats, YAML backend | **Medium** | Automated read-after-write ordering; in-game pass. |
-| Stats, SQL backend | **High** | SQLite has automated coverage and passed the live migration/write/read/leaderboard flow. All supported external backends also tracked repeated matches correctly in manual testing. |
+| Stats, YAML backend | **Medium-high** | Automated SQL/YAML parity plus a fresh live write/read/filter/history/leaderboard pass and restart-persistence check. |
+| Stats, SQL backend | **High** | SQLite has automated coverage and passed the fresh live write/read/filter/history/leaderboard flow, restart persistence, and paging beyond 45 records. The Phase 5 external-dialect matrix remains a release check. |
 | Non-SQLite dialects (MySQL, MariaDB, PostgreSQL) | **Medium-high** | Each backend passed repeated live match/stat checks. They are not covered automatically and the exact tested engine versions were not recorded, so future migration work should repeat the matrix. |
 | Menus (admin and user) | **Medium** | Automated for layout rules - bottom row reserved, static/dynamic screen separation, slot upgrade - but **not for click handling**, because the MockBukkit slot-conversion test is skipped. Every menu action has been driven by hand in game instead. |
 | Commands and permissions | **Medium-high** | In-game GUI/command parity pass. Permission nodes are declared in `plugin.yml` and were checked by hand; nothing asserts they stay in sync with the code. |
@@ -141,7 +142,7 @@ for Duels itself to be considered complete.
 |---|---|---|
 | Phases 0-4, 11 (foundation, arenas, instancing, spectators, containment, QoL) | Done | - |
 | Phase 4B (dynamic provisioning) | Done and verified | - |
-| Phase 5 (deeper statistics) | Implemented; in-game acceptance pending | one acceptance pass |
+| Phase 5 (deeper statistics) | Done and verified | - |
 | Phase 6 (Vault + durable rewards) | Not designed | ~3-4 sessions |
 | Phase 7 (local matchmaking queues) | Not designed | ~3-4 sessions |
 | Phase 8 (ELO / MMR / SBMM) | Not designed | ~2-3 sessions |
@@ -149,20 +150,22 @@ for Duels itself to be considered complete.
 | Phase 10 (advanced/optional) | Deliberately open-ended | not estimated |
 
 **Against the standalone-complete definition: roughly 95%.** The in-game suite and
-all four database backends have passed. What remains for a public release is the
-fresh-server clean-install matrix in `docs/TESTING.md` and any issues it reveals.
+fresh SQLite/YAML Phase 5 acceptance have passed. What remains for a public release
+is the fresh Phase 5 external-SQL matrix, the fresh-server clean-install matrix in
+`docs/TESTING.md`, and any issues either reveals.
 
-**Against the full current roadmap through Phase 9: roughly 75%.** Phase 5 is now
-implemented; the remaining schedule is dominated by Phases 6 and 7.
+**Against the full current roadmap through Phase 9: roughly 80%.** Phase 5 is
+complete; the remaining schedule is dominated by Phases 6 and 7.
 
 Treat both numbers as effort estimates, not deadlines.
 
-## Current development target: verify Phase 5
+## Current development target: choose the next V2 phase
 
-Phase 4B is closed. Phase 5's filterable profiles, match history, composite SQL/YAML
-queries, offline-player lookup, timing/end metadata and category leaderboards are
-implemented. Automated tests pass; the remaining boundary is the ordered in-game
-menu and fresh-storage acceptance pass in `docs/PHASE_5_STATISTICS.md`.
+Phase 4B and Phase 5 are closed. Phase 5's filterable profiles, match history,
+composite SQL/YAML queries, offline-player lookup, timing/end metadata and category
+leaderboards have passed automated and fresh-storage live acceptance. The next
+development target is Phase 6 design (Vault and durable rewards), unless the
+clean-install public-release gate is deliberately taken first.
 
 ### Phase 5 implemented decisions
 
@@ -218,11 +221,10 @@ retried. See `docs/PHASE_4B_DESIGN.md` and `docs/ROADMAP.md`.
 
 ## Recommended V2 order
 
-1. Phase 5: deeper statistics and tracking.
-2. Phase 6: Vault integration and durable, idempotent rewards.
-3. Phase 7: local matchmaking queues.
-4. Phase 8: ELO/MMR/SBMM, after stats and matchmaking exist.
-5. Phase 9: network readiness boundaries, then a separate Velocity-side
+1. Phase 6: Vault integration and durable, idempotent rewards.
+2. Phase 7: local matchmaking queues.
+3. Phase 8: ELO/MMR/SBMM, after stats and matchmaking exist.
+4. Phase 9: network readiness boundaries, then a separate Velocity-side
    integration when a real multi-server test environment exists.
 
 Do not add Redis, distributed locks, cross-server state, or generalized JCore
@@ -256,8 +258,7 @@ Duels until a second real plugin creates a proven reusable need.
 - End development updates with a compact, simplified roadmap/progress footer so
   Jack can always see the current position. Keep it to one short line or small
   checklist rather than repeating the detailed roadmap.
-- Phase 4B is closed; Phase 5 awaits its in-game acceptance pass. Do not rewrite
-  V1 or re-run already-completed phases.
+- Phases 4B and 5 are closed. Do not rewrite V1 or re-run already-completed phases.
 - For substantial work: inspect current code and call sites, explain the
   problem and trade-offs, agree the design, implement incrementally, test, and
   update this file plus `docs/ROADMAP.md`.
