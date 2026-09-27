@@ -11,6 +11,7 @@ import me.jackcw.duels.arena.ArenaTemplateDefinition;
 import me.jackcw.duels.arena.ArenaTemplateManager;
 import me.jackcw.duels.arena.BoundaryMode;
 import me.jackcw.duels.arena.DynamicArenaProvisioner;
+import me.jackcw.duels.arena.DynamicArenaSlotManager;
 import me.jackcw.duels.message.Message;
 import me.jackcw.jcore.menu.MenuContext;
 import me.jackcw.jcore.menu.ConfiguredMenu;
@@ -31,6 +32,7 @@ public final class ArenaDetailMenu
     private final ArenaInstanceManager arenaInstanceManager;
     private final ArenaTemplateManager templateManager;
     private final DynamicArenaProvisioner provisioner;
+    private final DynamicArenaSlotManager dynamicArenaSlotManager;
     private final MessageManager messageManager;
     private final ArenaKitMenu arenaKitMenu;
     private final ArenaInstanceListMenu arenaInstanceListMenu;
@@ -43,6 +45,7 @@ public final class ArenaDetailMenu
         this.arenaInstanceManager = plugin.getArenaInstanceManager();
         this.templateManager = plugin.getArenaTemplateManager();
         this.provisioner = plugin.getDynamicArenaProvisioner();
+        this.dynamicArenaSlotManager = plugin.getDynamicArenaSlotManager();
         this.messageManager = plugin.core().messages();
         this.arenaKitMenu = arenaKitMenu;
         this.arenaInstanceListMenu = arenaInstanceListMenu;
@@ -175,12 +178,18 @@ public final class ArenaDetailMenu
         }
         else
         {
+            DynamicArenaSlotManager.Capacity capacity = dynamicArenaSlotManager.capacity();
             ArenaInstance source = arenaInstanceManager.getSource(arenaId);
             if (source == null)
                 menu.item("source", context -> createSource(player, arenaId, context));
             else
                 menu.item("source", context -> context.openChild(() -> arenaInstanceDetailMenu.open(player, source.getId())));
-            menu.item("generated-copies", context -> context.openChild(() -> arenaInstanceListMenu.open(player, arenaId)))
+            menu.item("generated-copies", Map.of(
+                            "occupied", capacity.occupied(),
+                            "reserved", capacity.reserved(),
+                            "available", capacity.available(),
+                            "maximum", capacity.maximum()
+                    ), context -> context.openChild(() -> arenaInstanceListMenu.open(player, arenaId)))
                     .item("template", Map.of(
                             "status", arena.getTemplateDefinition() == null ? "&cNot captured" : "&aRevision " + arena.getTemplateDefinition().revision(),
                             "size", templateSize(arena.getTemplateDefinition())

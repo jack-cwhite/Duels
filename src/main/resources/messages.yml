@@ -125,6 +125,7 @@ duel:
   player-record: '&e{player} &7has &a{wins} &7wins.'
   challenge-expired: '&7Your duel challenge to &e{player} &7has &cexpired!'
   no-arena-available: '&cNo arenas are available right now. Try again in a moment.'
+  arena-capacity-reached: '&cAll generated arena slots are occupied or being prepared, so another copy cannot be created right now. Try again later or ask an administrator to retire an unused copy.'
   preparing-arena: '&7Preparing arena...'
   already-in-match: '&cYou are already in a duel!'
   target-in-match: '&e{player} &cis already in a duel!'

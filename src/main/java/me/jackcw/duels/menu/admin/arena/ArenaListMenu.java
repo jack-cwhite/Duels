@@ -6,6 +6,7 @@ import me.jackcw.duels.arena.ArenaInstance;
 import me.jackcw.duels.arena.ArenaInstanceManager;
 import me.jackcw.duels.arena.ArenaManager;
 import me.jackcw.duels.arena.ArenaProvisioningMode;
+import me.jackcw.duels.arena.DynamicArenaSlotManager;
 import me.jackcw.jcore.menu.MenuManager;
 import org.bukkit.entity.Player;
 
@@ -16,6 +17,7 @@ public final class ArenaListMenu
     private final MenuManager menus;
     private final ArenaManager arenaManager;
     private final ArenaInstanceManager arenaInstanceManager;
+    private final DynamicArenaSlotManager dynamicArenaSlotManager;
     private final ArenaDetailMenu arenaDetailMenu;
 
     public ArenaListMenu(Duels plugin, ArenaDetailMenu arenaDetailMenu)
@@ -23,6 +25,7 @@ public final class ArenaListMenu
         this.menus = plugin.core().menus();
         this.arenaManager = plugin.getArenaManager();
         this.arenaInstanceManager = plugin.getArenaInstanceManager();
+        this.dynamicArenaSlotManager = plugin.getDynamicArenaSlotManager();
         this.arenaDetailMenu = arenaDetailMenu;
     }
 
@@ -74,6 +77,9 @@ public final class ArenaListMenu
         if (arena.getTemplateDefinition() == null)
             return "&eSource set up &7- &ecapture a template to enable matches";
 
-        return "&f" + ready + "/" + instances + " &7generated copies ready (&b" + free + " free&7)";
+        DynamicArenaSlotManager.Capacity capacity = dynamicArenaSlotManager.capacity();
+        return "&f" + ready + "/" + instances + " &7generated copies ready (&b" + free + " free&7); global slots &f"
+                + capacity.occupied() + "/" + capacity.maximum() + " &7occupied, &f"
+                + capacity.reserved() + " &7reserved";
     }
 }

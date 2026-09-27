@@ -208,6 +208,10 @@ arena-dynamic-detail:
       name: '&aGenerated Copies'
       lore:
         - '&7View and manage playable copies.'
+        - ''
+        - '&7Global slots: &f{occupied}/{maximum} &7occupied'
+        - '&7Provisioning now: &f{reserved}'
+        - '&7Available for new copies: &f{available}'
     delete:
       slot: 6
       material: BARRIER

@@ -293,8 +293,12 @@ public final class DuelCommand
             if (throwable != null || result == null || result.status() != me.jackcw.duels.match.MatchStartResult.Status.SUCCESS)
             {
                 challengeManager.releaseClaim(challenge);
-                if (sender.isOnline()) messageManager.send(sender, Message.NO_ARENA_AVAILABLE);
-                if (challenger.isOnline()) messageManager.send(challenger, Message.NO_ARENA_AVAILABLE);
+                Message failureMessage = result != null
+                        && result.status() == me.jackcw.duels.match.MatchStartResult.Status.ARENA_CAPACITY_REACHED
+                        ? Message.ARENA_CAPACITY_REACHED
+                        : Message.NO_ARENA_AVAILABLE;
+                if (sender.isOnline()) messageManager.send(sender, failureMessage);
+                if (challenger.isOnline()) messageManager.send(challenger, failureMessage);
                 return;
             }
 

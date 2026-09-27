@@ -110,8 +110,13 @@ public final class MatchManager
         {
             try
             {
-                if (throwable != null || allocation == null || allocation.status() != ArenaAllocationResult.Status.SUCCESS)
+                if (throwable != null || allocation == null)
                     return MatchStartResult.failure(MatchStartResult.Status.ARENA_UNAVAILABLE);
+
+                if (allocation.status() != ArenaAllocationResult.Status.SUCCESS)
+                    return MatchStartResult.failure(allocation.status() == ArenaAllocationResult.Status.CAPACITY_REACHED
+                            ? MatchStartResult.Status.ARENA_CAPACITY_REACHED
+                            : MatchStartResult.Status.ARENA_UNAVAILABLE);
 
                 ArenaInstance instance = allocation.instance();
                 if (!validPlayers(player1, player2) || !pendingPlayers.contains(firstId) || !pendingPlayers.contains(secondId)

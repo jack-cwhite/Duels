@@ -3,6 +3,7 @@ package me.jackcw.duels.arena;
 import me.jackcw.duels.Duels;
 import me.jackcw.jcore.storage.YamlFile;
 
+import java.nio.file.Files;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
@@ -14,6 +15,23 @@ import java.util.UUID;
  */
 public final class DynamicArenaSlotManager
 {
+    /**
+     * One read-only view of the bounded dynamic-world grid.
+     *
+     * <p>Occupied slots contain persisted generated-copy records, including
+     * copies that are ready, active, failed, dirty, or retiring. Reserved slots
+     * are short-lived claims made before a new record is persisted. Keeping the
+     * two separate makes "the pool is full" diagnosable without exposing the
+     * manager's mutable sets.
+     */
+    public record Capacity(int occupied, int reserved, int maximum)
+    {
+        public int available()
+        {
+            return maximum - occupied - reserved;
+        }
+    }
+
     private final Duels plugin;
     private final Set<Integer> reservedSlots = new HashSet<>();
     private final Set<Integer> occupiedSlots = new HashSet<>();
@@ -31,6 +49,9 @@ public final class DynamicArenaSlotManager
      */
     public boolean hasPersistedLayout()
     {
+        if (!Files.isRegularFile(plugin.getDataFolder().toPath().resolve("dynamic-layout.yml")))
+            return false;
+
         return plugin.core().files().yaml("dynamic-layout.yml").contains("version");
     }
 
@@ -114,6 +135,25 @@ public final class DynamicArenaSlotManager
     public void blockProvisioning() { recoveryBlocked = true; }
 
     public boolean isOccupied(int slotIndex) { return occupiedSlots.contains(slotIndex); }
+
+    /**
+     * Reports capacity without creating {@code dynamic-layout.yml} on a
+     * static-only installation. Once a layout exists its persisted maximum
+     * wins over config, matching the coordinates used by every existing copy.
+     */
+    public Capacity capacity()
+    {
+        int maximum;
+
+        if (layout != null)
+            maximum = layout.maxSlots();
+        else if (hasPersistedLayout())
+            maximum = getOrCreateLayout().maxSlots();
+        else
+            maximum = plugin.getSettings().dynamicArenas().maxSlots();
+
+        return new Capacity(occupiedSlots.size(), reservedSlots.size(), maximum);
+    }
 
     private void saveLayout()
     {

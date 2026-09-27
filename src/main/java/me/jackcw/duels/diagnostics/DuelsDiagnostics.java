@@ -5,6 +5,7 @@ import me.jackcw.duels.arena.ArenaInstance;
 import me.jackcw.duels.arena.BlockBox;
 import me.jackcw.duels.arena.BlockChangeRollbackStrategy;
 import me.jackcw.duels.arena.DynamicArenaState;
+import me.jackcw.duels.arena.DynamicArenaSlotManager;
 import me.jackcw.duels.match.Match;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.AreaEffectCloud;
@@ -77,6 +78,9 @@ public final class DuelsDiagnostics
             int spectatorSessions,
             int editSessions,
             int captureDrafts,
+            int dynamicOccupiedSlots,
+            int dynamicReservedSlots,
+            int dynamicMaximumSlots,
             int pendingChallenges,
             int boundaryTrackedPlayers,
             boolean boundaryCheckTaskActive,
@@ -104,6 +108,7 @@ public final class DuelsDiagnostics
 
         EntityCounts entities = countArenaEntities();
         BlockChangeRollbackStrategy rollback = rollbackStrategy();
+        DynamicArenaSlotManager.Capacity dynamicCapacity = plugin.getDynamicArenaSlotManager().capacity();
 
         return new Snapshot(
                 matches.size(),
@@ -113,6 +118,9 @@ public final class DuelsDiagnostics
                 plugin.getSpectatorManager().getSessions().size(),
                 plugin.getArenaEditManager().getSessions().size(),
                 plugin.getArenaEditManager().getCaptureDraftCount(),
+                dynamicCapacity.occupied(),
+                dynamicCapacity.reserved(),
+                dynamicCapacity.maximum(),
                 plugin.getChallengeManager().getChallengeCount(),
                 plugin.getBoundaryEnforcer().getTrackedPlayerCount(),
                 plugin.getBoundaryEnforcer().isCheckTaskActive(),
@@ -219,6 +227,10 @@ public final class DuelsDiagnostics
         lines.add(line("Spectator sessions", snapshot.spectatorSessions()));
         lines.add(line("Edit sessions", snapshot.editSessions()));
         lines.add(line("Capture drafts", snapshot.captureDrafts()));
+        lines.add("&7Dynamic arena slots: &f" + snapshot.dynamicOccupiedSlots() + "&7 occupied, &f"
+                + snapshot.dynamicReservedSlots() + "&7 reserved, &f"
+                + (snapshot.dynamicMaximumSlots() - snapshot.dynamicOccupiedSlots() - snapshot.dynamicReservedSlots())
+                + "&7 available / &f" + snapshot.dynamicMaximumSlots() + "&7 maximum");
         lines.add(line("Boundary-tracked players", snapshot.boundaryTrackedPlayers()));
         lines.add(line("Boundary check task active", snapshot.boundaryCheckTaskActive()));
         lines.add(line("Instances holding rollback data", snapshot.trackedInstances()));
@@ -317,6 +329,9 @@ public final class DuelsDiagnostics
         addDelta(lines, "Spectator sessions", baseline.spectatorSessions(), now.spectatorSessions());
         addDelta(lines, "Edit sessions", baseline.editSessions(), now.editSessions());
         addDelta(lines, "Capture drafts", baseline.captureDrafts(), now.captureDrafts());
+        addDelta(lines, "Dynamic occupied slots", baseline.dynamicOccupiedSlots(), now.dynamicOccupiedSlots());
+        addDelta(lines, "Dynamic slot reservations", baseline.dynamicReservedSlots(), now.dynamicReservedSlots());
+        addDelta(lines, "Dynamic maximum slots", baseline.dynamicMaximumSlots(), now.dynamicMaximumSlots());
         addDelta(lines, "Boundary-tracked players", baseline.boundaryTrackedPlayers(), now.boundaryTrackedPlayers());
         addDelta(lines, "Boundary check task active", baseline.boundaryCheckTaskActive(), now.boundaryCheckTaskActive());
         addDelta(lines, "Instances holding rollback data", baseline.trackedInstances(), now.trackedInstances());

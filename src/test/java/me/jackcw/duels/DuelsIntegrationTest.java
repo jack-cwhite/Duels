@@ -9,8 +9,13 @@ import me.jackcw.duels.arena.ArenaStructureProvider;
 import me.jackcw.duels.arena.ArenaTemplateManager;
 import me.jackcw.duels.arena.ArenaTemplateCaptureResult;
 import me.jackcw.duels.arena.DynamicArenaState;
+import me.jackcw.duels.arena.DynamicArenaSlot;
+import me.jackcw.duels.arena.DynamicArenaSlotManager;
 import me.jackcw.duels.arena.DynamicArenaRecovery;
 import me.jackcw.duels.arena.ArenaProvisioningMode;
+import me.jackcw.duels.arena.ArenaTemplateDefinition;
+import me.jackcw.duels.arena.RelativeArenaLocation;
+import me.jackcw.duels.arena.RelativeBlockPosition;
 import me.jackcw.duels.arena.ArenaContainmentGuard;
 import me.jackcw.duels.arena.BlockChangeRollbackStrategy;
 import me.jackcw.duels.arena.ArenaBoundsValidator;
@@ -21,6 +26,7 @@ import me.jackcw.duels.diagnostics.DuelsDiagnostics;
 import me.jackcw.duels.match.Match;
 import me.jackcw.duels.match.MatchResult;
 import me.jackcw.duels.match.MatchState;
+import me.jackcw.duels.match.MatchStartResult;
 import me.jackcw.duels.spectator.SpectateResult;
 import me.jackcw.duels.stats.LeaderboardEntry;
 import me.jackcw.jcore.database.Database;
@@ -48,6 +54,7 @@ import org.mockbukkit.mockbukkit.MockBukkit;
 import org.mockbukkit.mockbukkit.ServerMock;
 import org.mockbukkit.mockbukkit.entity.PlayerMock;
 import org.mockbukkit.mockbukkit.world.WorldMock;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -303,6 +310,12 @@ class DuelsIntegrationTest
         assertEquals(Material.STRUCTURE_BLOCK, dynamicMenu.getItem(2).getType());
         assertEquals(Material.EMERALD, dynamicMenu.getItem(4).getType());
         assertEquals(Material.FILLED_MAP, dynamicMenu.getItem(14).getType());
+        var capacityLore = dynamicMenu.getItem(4).getItemMeta().lore();
+        assertNotNull(capacityLore);
+        String plainCapacityLore = String.join("\n", capacityLore.stream()
+                .map(PlainTextComponentSerializer.plainText()::serialize).toList());
+        assertTrue(plainCapacityLore.contains("0/64 occupied"));
+        assertTrue(plainCapacityLore.contains("Available for new copies: 64"));
 
         plugin.getArenaInstanceDetailMenu().open(admin, built.getId());
         var staticCopyMenu = admin.getOpenInventory().getTopInventory();
@@ -337,6 +350,87 @@ class DuelsIntegrationTest
         assertEquals(14, config.getInt("arena-instance-detail.items.capture.slot"));
         assertEquals(44, config.getInt("kit-edit.items.save.slot"));
         assertEquals("&aMy custom label", config.getString("arena-detail.items.rename.name"));
+    }
+
+    @Test
+    void dynamicSlotCapacityIsBoundedAndVacatingARetiredSlotMakesItReusable()
+    {
+        DynamicArenaSlotManager slotManager = plugin.getDynamicArenaSlotManager();
+        Path layoutPath = plugin.getDataFolder().toPath().resolve("dynamic-layout.yml");
+        assertFalse(Files.exists(layoutPath));
+        DynamicArenaSlotManager.Capacity initial = slotManager.capacity();
+
+        assertEquals(0, initial.occupied());
+        assertEquals(0, initial.reserved());
+        assertEquals(64, initial.maximum());
+        assertEquals(64, initial.available());
+        assertFalse(Files.exists(layoutPath), "reading capacity must not create the dynamic layout on a static-only server");
+
+        List<DynamicArenaSlot> reservations = new ArrayList<>();
+        for (int expected = 0; expected < initial.maximum(); expected++)
+        {
+            DynamicArenaSlot slot = slotManager.reserveNext();
+            assertNotNull(slot);
+            assertEquals(expected, slot.index());
+            reservations.add(slot);
+        }
+
+        assertNull(slotManager.reserveNext(), "the hard limit must not silently grow the world");
+        assertEquals(initial.maximum(), slotManager.capacity().reserved());
+        assertEquals(0, slotManager.capacity().available());
+        DuelsDiagnostics.Snapshot full = plugin.getDiagnostics().snapshot();
+        assertEquals(64, full.dynamicReservedSlots());
+        assertEquals(64, full.dynamicMaximumSlots());
+        assertTrue(plugin.getDiagnostics().describe(full).stream()
+                .anyMatch(line -> line.contains("64") && line.contains("reserved")));
+
+        slotManager.markOccupied(reservations.getFirst().index());
+        for (int index = 1; index < reservations.size(); index++)
+            slotManager.releaseReservation(reservations.get(index).index());
+
+        DynamicArenaSlotManager.Capacity occupied = slotManager.capacity();
+        assertEquals(1, occupied.occupied());
+        assertEquals(0, occupied.reserved());
+        assertEquals(63, occupied.available());
+
+        slotManager.markVacant(reservations.getFirst().index());
+        assertEquals(64, slotManager.capacity().available());
+        assertEquals(0, slotManager.reserveNext().index(), "retirement must make the same slot reusable");
+    }
+
+    @Test
+    void exhaustedDynamicCapacityReachesTheMatchResultWithoutMutatingPlayers() throws IOException
+    {
+        DynamicArenaSlotManager slotManager = plugin.getDynamicArenaSlotManager();
+        for (int index = 0; index < slotManager.capacity().maximum(); index++)
+            assertNotNull(slotManager.reserveNext());
+
+        Arena arena = plugin.getArenaManager().createArena("Castle", ArenaProvisioningMode.DYNAMIC);
+        ArenaTemplateDefinition template = new ArenaTemplateDefinition(
+                1,
+                plugin.getArenaTemplateManager().getProvider().id(),
+                "capacity-test.nbt",
+                new ArenaStructureSize(1, 1, 1),
+                new RelativeArenaLocation(0, 0, 0, 0, 0),
+                new RelativeArenaLocation(0, 0, 0, 0, 0),
+                new RelativeBlockPosition(0, 0, 0),
+                new RelativeBlockPosition(0, 0, 0));
+        arena.setTemplateDefinition(template);
+        Path templatePath = plugin.getArenaTemplateManager().getStructurePath(template);
+        Files.createDirectories(templatePath.getParent());
+        Files.writeString(templatePath, "capacity test");
+
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+        MatchStartResult result = plugin.getMatchManager()
+                .startMatchAsync(alice, bob, ArenaSelection.specific(arena.getId())).join();
+
+        assertEquals(MatchStartResult.Status.ARENA_CAPACITY_REACHED, result.status());
+        assertNull(result.match());
+        assertNull(plugin.getMatchManager().getMatch(alice.getUniqueId()));
+        assertNull(plugin.getMatchManager().getMatch(bob.getUniqueId()));
+        assertFalse(plugin.getMatchManager().isPending(alice.getUniqueId()));
+        assertFalse(plugin.getMatchManager().isPending(bob.getUniqueId()));
     }
 
     @Test
