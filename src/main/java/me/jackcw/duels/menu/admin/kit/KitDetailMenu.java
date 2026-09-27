@@ -22,13 +22,15 @@ public final class KitDetailMenu
     private final KitManager kitManager;
     private final MessageManager messageManager;
     private final KitEditMenu kitEditMenu;
+    private final KitEffectsMenu kitEffectsMenu;
 
-    public KitDetailMenu(Duels plugin, KitEditMenu kitEditMenu)
+    public KitDetailMenu(Duels plugin, KitEditMenu kitEditMenu, KitEffectsMenu kitEffectsMenu)
     {
         this.menus = plugin.core().menus();
         this.kitManager = plugin.getKitManager();
         this.messageManager = plugin.core().messages();
         this.kitEditMenu = kitEditMenu;
+        this.kitEffectsMenu = kitEffectsMenu;
     }
 
     public void open(Player player, int kitId)
@@ -44,7 +46,16 @@ public final class KitDetailMenu
         }
 
         menus.menu("kit-detail")
-                .placeholders(Map.of("kit-name", kit.getName()))
+                .placeholders(Map.of("kit-name", kit.getName(), "effect-count", kit.getEffects().size()))
+                .item("effects", context ->
+                {
+                    Kit current = requireKit(player, kitId, context);
+
+                    if (current == null)
+                        return;
+
+                    context.openChild(() -> kitEffectsMenu.open(player, kitId));
+                })
                 .item("set-icon", context ->
                 {
                     Kit current = requireKit(player, kitId, context);

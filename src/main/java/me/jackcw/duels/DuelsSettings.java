@@ -9,18 +9,29 @@ import java.util.logging.Logger;
 
 public final class DuelsSettings
 {
-    private final StatsStorageType statsStorage;
-    private final int statsWinRateMinimumMatches;
-    private final int challengeExpirySeconds;
-    private final int kitSelectionSeconds;
-    private final boolean removeOutstandingChallenges;
-    private final boolean enableGracePeriod;
-    private final int gracePeriodSeconds;
-    private final int arenaResetMaxTrackedBlockChanges;
-    private final int arenaResetBlocksPerTick;
-    private final DynamicArenaSettings dynamicArenas;
+    private StatsStorageType statsStorage;
+    private int statsWinRateMinimumMatches;
+    private int challengeExpirySeconds;
+    private int kitSelectionSeconds;
+    private boolean removeOutstandingChallenges;
+    private boolean enableGracePeriod;
+    private int gracePeriodSeconds;
+    private int arenaResetMaxTrackedBlockChanges;
+    private int arenaResetBlocksPerTick;
+    private DynamicArenaSettings dynamicArenas;
 
     public DuelsSettings(YamlFile config, Logger logger)
+    {
+        reload(config, logger);
+    }
+
+    /**
+     * Re-reads every value from {@code config} into this same instance, so
+     * classes that captured a {@code DuelsSettings} reference at startup
+     * (e.g. {@code ChallengeManager}, {@code MatchManager}) see the new
+     * values without needing to be reconstructed or re-injected.
+     */
+    public void reload(YamlFile config, Logger logger)
     {
         this.statsStorage = readStatsStorage(config, logger);
         this.statsWinRateMinimumMatches = readPositiveInt(

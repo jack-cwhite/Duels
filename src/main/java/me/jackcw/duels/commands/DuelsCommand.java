@@ -21,6 +21,10 @@ import me.jackcw.duels.arena.DynamicArenaState;
 import me.jackcw.duels.arena.BoundaryMode;
 import me.jackcw.duels.diagnostics.DuelsDiagnostics;
 import me.jackcw.duels.kit.Kit;
+import me.jackcw.duels.kit.KitEffect;
+import me.jackcw.duels.kit.KitEffectDisplay;
+import me.jackcw.duels.kit.KitEffectFeedback;
+import me.jackcw.duels.kit.KitEffectMutationResult;
 import me.jackcw.duels.kit.KitManager;
 import me.jackcw.duels.menu.admin.AdminMainMenu;
 import me.jackcw.duels.menu.admin.arena.ArenaMainMenu;
@@ -51,6 +55,7 @@ public final class DuelsCommand
 {
     private static final UUID CONSOLE_BASELINE_KEY = new UUID(0L, 0L);
 
+    private final Duels plugin;
     private final ArenaManager arenaManager;
     private final ArenaInstanceManager arenaInstanceManager;
     private final ArenaEditManager arenaEditManager;
@@ -72,6 +77,7 @@ public final class DuelsCommand
 
     public DuelsCommand(Duels plugin)
     {
+        this.plugin = plugin;
         this.arenaManager = plugin.getArenaManager();
         this.arenaInstanceManager = plugin.getArenaInstanceManager();
         this.arenaEditManager = plugin.getArenaEditManager();
@@ -343,6 +349,8 @@ public final class DuelsCommand
                                                 .argument("id", ArgumentTypes.integer())
                                                 .executes(this::setKitIcon))
                                 .child(
+                                        kitEffectCommands())
+                                .child(
                                         CommandBuilder.command("edit")
                                                 .description("Open a kit's item editor directly")
                                                 .usage("/duels kit edit <id>")
@@ -376,7 +384,28 @@ public final class DuelsCommand
                                                 .permission("duels.admin.diagnostics")
                                                 .argument("arenaId", ArgumentTypes.integer())
                                                 .executes(this::verifyTemplate)))
+                .child(
+                        CommandBuilder.command("reload")
+                                .description("Reload config.yml and messages.yml without restarting the server")
+                                .usage("/duels reload")
+                                .permission("duels.admin.reload")
+                                .executes(this::reloadConfig))
                 .build();
+    }
+
+    /**
+     * Only config.yml and messages.yml are reloaded here. Kits, arenas and
+     * menus.yml are live-edited through the GUI/commands and persisted on
+     * every change, so there is nothing stale on disk for them to pick up -
+     * reloading their files would just re-read what is already in memory.
+     */
+    private void reloadConfig(CommandContext context)
+    {
+        plugin.core().config().reload();
+        plugin.getSettings().reload(plugin.core().config(), plugin.getLogger());
+        plugin.core().messages().reload();
+
+        messageManager.send(context.getSender(), Message.CONFIG_RELOADED);
     }
 
     /**
@@ -1113,5 +1142,102 @@ public final class DuelsCommand
         }
 
         kitEditMenu.open(context.getPlayer(), id);
+    }
+
+    private CommandBuilder kitEffectCommands()
+    {
+        return CommandBuilder.command("effect")
+                .description("Manage a kit's permanent effects")
+                .usage("/duels kit effect <list|add|remove|level|ambient|particles|icon> ...")
+                .permission("duels.admin.kit.edit")
+                .child(CommandBuilder.command("list")
+                        .usage("/duels kit effect list <kitId>")
+                        .argument("kitId", ArgumentTypes.integer())
+                        .executes(this::listKitEffects))
+                .child(CommandBuilder.command("add")
+                        .usage("/duels kit effect add <kitId> <effectKey> [level]")
+                        .argument("kitId", ArgumentTypes.integer())
+                        .argument("effectKey", ArgumentTypes.string())
+                        .optionalArgument("level", ArgumentTypes.integer())
+                        .executes(this::addKitEffect))
+                .child(CommandBuilder.command("remove")
+                        .usage("/duels kit effect remove <kitId> <effectKey>")
+                        .argument("kitId", ArgumentTypes.integer())
+                        .argument("effectKey", ArgumentTypes.string())
+                        .executes(this::removeKitEffect))
+                .child(CommandBuilder.command("level")
+                        .usage("/duels kit effect level <kitId> <effectKey> <1-255>")
+                        .argument("kitId", ArgumentTypes.integer())
+                        .argument("effectKey", ArgumentTypes.string())
+                        .argument("level", ArgumentTypes.integer())
+                        .executes(this::setKitEffectLevel))
+                .child(effectFlagCommand("ambient", KitManager.EffectFlag.AMBIENT))
+                .child(effectFlagCommand("particles", KitManager.EffectFlag.PARTICLES))
+                .child(effectFlagCommand("icon", KitManager.EffectFlag.ICON));
+    }
+
+    private CommandBuilder effectFlagCommand(String name, KitManager.EffectFlag flag)
+    {
+        return CommandBuilder.command(name)
+                .usage("/duels kit effect " + name + " <kitId> <effectKey> <true|false>")
+                .argument("kitId", ArgumentTypes.integer())
+                .argument("effectKey", ArgumentTypes.string())
+                .argument("enabled", ArgumentTypes.bool())
+                .executes(context ->
+                {
+                    int kitId = context.get("kitId");
+                    String key = context.get("effectKey");
+                    reportEffect(context.getSender(), kitId, key,
+                            kitManager.setEffectFlag(kitId, key, flag, context.get("enabled")), false);
+                });
+    }
+
+    private void listKitEffects(CommandContext context)
+    {
+        int kitId = context.get("kitId");
+        Kit kit = kitManager.getKit(kitId);
+        if (kit == null)
+        {
+            messageManager.send(context.getSender(), Message.KIT_NOT_FOUND, "id", kitId);
+            return;
+        }
+        if (kit.getEffects().isEmpty())
+        {
+            messageManager.send(context.getSender(), Message.KIT_EFFECT_LIST_EMPTY, "id", kitId);
+            return;
+        }
+        for (KitEffect effect : kit.getEffects())
+            messageManager.send(context.getSender(), Message.KIT_EFFECT_LIST_ENTRY,
+                    "type", KitEffectDisplay.name(effect.typeKey()), "level", KitEffectDisplay.level(effect.level()),
+                    "ambient", effect.ambient(), "particles", effect.particles(), "icon", effect.icon());
+    }
+
+    private void addKitEffect(CommandContext context)
+    {
+        int kitId = context.get("kitId");
+        String key = context.get("effectKey");
+        int level = context.has("level") ? context.get("level") : 1;
+        reportEffect(context.getSender(), kitId, key, kitManager.addEffect(kitId, key, level), false);
+    }
+
+    private void removeKitEffect(CommandContext context)
+    {
+        int kitId = context.get("kitId");
+        String key = context.get("effectKey");
+        reportEffect(context.getSender(), kitId, key, kitManager.removeEffect(kitId, key), true);
+    }
+
+    private void setKitEffectLevel(CommandContext context)
+    {
+        int kitId = context.get("kitId");
+        String key = context.get("effectKey");
+        reportEffect(context.getSender(), kitId, key,
+                kitManager.setEffectLevel(kitId, key, context.get("level")), false);
+    }
+
+    private void reportEffect(CommandSender sender, int kitId, String key,
+                              KitEffectMutationResult result, boolean removed)
+    {
+        KitEffectFeedback.send(messageManager, sender, kitId, key, result, removed);
     }
 }

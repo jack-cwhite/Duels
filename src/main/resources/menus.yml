@@ -49,6 +49,14 @@ admin-main:
       name: '&aKit Menu'
       lore:
         - '&7Manage kits'
+    reload:
+      slot: 8
+      material: CLOCK
+      name: '&eReload Config'
+      lore:
+        - '&7Reload config.yml and'
+        - '&7messages.yml without'
+        - '&7restarting the server'
 
 # Main menu for interacting with arenas.
 arena-main:
@@ -581,12 +589,78 @@ kit-detail:
       name: '&bEdit Kit'
       lore:
         - '&7Click to edit kit items.'
-    delete:
+    effects:
       slot: 6
+      material: POTION
+      name: '&dEffects (&f{effect-count}&d)'
+      lore:
+        - '&7Click to manage this kit''s'
+        - '&7permanent effects/debuffs.'
+    delete:
+      slot: 8
       material: BARRIER
       name: '&cDelete Kit'
       lore:
         - '&7Click to permanently delete this kit.'
+
+# Paginated menu of every usable potion effect type. Left click adds/removes an entry at level I,
+# right click cycles its level 1-5 (wrapping), shift-right click opens the exact-settings screen.
+kit-effects:
+  title: '&8{kit-name} Effects'
+  rows: 6
+
+# Detail screen for one already-configured kit effect: exact level, appearance flags, and removal.
+kit-effect-detail:
+  title: '&8{kit-name}: {effect-name} {level}'
+  rows: 2
+  items:
+    level-down:
+      slot: 0
+      material: RED_DYE
+      name: '&cLevel -1'
+      lore:
+        - '&7Current level: &e{level}'
+    level-up:
+      slot: 1
+      material: LIME_DYE
+      name: '&aLevel +1'
+      lore:
+        - '&7Current level: &e{level}'
+    exact-level:
+      slot: 2
+      material: ANVIL
+      name: '&eSet Exact Level'
+      lore:
+        - '&7Click, then type a level'
+        - '&7from 1 to 255 in chat.'
+    ambient:
+      slot: 4
+      material: GLOWSTONE_DUST
+      name: '&fAmbient: &aOn'
+      alternate-name: '&fAmbient: &cOff'
+      lore:
+        - '&7Click to toggle.'
+    particles:
+      slot: 5
+      material: BLAZE_POWDER
+      name: '&fParticles: &aOn'
+      alternate-name: '&fParticles: &cOff'
+      lore:
+        - '&7Click to toggle.'
+    icon:
+      slot: 6
+      material: BEACON
+      name: '&fHUD Icon: &aOn'
+      alternate-name: '&fHUD Icon: &cOff'
+      lore:
+        - '&7Click to toggle.'
+    remove:
+      slot: 8
+      material: BARRIER
+      name: '&cRemove Effect'
+      lore:
+        - '&7Click to remove this effect'
+        - '&7from the kit.'
 
 # Paginated menu shown during kit selection. Left click selects a kit and right click previews it.
 kit-selector:

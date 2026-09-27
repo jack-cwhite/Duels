@@ -21,7 +21,7 @@ mvn clean install
 
 From the Duels project:
 
-```powershell
+```powershell 
 mvn clean package
 Copy-Item .\target\Duels-1.0-SNAPSHOT.jar 'C:\path\to\paper\plugins\Duels.jar' -Force
 ```

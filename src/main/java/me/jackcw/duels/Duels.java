@@ -23,6 +23,8 @@ import me.jackcw.duels.menu.admin.arena.ArenaListMenu;
 import me.jackcw.duels.menu.admin.arena.ArenaMainMenu;
 import me.jackcw.duels.menu.admin.kit.KitDetailMenu;
 import me.jackcw.duels.menu.admin.kit.KitEditMenu;
+import me.jackcw.duels.menu.admin.kit.KitEffectDetailMenu;
+import me.jackcw.duels.menu.admin.kit.KitEffectsMenu;
 import me.jackcw.duels.menu.admin.kit.KitListMenu;
 import me.jackcw.duels.menu.admin.kit.KitMainMenu;
 import me.jackcw.duels.menu.user.KitSelectorMenu;
@@ -88,6 +90,8 @@ public class Duels extends JavaPlugin
     private KitEditMenu kitEditMenu;
     private KitViewMenu kitViewMenu;
     private KitSelectorMenu kitSelectorMenu;
+    private KitEffectsMenu kitEffectsMenu;
+    private KitEffectDetailMenu kitEffectDetailMenu;
     private LeaderboardMenu leaderboardMenu;
     private StatsProfileMenu statsProfileMenu;
     private SpectateMenu spectateMenu;
@@ -352,7 +356,9 @@ public class Duels extends JavaPlugin
         arenaMainMenu = new ArenaMainMenu(this, arenaListMenu, arenaDetailMenu);
 
         kitEditMenu = new KitEditMenu(this);
-        kitDetailMenu = new KitDetailMenu(this, kitEditMenu);
+        kitEffectDetailMenu = new KitEffectDetailMenu(this);
+        kitEffectsMenu = new KitEffectsMenu(this, kitEffectDetailMenu);
+        kitDetailMenu = new KitDetailMenu(this, kitEditMenu, kitEffectsMenu);
         kitListMenu = new KitListMenu(this, kitDetailMenu);
         kitMainMenu = new KitMainMenu(this, kitListMenu);
         kitViewMenu = new KitViewMenu(this);
