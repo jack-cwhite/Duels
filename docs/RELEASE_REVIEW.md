@@ -2,12 +2,18 @@
 
 ## Status
 
-The pre-Phase-5 codebase reached release-candidate status and its complete in-game suite passed. Phase 5 has now passed automated and fresh-storage live acceptance on SQLite and YAML. MySQL, MariaDB and PostgreSQL were each exercised manually against the earlier statistics schema; the fresh Phase 5 schema still needs that external SQL matrix repeated before release. One wider release pass also remains:
+The standalone foundation has reached release-candidate quality and its complete
+in-game suite passed. Phase 5 has also passed automated and fresh-storage live
+acceptance on SQLite and YAML. This is a checkpoint review, not the final public V1
+review: `docs/V1_COMPLETION_PLAN.md` now includes the remaining product and network
+phases. MySQL, MariaDB and PostgreSQL were each exercised manually against the earlier
+statistics schema; the fresh Phase 5 schema still needs that external SQL matrix.
 
-1. **`docs/TESTING.md`** - the clean-install release matrix on a fresh server,
+1. **`docs/TESTING.md`** - the clean-install matrix on a fresh server,
    especially inventory interaction, crash recovery and damage attribution. Fresh
    SQLite/YAML Phase 5 behaviour is manually verified; MySQL, MariaDB and PostgreSQL
-   must repeat the fresh Phase 5 schema checks as part of the release matrix.
+   must repeat the fresh Phase 5 schema checks. These are useful checkpoint tests now
+   and become part of the final release matrix again after Phase 9B.
 
 ## Release issues fixed during review
 

@@ -2,11 +2,12 @@
 
 ## Current Handoff
 
-For the compact, verified project state and the exact next V2 target, read
-`docs/SESSION_CONTEXT.md` first. It records the completed V1 scope, known
+For the compact, verified project state and the exact next target, read
+`docs/SESSION_CONTEXT.md` first. It records the completed foundation, known
 intentional limitations, architecture invariants, verification results, and
-the planned Phase 4B starting point. `docs/ROADMAP.md` remains the detailed
-phase-by-phase source of truth.
+the Phase 5.5 starting point. `docs/V1_COMPLETION_PLAN.md` defines the remaining
+public-V1 execution order; `docs/ROADMAP.md` remains the detailed architectural
+history and phase-by-phase source of truth.
 
 ## Read This First
 
@@ -153,22 +154,24 @@ These are currently planned or being considered:
 * potentially ELO/MMR/SBMM-style ratings
 * eventual Velocity/BungeeCord/network support
 
-These are ideas, NOT a prescribed implementation order.
-
-Part of your job is to determine their architectural dependencies and recommend an appropriate order.
+These began as ideas; the current dependency order is now prescribed by
+`docs/V1_COMPLETION_PLAN.md`. Revisit that order only when implementation evidence
+reveals a better dependency or Jack changes the product requirements.
 
 You may identify additional features or improvements I have not considered.
 
 Do not assume every possible feature belongs in the plugin.
 
-**Scope target:** "Duels complete" means release-ready for a standalone server - the
-full single-server feature set finished, tested, and technically shippable, whether or
-not it is actually published. Dynamic arena provisioning, Vault, matchmaking, ELO, and
-network readiness are deliberately v2+ work toward Jack's longer-term goal of a custom
-minigame network built on JCore - they are not required for Duels itself to be considered
-complete. See `docs/ROADMAP.md`'s scope note for the current dependency order. Until a
-second minigame plugin actually exists and needs it, JCore stays Duels-driven rather than
-being generalized for hypothetical multi-game reuse ahead of need.
+**Scope target:** "Duels V1 complete" means the complete player-friendly product in
+`docs/V1_COMPLETION_PLAN.md`: the existing standalone foundation plus kit potion
+effects/debuffs, clickable interactions, rematches, Vault rewards, matchmaking,
+ranked ratings, and a working Velocity deployment across fixed Paper backends. Dynamic
+server-process/cloud provisioning and multi-proxy high availability are later scope.
+The standalone deployment must remain simple and dependency-free when optional
+integrations are disabled. After Duels V1, design a hypothetical SkyWars or BedWars
+architecture to discover proven shared boundaries before extracting substantial new
+systems into JCore. Until that exercise demonstrates a second consumer, JCore stays
+Duels-driven rather than being generalized for hypothetical reuse.
 
 ---
 

@@ -7,10 +7,17 @@ starting work, then inspect the relevant source files before changing code.
 
 ## Current state
 
-Duels V1 is complete, tested, and manually verified on a real Paper server.
+The Duels standalone foundation is complete, tested, and manually verified on a real
+Paper server.
 Phases 0-5 and 11 are done. Phase 5's filterable statistics and match-history
 system passed its in-game acceptance run. Arena containment/bounds and dynamic
 provisioning have passed the complete target-Paper run in `docs/IN_GAME_SUITE.md`.
+
+Terminology changed on 2026-09-27: this completed system is now the **standalone
+foundation baseline**, not the intended public V1. Jack's public V1 also includes kit
+effects/debuffs, clickable interactions, rematches, Vault rewards, local matchmaking,
+ranked ratings, and working Velocity support across fixed Paper backends. The
+authoritative remaining order is `docs/V1_COMPLETION_PLAN.md`.
 
 The shared pooled void world remains the dynamic-arena baseline. It now warns
 when a captured arena's real footprint can enter an adjacent slot's chunk-send
@@ -71,12 +78,14 @@ Verification at this handoff:
   retry, and retirement, all exercised in the signed-off acceptance run.
 - Dynamic capture/provisioning/recovery and all nine stages of
   `docs/IN_GAME_SUITE.md` are implemented and signed off.
-- A fresh-server, clean-install pass of `docs/TESTING.md` remains the public-release
-  gate. It is separate from Phase 4B and does not block Phase 5 development.
+- A fresh-server clean-install pass of `docs/TESTING.md` remains a useful foundation
+  checkpoint. The final public-release pass will repeat it after Phase 9B so rewards,
+  queues, ratings and network integration are covered too.
 - The baseline reset is block-change rollback. The optional WorldEdit/FAWE
   schematic reset path is not implemented.
-- There is no matchmaking queue, ranked/MMR system, Vault reward integration,
-  cross-server matchmaking, or Velocity companion plugin.
+- There is not yet a matchmaking queue, ranked/MMR system, Vault reward integration,
+  cross-server matchmaking, or Velocity companion plugin. These are now required for
+  the intended public V1 rather than optional post-release ideas.
 - Filterable profiles, match history, head-to-head queries and leaderboards are
   complete. Ranked ratings and more advanced analytics remain later phases.
 - A durable pending-outcome/retry record is deferred until rewards and other
@@ -132,40 +141,36 @@ In rough order of how much the coverage is worth:
 
 ## Progress and time frame
 
-**Scope being measured.** "Complete" here means the target in `CLAUDE.md`:
-release-ready for a standalone server, with the full single-server feature set
-finished and tested. Matchmaking, ELO and network support are counted below
-because they are on the current roadmap, but they are explicitly *not* required
-for Duels itself to be considered complete.
+**Scope being measured.** "Complete" now means the public V1 target in
+`docs/V1_COMPLETION_PLAN.md`, including the player-experience, rewards, matchmaking,
+ranked and fixed-backend Velocity phases while preserving simple standalone mode.
 
 | Milestone | Status | Remaining effort |
 |---|---|---|
 | Phases 0-4, 11 (foundation, arenas, instancing, spectators, containment, QoL) | Done | - |
 | Phase 4B (dynamic provisioning) | Done and verified | - |
 | Phase 5 (deeper statistics) | Done and verified | - |
-| Phase 6 (Vault + durable rewards) | Not designed | ~3-4 sessions |
-| Phase 7 (local matchmaking queues) | Not designed | ~3-4 sessions |
-| Phase 8 (ELO / MMR / SBMM) | Not designed | ~2-3 sessions |
-| Phase 9 (network-readiness boundaries) | Not designed | ~2-3 sessions |
+| Phase 5.5 (kit effects, clickable UX, rematches) | Planned | ~3-5 sessions |
+| Phase 6 (Vault + durable rewards) | Integration planned; detailed design pending | ~3-4 sessions |
+| Phase 7 (local matchmaking queues) | Integration planned; detailed design pending | ~3-4 sessions |
+| Phase 8 (ELO / MMR / SBMM) | Product decisions pending | ~3-4 sessions |
+| Phase 9A (network contracts/backend readiness) | Planned | ~2-3 sessions |
+| Phase 9B (Velocity companion/cross-server flows) | Planned | ~5-8+ sessions |
 | Phase 10 (advanced/optional) | Deliberately open-ended | not estimated |
 
-**Against the standalone-complete definition: roughly 95%.** The in-game suite and
-fresh SQLite/YAML Phase 5 acceptance have passed. What remains for a public release
-is the fresh Phase 5 external-SQL matrix, the fresh-server clean-install matrix in
-`docs/TESTING.md`, and any issues either reveals.
-
-**Against the full current roadmap through Phase 9: roughly 80%.** Phase 5 is
-complete; the remaining schedule is dominated by Phases 6 and 7.
+**Against the revised public V1 definition: roughly 55-60%.** The difficult standalone
+foundation is complete, but the remaining product and network integrations are
+substantial. The fresh external-SQL and clean-install matrices remain useful checkpoint
+tests and will be repeated as part of the final post-Phase-9 release campaign.
 
 Treat both numbers as effort estimates, not deadlines.
 
-## Current development target: choose the next V2 phase
+## Current development target: Phase 5.5 design and implementation
 
-Phase 4B and Phase 5 are closed. Phase 5's filterable profiles, match history,
-composite SQL/YAML queries, offline-player lookup, timing/end metadata and category
-leaderboards have passed automated and fresh-storage live acceptance. The next
-development target is Phase 6 design (Vault and durable rewards), unless the
-clean-install public-release gate is deliberately taken first.
+Phase 4B and Phase 5 are closed. Begin with the kit-effect data/lifecycle design, then
+clickable Adventure interactions and rematches. After that, follow Phases 6-9 in
+`docs/V1_COMPLETION_PLAN.md`. The final public-release matrix happens after the network
+phase so later features are included in the same clean-install evidence.
 
 ### Phase 5 implemented decisions
 
@@ -219,13 +224,17 @@ early. Provisioned instances persist health states, startup rebuilds
 interrupted/dirty copies, retirement is bounded, and failed copies can be
 retried. See `docs/PHASE_4B_DESIGN.md` and `docs/ROADMAP.md`.
 
-## Recommended V2 order
+## Remaining V1 order
 
-1. Phase 6: Vault integration and durable, idempotent rewards.
-2. Phase 7: local matchmaking queues.
-3. Phase 8: ELO/MMR/SBMM, after stats and matchmaking exist.
-4. Phase 9: network readiness boundaries, then a separate Velocity-side
-   integration when a real multi-server test environment exists.
+1. Phase 5.5: potion effects/debuffs in kits, clickable UX and rematches.
+2. Phase 6: reliable match-result consumers and Vault rewards.
+3. Phase 7: local matchmaking queues.
+4. Phase 8: ratings and ranked matchmaking.
+5. Phase 9A: backend identity, capacity and secure handoff contracts.
+6. Phase 9B: Velocity companion and real cross-server flows on fixed backends.
+7. Final V1 clean-install, database, performance and network release matrix.
+8. Hypothetical SkyWars/BedWars architecture exercise, then evidence-based JCore
+   extraction.
 
 Do not add Redis, distributed locks, cross-server state, or generalized JCore
 APIs before a concrete multi-server feature requires them. JCore is bundled into

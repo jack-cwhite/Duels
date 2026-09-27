@@ -1,24 +1,25 @@
-# Duels / JCore V2 Roadmap
+# Duels / JCore Product Roadmap
 
 This roadmap is dependency-ordered, not feature-list-ordered. Each phase exists because
 something in an earlier phase makes it structurally cheaper or structurally necessary.
-V1 is a working, previously-reviewed release candidate (see `RELEASE_REVIEW.md`) - this
-roadmap is about evolving it, not replacing it.
+The previously reviewed standalone system is a working foundation release candidate
+(see `RELEASE_REVIEW.md`). Jack's intended public V1 includes the remaining product and
+network phases rather than stopping at that foundation. The authoritative remaining
+execution order is in `docs/V1_COMPLETION_PLAN.md`.
 
 Status legend: `[ ]` not started, `[~]` in progress, `[x]` done.
 
-**Scope target:** "Duels complete" means release-ready for a standalone server - the
-full single-server feature set finished, tested, and technically shippable, regardless
-of whether it is actually published. Phases 4B, 6, 7, 8, and 9 (dynamic provisioning,
-Vault, matchmaking, ELO, network readiness) are deliberately v2+: they extend Duels
-toward Jack's longer-term goal of a custom minigame network built on JCore, but they are
-not required for Duels itself to be considered complete. JCore stays Duels-driven -
-JCore APIs are not generalized for a hypothetical second minigame until one actually
-exists and needs it.
+**Scope target:** "Duels V1 complete" means the existing standalone foundation plus kit
+effects/debuffs, clickable interactions, rematches, Vault rewards, matchmaking, ranked
+ratings, and a working Velocity deployment across fixed Paper backends. Standalone mode
+must remain simple when optional integrations are disabled. Dynamic server-process/
+cloud provisioning and multi-proxy high availability are later scope. After Duels V1,
+a hypothetical SkyWars or BedWars architecture will provide the second use case needed
+to identify honest JCore abstractions.
 
-## V1 status: complete
+## Foundation baseline: complete
 
-Every phase below the "v1" cutoff is `[x]` done, covered by automated tests, and
+Every phase in this table is `[x]` done, covered by automated tests, and
 manually verified in-game (see `docs/V1_TEST_PLAN.md` and the completed
 `docs/IN_GAME_SUITE.md`). There is no known open bug or gap in the standalone feature
 set.
@@ -33,8 +34,8 @@ set.
 | 4 - Spectator Mode | Watch a live duel without interfering, clean entry/exit on every path |
 | 11 - Admin Command/GUI Parity | Every admin action reachable by both GUI and command, in both directions |
 
-Everything from **Phase 4B onward is v2** - not missing from v1, deliberately out of
-scope for it. See each phase for its individual status.
+Phase 4B and Phase 5 are also complete. This foundation is independently usable and
+shippable after its release matrix, but it is not the full public V1 product target.
 
 ---
 
@@ -45,20 +46,18 @@ scope for it. See each phase for its individual status.
 | 0, 1, 2, 3, 3B, 4, 11 | `[x]` implemented and verified | - |
 | 4B - Dynamic Arena Provisioning | `[x]` implemented and verified | - |
 | 5 - Deeper Statistics | `[x]` implemented and verified | - |
-| 6 - Vault & Rewards | `[ ]` not designed | ~3-4 sessions |
-| 7 - Matchmaking | `[ ]` not designed | ~3-4 sessions |
-| 8 - ELO/MMR/SBMM | `[ ]` not designed | ~2-3 sessions |
-| 9 - Network Readiness | `[ ]` not designed | ~2-3 sessions |
+| 5.5 - Kit Depth & Player Experience | `[ ]` planned | ~3-5 sessions |
+| 6 - Vault & Rewards | `[ ]` integration planned; detailed design pending | ~3-4 sessions |
+| 7 - Matchmaking | `[ ]` integration planned; detailed design pending | ~3-4 sessions |
+| 8 - ELO/MMR/SBMM | `[ ]` product decisions pending | ~3-4 sessions |
+| 9A - Network Contracts | `[ ]` planned | ~2-3 sessions |
+| 9B - Velocity Network Delivery | `[ ]` planned | ~5-8+ sessions |
 | 10 - Advanced/Optional | `[ ]` deliberately open-ended | not estimated |
 
-**Against the standalone-complete scope target above: roughly 95%.** The complete
-in-game suite has passed, including fresh Phase 5 SQLite and YAML storage. MySQL,
-MariaDB and PostgreSQL were exercised against the earlier statistics schema; their
-fresh Phase 5 schema matrix and the clean-install run of `docs/TESTING.md` remain
-public-release gates.
-
-**Against this whole roadmap through Phase 9: roughly 80%**, still dominated by
-Phases 6 and 7. Phase 5 is complete.
+**Against the revised public V1 target: roughly 55-60%.** The difficult standalone
+foundation is complete and verified, but rewards, rematches, matchmaking, rankings and
+the actual proxy deployment remain substantial product work. Treat this as an effort
+range, not a delivery forecast.
 
 Automated coverage at this point: **Duels 75 tests, JCore 303** (1 skipped), both
 green. Per-system confidence, including where coverage is thin and what would be
@@ -1361,7 +1360,7 @@ competitive complaint. At that point the requirement would be better informed, a
 likely be "hide spectators' identities" or "delay the view" rather than a simple refusal
 flag.
 
-## Phase 4B - Dynamic Arena Provisioning `[x]` (v2)
+## Phase 4B - Dynamic Arena Provisioning `[x]` (V1 product foundation)
 
 **Status:** `[x]` Implemented and verified. The complete ordered target-Paper suite
 (`docs/IN_GAME_SUITE.md`) passed on 2026-09-26, including structure capture,
@@ -1376,10 +1375,7 @@ section remains the compact roadmap summary.
 
 **Note on numbering:** like 3B, this sits here because of when it was scoped (after
 Phase 4/Spectator Mode had already been implemented and numbered), not because the file
-is renumbered. It depends on Phase 3 (Arena Instancing) and Phase 3B (Arena Reset), and
-is v2 scope per this document's "Scope target" note above - it is not required for Duels
-to be considered complete, but it is the next thing to build once the standalone feature
-set is finished.
+is renumbered. It depends on Phase 3 (Arena Instancing) and Phase 3B (Arena Reset).
 
 ### Problem / Opportunity
 
@@ -1489,7 +1485,7 @@ there, computes real spawn/bounds from the offsets, and registers a normal
   counts through diagnostics and the admin arena menus. Retirement is the explicit way
   to clear an unwanted copy and return its slot.
 
-## Phase 5 - Deeper Statistics & Tracking `[x]` (v2)
+## Phase 5 - Deeper Statistics & Tracking `[x]` (V1 product foundation)
 
 ### Problem / Opportunity
 
@@ -1524,7 +1520,15 @@ cases are automated; live testing covered every result path, composite filters,
 offline lookup, paging, restart persistence, and all leaderboard categories. See
 `docs/PHASE_5_STATISTICS.md` for the design and reset boundary.
 
-## Phase 6 - Vault Integration & Rewards `[ ]` (v2)
+## Phase 5.5 - Kit Depth & Player Experience `[ ]` (V1 product)
+
+Add potion effects/debuffs to immutable kit snapshots, Adventure-based clickable
+interactions, and a safe mutual-consent rematch flow before later systems add more
+entry points into matches. Commands remain validated fallbacks and click actions reuse
+the same application paths. The complete architecture, failure cases and acceptance
+boundary are in `docs/V1_COMPLETION_PLAN.md`.
+
+## Phase 6 - Vault Integration & Rewards `[ ]` (V1 product)
 
 ### Problem / Opportunity
 
@@ -1558,7 +1562,7 @@ that retry/idempotency mechanism could generalize into JCore. Not yet - one cons
 isn't enough to design the generalization around, per the existing project rule on the
 `PlayerState` serializer split.
 
-## Phase 7 - Matchmaking `[ ]` (v2)
+## Phase 7 - Matchmaking `[ ]` (V1 product)
 
 ### Problem / Opportunity
 
@@ -1581,7 +1585,7 @@ queue at this stage (Stage A, per the standalone-first architecture principle) -
 single-server in-memory queue mirrors how `ChallengeManager` already works today, just
 matching by "who's waiting" instead of "who's being challenged."
 
-## Phase 8 - ELO/MMR/SBMM `[ ]` (v2)
+## Phase 8 - ELO/MMR/SBMM `[ ]` (V1 product)
 
 Depends on Phase 5 (a trustworthy stats pipeline to compute from) and Phase 7
 (matchmaking needs to exist before rating-aware pairing is meaningful). Rating
@@ -1589,20 +1593,20 @@ calculation itself (e.g. Elo update formula) is pure domain logic with no archit
 prerequisites beyond having match results to feed it - the dependency here is about
 having somewhere for ratings to matter, not the math itself.
 
-## Phase 9 - Network Readiness (Boundary Work Only) `[ ]` (v2)
+## Phase 9 - Network Delivery `[ ]` (V1 product)
 
 ### Problem / Opportunity
 
 Nothing in Duels today assumes a single server in a way that would be expensive to
-change later, but nothing has been deliberately designed to make a future Stage B
-(proxy + several backend Duels servers) cheap either.
+change later, but a working fixed-backend Velocity deployment needs explicit contracts,
+capacity coordination, secure match tickets and cross-server player flows.
 
 ### Why This Point In The Roadmap
 
-This phase is explicitly about identifying natural seams (not building network
-infrastructure) so that when a genuine multi-server need appears, the rework is
-localized rather than a rewrite. Per the project's core instruction: do not build
-Stage D while still solving Stage A.
+Phase 9A first establishes backend identity and network contracts without weakening
+standalone mode. Phase 9B then builds the separate Velocity companion and validates it
+against multiple real Paper backends. Dynamic server-process/cloud provisioning remains
+later scope; V1 targets fixed backends.
 
 ### What Actually Needs To Change For Stage B (First Principles)
 
@@ -1612,31 +1616,35 @@ Stage D while still solving Stage A.
   running its own independent `ArenaManager`/`MatchManager` exactly as today - arenas are
   physically tied to one server, so there's no reason to share arena state across
   servers.
-- What *does* need to become shared at Stage B: player statistics (so a player's record
-  is consistent no matter which backend they play on) and possibly kit definitions (so
-  kits look the same everywhere) - both are already SQL-capable today via `StatsRepository`
-  and could point at one shared database instance rather than per-server SQLite, which
-  requires no new code, just a shared `database.yml` pointing multiple servers at one
-  MySQL/PostgreSQL instance.
-- Challenge/queue state stays per-server at Stage B - a player can only challenge
-  someone who's on the same backend server, which is a reasonable and simple constraint
-  for a first network version.
-- Stage C (shared cross-server matchmaking) is the point where a genuinely distributed
-  queue becomes necessary, because now a queue needs to pair two players who might be
-  connected to different backend servers - this is where a message bus (Redis pub/sub,
-  or the proxy's own plugin-messaging channels) actually earns its complexity, not
-  before.
+- Player statistics and ratings become shared so a player's record is consistent on
+  every backend. Statistics are already SQL-capable; ratings will be designed for the
+  same shared-database deployment. Arena, kit and queue definitions remain deployed
+  configuration in V1, and each backend advertises a versioned capability catalogue so
+  the coordinator never assigns a mode that backend cannot run.
+- Local challenge/queue state remains available for standalone play. Cross-server
+  challenges and matchmaking are owned by the Velocity-side coordinator, which knows
+  player presence and can transfer both players to one selected backend.
+- The transport must support backend capacity and ticket delivery even when a backend
+  has no connected player. Standard Minecraft plugin messages normally require a
+  player carrier, so Redis or a direct authenticated channel may be justified here;
+  the Phase 9A design chooses based on the real lifecycle requirements.
 - Stage D (dynamic server provisioning) is a purely operational/infrastructure problem
   layered on top of Stage C's shared matchmaking - not something Duels' own code needs
   to anticipate architecturally beyond "a match's assigned server can be looked up by
   ID," which falls out naturally from Stage C's design.
 
-### Recommended Preparatory Change
+### V1 deliverables
 
-The only concrete "do this now" item: keep player stat storage decoupled from
-per-server identity (it already is - `StatsRepository`/`SqlStatsRepository` key by
-player UUID, not by server). No code change needed at Stage A - this is a "confirm and
-preserve" item, not a "build" item.
+- **Phase 9A:** stable backend identity, shared statistics/ratings, capacity discovery,
+  versioned and authenticated match tickets, one-time ticket consumption, expiry and
+  standalone-safe optional integration boundaries.
+- **Phase 9B:** a separate Velocity plugin for presence, pairing/assignment, transfers,
+  failure recovery and cross-server player feedback, validated with at least two fixed
+  Paper backends.
+- Explicitly defer process/container provisioning, Kubernetes, multi-proxy high
+  availability and distributed arena/world state.
+
+See `docs/V1_COMPLETION_PLAN.md` for the complete delivery and testing contract.
 
 ### How a network match actually gets triggered
 
