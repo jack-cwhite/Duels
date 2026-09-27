@@ -14,6 +14,7 @@ import me.jackcw.duels.menu.user.KitSelectorMenu;
 import me.jackcw.duels.menu.user.ArenaSelectionMenu;
 import me.jackcw.duels.menu.user.LeaderboardMenu;
 import me.jackcw.duels.menu.user.SpectateMenu;
+import me.jackcw.duels.menu.user.StatsProfileMenu;
 import me.jackcw.duels.message.Message;
 import me.jackcw.duels.spectator.SpectateResult;
 import me.jackcw.duels.spectator.SpectatorManager;
@@ -37,6 +38,7 @@ public final class DuelCommand
     private final ArenaSelectionMenu arenaSelectionMenu;
     private final LeaderboardMenu leaderboardMenu;
     private final SpectateMenu spectateMenu;
+    private final StatsProfileMenu statsProfileMenu;
     private final SpectatorManager spectatorManager;
     private final MessageManager messageManager;
     private final DuelsSettings settings;
@@ -51,6 +53,7 @@ public final class DuelCommand
         this.arenaSelectionMenu = new ArenaSelectionMenu(plugin);
         this.leaderboardMenu = plugin.getLeaderboardMenu();
         this.spectateMenu = plugin.getSpectateMenu();
+        this.statsProfileMenu = plugin.getStatsProfileMenu();
         this.spectatorManager = plugin.getSpectatorManager();
         this.messageManager = plugin.core().messages();
         this.settings = plugin.getSettings();
@@ -118,12 +121,28 @@ public final class DuelCommand
                                 .playerOnly()
                                 .executes(this::leaveSpectating))
                 .child(
+                        CommandBuilder.command("stats")
+                                .description("View detailed duel statistics")
+                                .usage("/duel stats [player]")
+                                .playerOnly()
+                                .optionalArgument("player", ArgumentTypes.string())
+                                .executes(this::openStats))
+                .child(
                         CommandBuilder.command("top")
                                 .description("View the top duelists by wins")
                                 .usage("/duel top")
                                 .playerOnly()
                                 .executes(context -> leaderboardMenu.open(context.getPlayer())))
                 .build();
+    }
+
+    private void openStats(CommandContext context)
+    {
+        Player viewer = context.getPlayer();
+        if (context.has("player"))
+            statsProfileMenu.openByName(viewer, context.get("player"));
+        else
+            statsProfileMenu.open(viewer);
     }
 
     private void handleDuel(CommandContext context)

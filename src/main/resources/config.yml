@@ -3,6 +3,10 @@
 # YAML - stores everything in stats.yml instead - no database needed, but doesn't scale to a large match history.
 stats-storage: SQL
 
+statistics:
+  # Players need at least this many matching games to appear on win-rate leaderboards.
+  win-rate-minimum-matches: 10
+
 # How long (in seconds) a duel challenge stays pending before it expires and
 # the challenger has to send it again. Set to 0 for challenges to never expire.
 duel-request-expiry-time: 30

@@ -6,6 +6,7 @@ import me.jackcw.duels.arena.BoundaryEnforcer;
 import me.jackcw.duels.challenge.Challenge;
 import me.jackcw.duels.challenge.ChallengeManager;
 import me.jackcw.duels.match.Match;
+import me.jackcw.duels.match.MatchConclusion;
 import me.jackcw.duels.match.MatchManager;
 import me.jackcw.duels.match.MatchState;
 import me.jackcw.duels.message.Message;
@@ -98,7 +99,8 @@ public final class MatchListener implements Listener
 
         event.setCancelled(true);
 
-        matchManager.endMatch(match, match.getOpponent(damaged.getUniqueId()));
+        matchManager.endMatch(match, MatchConclusion.defeat(
+                match.getOpponent(damaged.getUniqueId()), event.getCause().name()));
     }
 
     /**
@@ -274,7 +276,9 @@ public final class MatchListener implements Listener
         event.getDrops().clear();
 
         UUID winnerId = match.getOpponent(player.getUniqueId());
-        matchManager.endMatch(match, winnerId);
+        EntityDamageEvent lastDamage = player.getLastDamageCause();
+        matchManager.endMatch(match, MatchConclusion.defeat(
+                winnerId, lastDamage != null ? lastDamage.getCause().name() : null));
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -331,7 +335,7 @@ public final class MatchListener implements Listener
         }
 
         UUID winnerId = match.getOpponent(player.getUniqueId());
-        matchManager.endMatch(match, winnerId);
+        matchManager.endMatch(match, MatchConclusion.disconnect(winnerId));
     }
 
     @EventHandler

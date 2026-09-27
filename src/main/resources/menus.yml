@@ -497,12 +497,34 @@ kit-main:
         - '&7Click and then type name'
         - '&7in chat to create kit'
 
-# Leaderboard of the top duelists by wins, with the viewer's own win/loss
-# record shown separately (built in code, not from an "entry" template here -
-# each row needs that player's real head texture, which isn't something a
-# config template can express). Clicking an entry shows that player's wins.
+# Statistics menus use code-built dynamic entries while keeping titles and row
+# counts configurable here. The final row is reserved for filters/navigation.
 stats-leaderboard:
-  title: '&8Top Duelists'
+  title: '&8Top Duelists: {metric}'
+  rows: 6
+
+stats-profile:
+  title: '&8Stats: {player}'
+  rows: 6
+
+stats-history:
+  title: '&8History: {player}'
+  rows: 6
+
+stats-match-detail:
+  title: '&8Match #{id}'
+  rows: 4
+
+stats-arena-filter:
+  title: '&8Filter: Arena'
+  rows: 6
+
+stats-player-kit-filter:
+  title: '&8Filter: Player Kit'
+  rows: 6
+
+stats-opponent-kit-filter:
+  title: '&8Filter: Opponent Kit'
   rows: 6
 
 # Paginated menu listing every duel currently being played. Clicking an entry

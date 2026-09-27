@@ -226,6 +226,21 @@ JCore shuts its executor down before closing the database pool, allowing queued 
 
 Migrations are ordered schema changes. Duels registers migration `1`, which creates match and participant tables plus indexes. JCore records the applied version in a table named for the consuming plugin, preventing two JCore-based plugins from sharing one migration version sequence accidentally.
 
+Phase 5 replaces the test-only V1 statistics schema rather than migrating it. A
+fresh migration 1 stores lifecycle/combat/end timestamps and structured result
+metadata on the match row, with each player's UUID, last-known name, kit and outcome
+on participant rows. The participant orientation matters: the same match can be
+viewed as "Alice using kit 4 against Bob using kit 7" or the reverse without
+duplicating a result.
+
+`StatsQuery` is the shared meaning of a filtered request: viewed player, opponent,
+viewed-player kit, opponent kit, arena and time window. SQL translates its populated
+fields to predicates; YAML creates the same player-relative history entry and applies
+the equivalent predicate. `StatsAnalytics` derives totals and streaks from ordered
+history instead of persisting counters that could drift. Combat duration is absent,
+not zero, when a result occurs before `IN_PROGRESS`. See
+`docs/PHASE_5_STATISTICS.md` for the complete contract.
+
 The database is lazy: configuring SQL does not connect during JCore construction. The first database operation connects and runs every registered migration once. Duels keeps match writes and stat reads off the server thread.
 
 ## Player state and match lifecycle

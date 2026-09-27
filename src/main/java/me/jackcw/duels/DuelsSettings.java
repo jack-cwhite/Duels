@@ -10,6 +10,7 @@ import java.util.logging.Logger;
 public final class DuelsSettings
 {
     private final StatsStorageType statsStorage;
+    private final int statsWinRateMinimumMatches;
     private final int challengeExpirySeconds;
     private final int kitSelectionSeconds;
     private final boolean removeOutstandingChallenges;
@@ -22,6 +23,10 @@ public final class DuelsSettings
     public DuelsSettings(YamlFile config, Logger logger)
     {
         this.statsStorage = readStatsStorage(config, logger);
+        this.statsWinRateMinimumMatches = readPositiveInt(
+                config, logger, "statistics.win-rate-minimum-matches", 10,
+                "must be a whole number of at least 1"
+        );
 
         this.challengeExpirySeconds = readNonNegativeInt(
                 config, logger, "duel-request-expiry-time", 30,
@@ -75,6 +80,11 @@ public final class DuelsSettings
     public StatsStorageType statsStorage()
     {
         return statsStorage;
+    }
+
+    public int statsWinRateMinimumMatches()
+    {
+        return statsWinRateMinimumMatches;
     }
 
     public int challengeExpirySeconds()

@@ -19,7 +19,7 @@ commands:
 
 permissions:
   duels.duel:
-    description: Challenge, accept, deny, view stats, and manage your own duels
+    description: Challenge, accept, deny, and view duel statistics
     default: true
   duels.spectate:
     description: Watch live duels

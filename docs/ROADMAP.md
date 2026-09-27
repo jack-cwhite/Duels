@@ -44,7 +44,7 @@ scope for it. See each phase for its individual status.
 | --- | --- | --- |
 | 0, 1, 2, 3, 3B, 4, 11 | `[x]` implemented and verified | - |
 | 4B - Dynamic Arena Provisioning | `[x]` implemented and verified | - |
-| 5 - Deeper Statistics | `[ ]` design settled, no code | ~3-4 sessions |
+| 5 - Deeper Statistics | `[~]` implemented; in-game acceptance pending | one acceptance pass |
 | 6 - Vault & Rewards | `[ ]` not designed | ~3-4 sessions |
 | 7 - Matchmaking | `[ ]` not designed | ~3-4 sessions |
 | 8 - ELO/MMR/SBMM | `[ ]` not designed | ~2-3 sessions |
@@ -56,11 +56,11 @@ in-game suite has passed, including SQLite, and MySQL, MariaDB and PostgreSQL ha
 been exercised manually with repeated matches and correct statistics. The remaining
 public-release gate is a clean-install run of `docs/TESTING.md`.
 
-**Against this whole roadmap through Phase 9: roughly 70%**, or three to four
-months at the current cadence, dominated by Phases 6 and 7. Phase 5 is the only
-unstarted phase whose design is already settled, which is why it is next.
+**Against this whole roadmap through Phase 9: roughly 75%**, still dominated by
+Phases 6 and 7. Phase 5 is implemented and becomes complete after its fresh-storage
+in-game acceptance pass.
 
-Automated coverage at this point: **Duels 70 tests, JCore 303** (1 skipped), both
+Automated coverage at this point: **Duels 73 tests, JCore 303** (1 skipped), both
 green. Per-system confidence, including where coverage is thin and what would be
 worth testing more, is tabulated in `docs/SESSION_CONTEXT.md`.
 
@@ -1489,7 +1489,7 @@ there, computes real spawn/bounds from the offsets, and registers a normal
   counts through diagnostics and the admin arena menus. Retirement is the explicit way
   to clear an unwanted copy and return its slot.
 
-## Phase 5 - Deeper Statistics & Tracking `[ ]` (v2)
+## Phase 5 - Deeper Statistics & Tracking `[~]` (v2)
 
 ### Problem / Opportunity
 
@@ -1511,10 +1511,15 @@ Extend the existing `StatsRepository` interface (already has SQL and YAML
 implementations, per the Strategy-style boundary already in place) rather than
 introducing a parallel tracking system.
 
-### Implementation Plan
+### Implemented scope
 
-To be scoped in detail closer to the phase - depends on which specific stats Jack
-actually wants surfaced (leaderboard categories, per-kit breakdowns, etc.).
+The complete filterable statistics system is implemented and awaiting its ordered
+in-game acceptance pass. It records lifecycle/combat/end timestamps, nullable
+pre-combat kits, structured end reasons/state/damage causes, and participant names.
+`StatsQuery` composes opponent, both kit directions, arena and time. Profiles,
+database-paged history, offline lookup and five leaderboard categories are exposed
+through `/duel stats [player]` and `/duel top`. SQL/YAML parity and lifecycle edge
+cases are automated. See `docs/PHASE_5_STATISTICS.md` for the design and reset boundary.
 
 ## Phase 6 - Vault Integration & Rewards `[ ]` (v2)
 

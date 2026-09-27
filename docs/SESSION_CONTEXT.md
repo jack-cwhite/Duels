@@ -8,7 +8,8 @@ starting work, then inspect the relevant source files before changing code.
 ## Current state
 
 Duels V1 is complete, tested, and manually verified on a real Paper server.
-Phases 0-4B and 11 are done. Arena containment/bounds and dynamic provisioning
+Phases 0-4B and 11 are done. Phase 5 is implemented and awaiting its in-game
+statistics acceptance pass. Arena containment/bounds and dynamic provisioning
 have passed the complete target-Paper run in `docs/IN_GAME_SUITE.md`.
 
 The shared pooled void world remains the dynamic-arena baseline. It now warns
@@ -26,15 +27,16 @@ its slot.
 
 Verification at this handoff:
 
-- `mvn -o test`: 70 tests passed, 0 failures, 0 errors, 0 skipped. JCore: 303
+- `mvn clean package`: 73 tests passed, 0 failures, 0 errors, 0 skipped. JCore: 303
   passed, 1 skipped.
-- The shaded jar builds successfully. The final configured copy into the local
-  test-server plugin folder can fail while that server has the old jar locked.
+- The shaded jar builds successfully and was copied into the local test-server
+  plugin folder.
 - Manual in-game testing passed for arena management, matches, kits, bounds,
   instancing, dynamic provisioning/recovery, rollback, spectators,
   GUI/command parity, advancements, diagnostics and containment.
-- SQLite, MySQL, MariaDB and PostgreSQL were each exercised with repeated games;
-  statistics tracked correctly on every backend.
+- The V1 schema was exercised on SQLite, MySQL, MariaDB and PostgreSQL. Phase 5's
+  fresh schema is automatically verified on SQLite and still needs the ordered
+  external-backend acceptance pass before release.
 
 ## V1 features now implemented
 
@@ -139,7 +141,7 @@ for Duels itself to be considered complete.
 |---|---|---|
 | Phases 0-4, 11 (foundation, arenas, instancing, spectators, containment, QoL) | Done | - |
 | Phase 4B (dynamic provisioning) | Done and verified | - |
-| Phase 5 (deeper statistics) | Designed in full, not started | ~3-4 sessions |
+| Phase 5 (deeper statistics) | Implemented; in-game acceptance pending | one acceptance pass |
 | Phase 6 (Vault + durable rewards) | Not designed | ~3-4 sessions |
 | Phase 7 (local matchmaking queues) | Not designed | ~3-4 sessions |
 | Phase 8 (ELO / MMR / SBMM) | Not designed | ~2-3 sessions |
@@ -150,24 +152,21 @@ for Duels itself to be considered complete.
 all four database backends have passed. What remains for a public release is the
 fresh-server clean-install matrix in `docs/TESTING.md` and any issues it reveals.
 
-**Against the full current roadmap through Phase 9: roughly 70%.** Phases 5-9 are
-each a small number of sessions of real work, and Phase 5 is the only one already
-designed. A plausible calendar estimate is **three to four months of the current
-cadence**, dominated by Phases 6 and 7 rather than by Phase 5.
+**Against the full current roadmap through Phase 9: roughly 75%.** Phase 5 is now
+implemented; the remaining schedule is dominated by Phases 6 and 7.
 
 Treat both numbers as effort estimates, not deadlines.
 
-## Next development target: plan Phase 5
+## Current development target: verify Phase 5
 
-Phase 4B is closed. The next conversation is the Phase 5 design review: validate
-the earlier decisions below against the current stats implementation, settle the
-exact player/admin product behaviour and migration/testing boundaries, then turn
-that into small implementation slices. Do not begin implementation until that
-discussion is complete.
+Phase 4B is closed. Phase 5's filterable profiles, match history, composite SQL/YAML
+queries, offline-player lookup, timing/end metadata and category leaderboards are
+implemented. Automated tests pass; the remaining boundary is the ordered in-game
+menu and fresh-storage acceptance pass in `docs/PHASE_5_STATISTICS.md`.
 
-### Phase 5 design decisions already made with Jack
+### Phase 5 implemented decisions
 
-These are settled - implement against them rather than reopening them.
+These are the implemented semantics; preserve them unless a tested product need changes.
 
 - **One query object, not more repository methods.** The filters Jack wants are a
   product of arena x kit x opponent x time window, so `StatsQuery` carries the
@@ -179,10 +178,9 @@ These are settled - implement against them rather than reopening them.
   grounds that the data is already there.
 - **Streaks are computed from ordered history per query, not stored.** A stored
   counter is a second source of truth that desyncs the first time a write fails.
-- **Migration 2 is `ALTER TABLE ADD COLUMN` only** - `started_at`, `end_reason`,
-  and indexes on `arena_id` and `(player_id, kit_id)`. All four dialects spell
-  that identically. `winner_id` stays `NOT NULL`: no code path ends a match
-  without a winner, and dropping a `NOT NULL` on SQLite means a table rebuild.
+- **There is no V1-to-Phase-5 migration.** Jack confirmed every existing result
+  is test data, so migration 1 now creates the final schema from scratch. Delete
+  the test SQL schema/database or `stats.yml` before the first server run.
 - **A disconnect is always a loss**, at any point in a match the player willingly
   entered, including during kit selection before any kit is applied. This is
   Jack's explicit decision and matches current behaviour, so no rule changes -
@@ -197,11 +195,9 @@ These are settled - implement against them rather than reopening them.
   `/duel top` gains sort categories with a minimum-matches floor on win rate.
   Both keep the reserved bottom row per Jack's menu convention.
 
-Implementation order: migration 2 and `MatchEndReason` threaded through
-`endMatch`; then `StatsQuery`/`PlayerStats` and both repositories with tests
-asserting SQL and YAML agree; then `StatsManager` wiring, which already orders
-reads behind writes so filtered reads inherit that; then the profile menu; then
-`/duel top` sorting; then docs.
+There is intentionally no migration from the old test schema. Delete `stats.yml`
+or the test SQL schema/database before the first server run. The precise data,
+query, GUI, reset and verification contract is in `docs/PHASE_5_STATISTICS.md`.
 
 ### How Phase 4B works, for context
 
@@ -260,8 +256,8 @@ Duels until a second real plugin creates a proven reusable need.
 - End development updates with a compact, simplified roadmap/progress footer so
   Jack can always see the current position. Keep it to one short line or small
   checklist rather than repeating the detailed roadmap.
-- Phase 4B is closed; discuss and plan Phase 5 before implementation. Do not
-  rewrite V1 or re-run already-completed phases.
+- Phase 4B is closed; Phase 5 awaits its in-game acceptance pass. Do not rewrite
+  V1 or re-run already-completed phases.
 - For substantial work: inspect current code and call sites, explain the
   problem and trade-offs, agree the design, implement incrementally, test, and
   update this file plus `docs/ROADMAP.md`.

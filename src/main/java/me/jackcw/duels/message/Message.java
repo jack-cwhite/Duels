@@ -89,7 +89,7 @@ public enum Message implements MessageKey
     NOT_IN_DUEL("duel.not-in-duel"),
     KIT_SELECTION_CLOSED("duel.kit-selection-closed"),
     STATS_LOAD_FAILED("duel.stats-load-failed"),
-    PLAYER_RECORD("duel.player-record"),
+    STATS_PLAYER_NOT_FOUND("duel.stats-player-not-found"),
     NO_KITS_ALLOWED("duel.no-kits-allowed"),
     KIT_LIST_ENTRY("admin.kit-list-entry"),
     DIAGNOSTICS_BASELINE_SAVED("admin.diagnostics-baseline-saved"),

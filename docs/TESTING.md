@@ -195,7 +195,9 @@ Complete at least three duels with known winners for each backend. Restart after
 
 ### YAML
 
-Set `stats-storage: YAML`. Confirm `stats.yml` contains one match object per completed combat duel. Selection-stage disconnects should not count.
+Set `stats-storage: YAML`. Start from a deleted `stats.yml`. Confirm it contains one
+match object per result. A selection-stage disconnect must count as a loss with a
+null kit and `combatStartedAt`, `endReason: DISCONNECT`, and `endedState: PREGAME`.
 
 ### SQLite
 
@@ -226,7 +228,36 @@ SELECT * FROM duels_match_participants ORDER BY match_id DESC;
 SELECT player_id, COUNT(*) FILTER (WHERE won) AS wins FROM duels_match_participants GROUP BY player_id;
 ```
 
-For every SQL backend, verify `/duel top`, restart persistence, deleted-kit historical rows, and that only one match plus two participant rows are written per duel.
+For every SQL backend, start from the fresh Phase 5 schema and verify that only one
+match plus two participant rows are written per duel.
+
+### Statistics product acceptance
+
+Create known results covering two arenas, at least three kits, mixed-kit matches,
+normal damage, environmental damage, boundary forfeit, combat disconnect, grace
+disconnect, and kit-selection disconnect. Then verify:
+
+- `/duel stats` and `/duel stats <online>` open the correct profile;
+- after the target logs out, `/duel stats <offline name>` still opens it;
+- arena, viewed-player kit, opponent kit, opponent, and time filters work alone and
+  in combination, including a query for B versus C on one arena with separate kits;
+- right-click clears the opponent and Clear Filters resets every filter;
+- history is newest-first, paginates beyond 45 records, and its detail screen shows
+  both kits, both durations, phase, reason, damage cause and date correctly;
+- pre-combat records say `No combat` rather than `0s`, and null kits say
+  `No kit applied`;
+- deleted arenas/kits retain their rows and render as `Deleted Arena #id` /
+  `Deleted Kit #id`;
+- all three time periods produce the expected totals;
+- `/duel top` cycles through wins, matches, win rate, best streak, and current
+  streak; page controls retain the category controls; and the win-rate minimum
+  excludes under-qualified players;
+- every Back button returns to the expected parent without losing profile filters;
+  and
+- no SQL or profile lookup runs on the server thread or logs an exception.
+
+Restart and repeat representative filtered profile, history and leaderboard reads
+to confirm persistence.
 
 ## 11. Configuration and failure behavior
 

@@ -25,10 +25,16 @@ import me.jackcw.duels.kit.Kit;
 import me.jackcw.duels.diagnostics.DuelsDiagnostics;
 import me.jackcw.duels.match.Match;
 import me.jackcw.duels.match.MatchResult;
+import me.jackcw.duels.match.MatchEndReason;
 import me.jackcw.duels.match.MatchState;
 import me.jackcw.duels.match.MatchStartResult;
 import me.jackcw.duels.spectator.SpectateResult;
 import me.jackcw.duels.stats.LeaderboardEntry;
+import me.jackcw.duels.stats.LeaderboardMetric;
+import me.jackcw.duels.stats.MatchHistoryEntry;
+import me.jackcw.duels.stats.PlayerStats;
+import me.jackcw.duels.stats.StatsQuery;
+import me.jackcw.duels.stats.YamlStatsRepository;
 import me.jackcw.jcore.database.Database;
 import org.bukkit.ExplosionResult;
 import org.bukkit.GameMode;
@@ -472,7 +478,9 @@ class DuelsIntegrationTest
         Match match =
             new Match(
                 UUID.randomUUID(),
+                "PlayerOne",
                 UUID.randomUUID(),
+                "PlayerTwo",
                 instance,
                 new Location(null, 0, 0, 0),
                 new Location(null, 1, 0, 0),
@@ -512,16 +520,18 @@ class DuelsIntegrationTest
         database.execute("DELETE FROM duels_match_participants");
         database.execute("DELETE FROM duels_matches");
         database.execute(
-                "INSERT INTO duels_matches (id, arena_id, winner_id, ended_at) VALUES (?, ?, ?, ?)",
-                1, 1, winner.toString(), System.currentTimeMillis()
+                "INSERT INTO duels_matches (id, arena_id, winner_id, started_at, combat_started_at, ended_at, "
+                        + "end_reason, ended_state, damage_cause) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                1, 1, winner.toString(), System.currentTimeMillis() - 1000, System.currentTimeMillis() - 500,
+                System.currentTimeMillis(), "DEFEAT", "IN_PROGRESS", "ENTITY_ATTACK"
         );
         database.execute(
-                "INSERT INTO duels_match_participants (match_id, player_id, kit_id, won) VALUES (?, ?, ?, ?)",
-                1, winner.toString(), 1, true
+                "INSERT INTO duels_match_participants (match_id, player_id, player_name, kit_id, won) VALUES (?, ?, ?, ?, ?)",
+                1, winner.toString(), "Winner", 1, true
         );
         database.execute(
-                "INSERT INTO duels_match_participants (match_id, player_id, kit_id, won) VALUES (?, ?, ?, ?)",
-                1, loser.toString(), 1, false
+                "INSERT INTO duels_match_participants (match_id, player_id, player_name, kit_id, won) VALUES (?, ?, ?, ?, ?)",
+                1, loser.toString(), "Loser", 1, false
         );
 
         assertEquals(1, plugin.getStatsManager().getWins(winner).join());
@@ -557,6 +567,8 @@ class DuelsIntegrationTest
 
         server.getScheduler().performTicks((plugin.getSettings().gracePeriodSeconds() + 1) * 20L);
         assertEquals(MatchState.IN_PROGRESS, match.getState());
+        assertNotNull(match.getCombatStartedAt());
+        assertTrue(match.getCombatStartedAt() >= match.getStartedAt());
     }
 
     @Test
@@ -703,6 +715,13 @@ class DuelsIntegrationTest
         assertEquals(1, plugin.getStatsManager().getLosses(alice.getUniqueId()).join());
         assertNull(plugin.getMatchManager().getMatch(bob.getUniqueId()));
 
+        MatchHistoryEntry pregame = plugin.getStatsManager().getMatchHistory(
+                StatsQuery.forPlayer(alice.getUniqueId()), 1, 0).join().getFirst();
+        assertEquals(MatchEndReason.DISCONNECT, pregame.endReason());
+        assertEquals(MatchState.PREGAME, pregame.endedState());
+        assertNull(pregame.playerKitId());
+        assertNull(pregame.combatStartedAt());
+
         // the pregame countdown must be cancelled on early match end, not left running
         // to fire its onComplete (re-applying a kit, resetting gear) against a match
         // that has already ended and restored the opponent's original state.
@@ -728,6 +747,13 @@ class DuelsIntegrationTest
 
         assertEquals(1, plugin.getStatsManager().getWins(alice.getUniqueId()).join());
         assertEquals(1, plugin.getStatsManager().getLosses(bob.getUniqueId()).join());
+
+        MatchHistoryEntry grace = plugin.getStatsManager().getMatchHistory(
+                StatsQuery.forPlayer(bob.getUniqueId()), 1, 0).join().getFirst();
+        assertEquals(MatchEndReason.DISCONNECT, grace.endReason());
+        assertEquals(MatchState.GRACE, grace.endedState());
+        assertNull(grace.playerKitId(), "this arena has no configured kits, so grace is bare-fisted");
+        assertNull(grace.combatStartedAt());
     }
 
     /**
@@ -1755,10 +1781,83 @@ class DuelsIntegrationTest
         PlayerMock winner = addPlayer("Winner");
         PlayerMock loser = addPlayer("Loser");
 
-        plugin.getStatsManager().recordMatch(new MatchResult(
-                1, winner.getUniqueId(), loser.getUniqueId(), winner.getUniqueId(), null, null, System.currentTimeMillis()));
+        long endedAt = System.currentTimeMillis();
+        plugin.getStatsManager().recordMatch(result(
+                1, winner.getUniqueId(), winner.getName(), null,
+                loser.getUniqueId(), loser.getName(), null, winner.getUniqueId(),
+                endedAt - 1_000L, endedAt - 500L, endedAt,
+                MatchEndReason.DEFEAT, MatchState.IN_PROGRESS));
 
         assertEquals(1, plugin.getStatsManager().getWins(winner.getUniqueId()).join());
         assertEquals(1, plugin.getStatsManager().getLosses(loser.getUniqueId()).join());
+    }
+
+    @Test
+    void deepStatsComposeArenaKitOpponentAndTimeFilters()
+    {
+        UUID alice = UUID.randomUUID();
+        UUID bob = UUID.randomUUID();
+        UUID charlie = UUID.randomUUID();
+
+        List<MatchResult> results = List.of(
+                result(2, alice, "Alice", 4, bob, "Bob", 7,
+                        alice, 1_000L, 2_000L, 5_000L, MatchEndReason.DEFEAT, MatchState.IN_PROGRESS),
+                result(2, alice, "Alice", 5, bob, "Bob", 7,
+                        bob, 6_000L, 7_000L, 10_000L, MatchEndReason.DEFEAT, MatchState.IN_PROGRESS),
+                result(3, alice, "Alice", 4, charlie, "Charlie", 8,
+                        charlie, 11_000L, null, 12_000L, MatchEndReason.DISCONNECT, MatchState.PREGAME)
+        );
+        YamlStatsRepository yaml = new YamlStatsRepository(plugin);
+        for (MatchResult matchResult : results)
+        {
+            plugin.getStatsManager().recordMatch(matchResult);
+            yaml.recordMatch(matchResult);
+        }
+
+        StatsQuery exact = new StatsQuery(alice, bob, 4, 7, 2, null, null);
+        PlayerStats exactStats = plugin.getStatsManager().getPlayerStats(exact).join();
+        assertEquals(1, exactStats.matches());
+        assertEquals(1, exactStats.wins());
+        assertEquals(3_000L, exactStats.averageCombatDurationMillis());
+        assertEquals(exactStats, yaml.getPlayerStats(exact).join(),
+                "SQL and YAML must give the same meaning to every filter combination");
+
+        PlayerStats kitFour = plugin.getStatsManager().getPlayerStats(
+                StatsQuery.forPlayer(alice).withPlayerKit(4)).join();
+        assertEquals(2, kitFour.matches());
+        assertEquals(1, kitFour.disconnectLosses());
+        assertEquals(1, kitFour.timedMatches(), "pre-combat forfeits must not enter duration averages");
+
+        PlayerStats recent = plugin.getStatsManager().getPlayerStats(
+                StatsQuery.forPlayer(alice).withTimeRange(6_000L, 11_000L)).join();
+        assertEquals(1, recent.matches());
+        assertEquals(1, recent.losses());
+
+        List<MatchHistoryEntry> history = plugin.getStatsManager().getMatchHistory(
+                StatsQuery.forPlayer(alice), 2, 0).join();
+        assertEquals(2, history.size());
+        assertEquals("Charlie", history.getFirst().opponentName());
+        assertNull(history.getFirst().combatDurationMillis());
+
+        assertEquals(bob, plugin.getStatsManager().findPlayer("bOb").join().orElseThrow().id());
+
+        List<LeaderboardEntry> matchLeaders = plugin.getStatsManager().getLeaderboard(
+                StatsQuery.leaderboard(), LeaderboardMetric.MATCHES, 10).join();
+        assertEquals(alice, matchLeaders.getFirst().playerId());
+        assertEquals(matchLeaders, yaml.getLeaderboard(
+                StatsQuery.leaderboard(), LeaderboardMetric.MATCHES, 10, 10).join());
+        assertTrue(plugin.getStatsManager().getLeaderboard(
+                StatsQuery.leaderboard(), LeaderboardMetric.WIN_RATE, 10).join().isEmpty(),
+                "the configured ten-match floor must protect the win-rate leaderboard");
+    }
+
+    private MatchResult result(int arenaId, UUID player1, String player1Name, Integer kit1,
+                               UUID player2, String player2Name, Integer kit2, UUID winner,
+                               long startedAt, Long combatStartedAt, long endedAt,
+                               MatchEndReason reason, MatchState state)
+    {
+        return new MatchResult(arenaId, player1, player1Name, player2, player2Name, winner,
+                kit1, kit2, startedAt, combatStartedAt, endedAt, reason, state,
+                reason == MatchEndReason.DEFEAT ? "ENTITY_ATTACK" : null);
     }
 }

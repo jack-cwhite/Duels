@@ -2,7 +2,7 @@
 
 ## Status
 
-The codebase is a release candidate. Automated tests and the complete in-game suite pass. SQLite, MySQL, MariaDB and PostgreSQL have each been exercised manually with repeated matches and correct statistics. One release pass remains:
+The pre-Phase-5 codebase reached release-candidate status and its complete in-game suite passed. SQLite, MySQL, MariaDB and PostgreSQL were each exercised manually against the earlier statistics schema. Phase 5 now has automated SQLite/YAML coverage and still requires its fresh-storage in-game acceptance pass, including a repeat of the external SQL matrix before release. One wider release pass also remains:
 
 1. **`docs/TESTING.md`** - the clean-install release matrix on a fresh server, especially inventory interaction, crash recovery and damage attribution. Database behaviour is already manually verified, but the clean-install path is still a distinct release gate.
 
@@ -14,7 +14,7 @@ The codebase is a release candidate. Automated tests and the complete in-game su
 - Arena and kit IDs are allocated monotonically and no longer reused after deletion.
 - First database access is synchronized, preventing competing pools and migrations.
 - Migration tables are namespaced per consuming plugin.
-- Duels' initial SQL migration is repeatable for existing installations, including MySQL indexes.
+- Duels' initial SQL migration creates the complete Phase 5 schema on fresh storage, including portable indexes. An old test schema is rejected with an actionable startup error rather than being partially upgraded.
 - JCore drains queued async work before closing the database pool.
 - JCore closes owned menus before shutdown so editable-menu restore callbacks run.
 - JCore uses a bounded background executor instead of an unbounded cached pool.
@@ -45,11 +45,11 @@ The codebase is a release candidate. Automated tests and the complete in-game su
 - SQL write failures are logged and do not block match cleanup. There is no durable retry queue, so a result can be lost while the database is unavailable.
 - Arena and kit definitions remain YAML-backed even when match statistics use SQL.
 - Existing installations created before monotonic ID metadata cannot reconstruct IDs that were already deleted. From this release onward IDs are not reused.
-- All four supported database engines have passed manual repeated-match/stat checks. Exact external engine versions were not recorded, and non-SQLite dialects remain outside automated coverage; repeat that matrix whenever migrations or dialect-specific SQL change.
+- All four supported database engines passed manual repeated-match/stat checks against the earlier schema. Exact external engine versions were not recorded, and non-SQLite dialects remain outside automated coverage; the new Phase 5 schema must repeat that matrix on fresh storage.
 
 ## Automated verification
 
 - JCore: 303 tests run with no failures or errors. One inventory-click test is skipped because MockBukkit does not implement the required slot conversion; its behavior remains in the Paper acceptance plan.
-- Duels: 70 tests run with no failures or errors, covering plugin startup, monotonic IDs, multiple challenge requests, match kit snapshots, command-created kit slot separation, kit deep copies, strict arena fields, SQLite-backed stats queries, the full PREGAME/GRACE/IN_PROGRESS lifecycle including disconnect forfeits, spectator lifecycle, two-instance concurrency, block-change rollback, arena containment, bounds geometry and openings/visibility advisories, diagnostics cleanup, bystander protection throughout asynchronous arena reset, and bounded dynamic-slot capacity/reservation/retirement behaviour. Shutdown restoration remains a real-server acceptance check because MockBukkit does not implement every PlayerState API used by Paper.
+- Duels: 73 tests run with no failures or errors, covering plugin startup, monotonic IDs, multiple challenge requests, match kit snapshots, command-created kit slot separation, kit deep copies, strict arena fields, composite SQL/YAML statistics parity, match timing/end metadata and streak calculations, the full PREGAME/GRACE/IN_PROGRESS lifecycle including disconnect forfeits, spectator lifecycle, two-instance concurrency, block-change rollback, arena containment, bounds geometry and openings/visibility advisories, diagnostics cleanup, bystander protection throughout asynchronous arena reset, and bounded dynamic-slot capacity/reservation/retirement behaviour. Shutdown restoration and the Phase 5 menus remain real-server acceptance checks because MockBukkit does not implement every PlayerState/UI behaviour used by Paper.
 - The shaded Duels jar builds successfully with JCore and database drivers. This checkout also has a machine-local package-phase copy into the test server; that final copy can fail while the running server holds the old jar open, without invalidating the built artifact.
 - Not covered automatically, and therefore reliant on manual passes: `DynamicArenaProvisioner`/`DynamicArenaRecovery` end to end, menu click handling (the MockBukkit slot-conversion test is skipped), shutdown-time player restoration, and every SQL dialect other than SQLite. All have current manual evidence except the clean-install release matrix noted above. The confidence table in `docs/SESSION_CONTEXT.md` records how much each system is trusted and why.

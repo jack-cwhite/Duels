@@ -16,20 +16,26 @@ public final class Match
 {
     private final UUID player1Id;
     private final UUID player2Id;
+    private final String player1Name;
+    private final String player2Name;
     private final ArenaInstance arenaInstance;
     private final Location player1Location;
     private final Location player2Location;
     private final List<Kit> availableKits;
     private final StateMachine<MatchState> state;
     private final long startedAt;
+    private Long combatStartedAt;
     private final Map<UUID, Kit> selectedKits = new HashMap<>();
     private final Map<UUID, Integer> appliedKits = new HashMap<>();
     private Countdown countdown;
 
-    public Match(UUID player1Id, UUID player2Id, ArenaInstance arenaInstance, Location player1Location, Location player2Location, List<Kit> availableKits)
+    public Match(UUID player1Id, String player1Name, UUID player2Id, String player2Name,
+                 ArenaInstance arenaInstance, Location player1Location, Location player2Location, List<Kit> availableKits)
     {
         this.player1Id = player1Id;
         this.player2Id = player2Id;
+        this.player1Name = player1Name;
+        this.player2Name = player2Name;
         this.arenaInstance = arenaInstance;
         this.player1Location = player1Location;
         this.player2Location = player2Location;
@@ -81,16 +87,37 @@ public final class Match
         return player2Id;
     }
 
+    public String getPlayer1Name()
+    {
+        return player1Name;
+    }
+
+    public String getPlayer2Name()
+    {
+        return player2Name;
+    }
+
     public ArenaInstance getArenaInstance()
     {
         return arenaInstance;
     }
 
-    // Wall-clock rather than a tick count so it stays meaningful across lag
-    // spikes; only ever used to show viewers how long a duel has been running.
+    // Wall-clock rather than a tick count so live displays and persisted session
+    // duration remain meaningful across lag spikes.
     public long getStartedAt()
     {
         return startedAt;
+    }
+
+    public Long getCombatStartedAt()
+    {
+        return combatStartedAt;
+    }
+
+    /** Records the exact transition at which damage becomes meaningful. */
+    public void beginCombat()
+    {
+        setState(MatchState.IN_PROGRESS);
     }
 
     public List<Kit> getAvailableKits()
@@ -127,6 +154,8 @@ public final class Match
     public void setState(MatchState newState)
     {
         state.transition(newState);
+        if (newState == MatchState.IN_PROGRESS && combatStartedAt == null)
+            combatStartedAt = System.currentTimeMillis();
     }
 
     public void setCountdown(Countdown countdown)

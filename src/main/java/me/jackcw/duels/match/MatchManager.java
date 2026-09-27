@@ -217,7 +217,9 @@ public final class MatchManager
 
         return new Match(
                 player1.getUniqueId(),
+                player1.getName(),
                 player2.getUniqueId(),
+                player2.getName(),
                 arenaInstance,
                 player1.getLocation(),
                 player2.getLocation(),
@@ -227,8 +229,16 @@ public final class MatchManager
 
     public void endMatch(Match match, UUID winnerId)
     {
+        endMatch(match, MatchConclusion.defeat(winnerId, null));
+    }
+
+    public void endMatch(Match match, MatchConclusion conclusion)
+    {
         if (match == null || match.getState() == MatchState.ENDED)
             return;
+
+        UUID winnerId = conclusion.winnerId();
+        MatchState endedState = match.getState();
 
         // Transition before any restoration work so that anything observing the
         // match while it unwinds sees ENDED. Without this only abortMatch ever
@@ -244,11 +254,18 @@ public final class MatchManager
         MatchResult result = new MatchResult(
                 match.getArenaInstance().getArenaId(),
                 match.getPlayer1Id(),
+                match.getPlayer1Name(),
                 match.getPlayer2Id(),
+                match.getPlayer2Name(),
                 winnerId,
                 match.getAppliedKit(match.getPlayer1Id()),
                 match.getAppliedKit(match.getPlayer2Id()),
-                System.currentTimeMillis()
+                match.getStartedAt(),
+                match.getCombatStartedAt(),
+                System.currentTimeMillis(),
+                conclusion.reason(),
+                endedState,
+                conclusion.damageCause()
         );
 
         // A stats-persistence failure must never stop the players being restored
@@ -677,7 +694,7 @@ public final class MatchManager
 
     private void startCombat(Match match, Player player1, Player player2)
     {
-        match.setState(MatchState.IN_PROGRESS);
+        match.beginCombat();
 
         messageManager.send(player1, Message.MATCH_START, "player", player2.getName());
         messageManager.send(player2, Message.MATCH_START, "player", player1.getName());

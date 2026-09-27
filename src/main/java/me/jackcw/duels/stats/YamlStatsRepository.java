@@ -1,13 +1,15 @@
 package me.jackcw.duels.stats;
 
 import me.jackcw.duels.Duels;
+import me.jackcw.duels.match.MatchResult;
 import me.jackcw.jcore.storage.YamlRepository;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -15,6 +17,7 @@ public final class YamlStatsRepository implements StatsRepository
 {
     private final YamlRepository<MatchRecord> repository;
     private final List<MatchRecord> matches = new ArrayList<>();
+    private int nextId;
 
     public YamlStatsRepository(Duels plugin)
     {
@@ -25,101 +28,124 @@ public final class YamlStatsRepository implements StatsRepository
                 MatchRecord.class,
                 MatchRecord::getId
         );
-
         matches.addAll(repository.findAll());
+        nextId = matches.stream().mapToInt(MatchRecord::getId).max().orElse(0) + 1;
     }
 
     @Override
-    public CompletableFuture<Void> recordMatch(int arenaId, UUID player1Id, UUID player2Id, UUID winnerId, Integer kitId1, Integer kitId2, long endedAt)
+    public CompletableFuture<Void> recordMatch(MatchResult result)
     {
-        int id = matches.size() + 1;
-
-        while (hasId(id))
-            id++;
-
-        MatchRecord record = new MatchRecord(id, arenaId, player1Id, player2Id, winnerId, kitId1, kitId2, endedAt);
-
+        int id = nextId++;
+        MatchRecord record = new MatchRecord(id, result.arenaId(), result.player1Id(), result.player1Name(),
+                result.player2Id(), result.player2Name(), result.winnerId(), result.kitId1(), result.kitId2(),
+                result.startedAt(), result.combatStartedAt(), result.endedAt(), result.endReason(),
+                result.endedState(), result.damageCause());
         matches.add(record);
         repository.save(record);
-
-        // Already durable by the time this returns - the YAML store writes on the
-        // calling thread - so there is nothing for a caller to wait on.
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public CompletableFuture<Integer> getWins(UUID playerId)
+    public CompletableFuture<PlayerStats> getPlayerStats(StatsQuery query)
     {
-        int wins = (int) matches.stream().filter(match -> match.won(playerId)).count();
-
-        return CompletableFuture.completedFuture(wins);
+        requirePlayer(query);
+        return CompletableFuture.completedFuture(StatsAnalytics.summarize(filtered(query)));
     }
 
     @Override
-    public CompletableFuture<Integer> getLosses(UUID playerId)
+    public CompletableFuture<List<MatchHistoryEntry>> getMatchHistory(StatsQuery query, int limit, int offset)
     {
-        int losses = (int) matches.stream()
-                .filter(match -> match.involves(playerId) && !match.won(playerId))
-                .count();
-
-        return CompletableFuture.completedFuture(losses);
+        requirePlayer(query);
+        List<MatchHistoryEntry> filtered = filtered(query).stream()
+                .sorted(Comparator.comparingLong(MatchHistoryEntry::endedAt).reversed()
+                        .thenComparing(Comparator.comparingLong(MatchHistoryEntry::matchId).reversed()))
+                .toList();
+        int start = Math.min(offset, filtered.size());
+        int end = Math.min(start + limit, filtered.size());
+        return CompletableFuture.completedFuture(List.copyOf(filtered.subList(start, end)));
     }
 
     @Override
-    public CompletableFuture<List<LeaderboardEntry>> getTopPlayers(int limit)
+    public CompletableFuture<List<LeaderboardEntry>> getLeaderboard(StatsQuery query, LeaderboardMetric metric,
+                                                                     int minimumMatches, int limit)
     {
-        Map<UUID, Integer> wins = new HashMap<>();
-
-        for (MatchRecord match : matches)
-            wins.merge(match.getWinnerId(), 1, Integer::sum);
-
-        List<LeaderboardEntry> entries = new ArrayList<>();
-
-        for (Map.Entry<UUID, Integer> entry : wins.entrySet())
-            entries.add(new LeaderboardEntry(entry.getKey(), entry.getValue()));
-
-        entries.sort(Comparator.comparingInt(LeaderboardEntry::wins).reversed());
-
-        return CompletableFuture.completedFuture(
-                entries.size() > limit ? entries.subList(0, limit) : entries
-        );
-    }
-
-    @Override
-    public CompletableFuture<HeadToHead> getHeadToHead(UUID playerA, UUID playerB, Integer kitIdA, Integer kitIdB, Integer arenaId)
-    {
-        int winsA = 0;
-        int winsB = 0;
-
+        Map<UUID, List<MatchHistoryEntry>> byPlayer = new LinkedHashMap<>();
         for (MatchRecord match : matches)
         {
-            if (!match.involves(playerA) || !match.involves(playerB))
-                continue;
-
-            if (arenaId != null && match.getArenaId() != arenaId)
-                continue;
-
-            if (kitIdA != null && !kitIdA.equals(match.kitIdFor(playerA)))
-                continue;
-
-            if (kitIdB != null && !kitIdB.equals(match.kitIdFor(playerB)))
-                continue;
-
-            if (match.won(playerA))
-                winsA++;
-            else
-                winsB++;
+            addIfMatching(byPlayer, query, match.perspectiveFor(match.getPlayer1Id()));
+            addIfMatching(byPlayer, query, match.perspectiveFor(match.getPlayer2Id()));
         }
 
-        return CompletableFuture.completedFuture(new HeadToHead(playerA, playerB, winsA, winsB));
+        List<LeaderboardEntry> entries = byPlayer.values().stream()
+                .map(history -> new LeaderboardEntry(history.getFirst().playerId(),
+                        latestName(history), StatsAnalytics.summarize(history)))
+                .filter(entry -> entry.value(metric) > 0)
+                .filter(entry -> metric != LeaderboardMetric.WIN_RATE || entry.stats().matches() >= minimumMatches)
+                .sorted(leaderboardComparator(metric))
+                .limit(limit)
+                .toList();
+        return CompletableFuture.completedFuture(entries);
     }
 
-    private boolean hasId(int id)
+    @Override
+    public CompletableFuture<Optional<StatsPlayer>> findPlayer(String name)
     {
-        for (MatchRecord match : matches)
-            if (match.getId() == id)
-                return true;
+        for (int i = matches.size() - 1; i >= 0; i--)
+        {
+            MatchRecord match = matches.get(i);
+            if (match.getPlayer1Name().equalsIgnoreCase(name))
+                return CompletableFuture.completedFuture(Optional.of(new StatsPlayer(match.getPlayer1Id(), match.getPlayer1Name())));
+            if (match.getPlayer2Name().equalsIgnoreCase(name))
+                return CompletableFuture.completedFuture(Optional.of(new StatsPlayer(match.getPlayer2Id(), match.getPlayer2Name())));
+        }
+        return CompletableFuture.completedFuture(Optional.empty());
+    }
 
-        return false;
+    private List<MatchHistoryEntry> filtered(StatsQuery query)
+    {
+        List<MatchHistoryEntry> result = new ArrayList<>();
+        for (MatchRecord match : matches)
+        {
+            MatchHistoryEntry perspective = match.perspectiveFor(query.playerId());
+            if (perspective != null && matches(query, perspective))
+                result.add(perspective);
+        }
+        return result;
+    }
+
+    private void addIfMatching(Map<UUID, List<MatchHistoryEntry>> grouped, StatsQuery query, MatchHistoryEntry entry)
+    {
+        if (matches(query, entry))
+            grouped.computeIfAbsent(entry.playerId(), ignored -> new ArrayList<>()).add(entry);
+    }
+
+    static boolean matches(StatsQuery query, MatchHistoryEntry entry)
+    {
+        return (query.playerId() == null || query.playerId().equals(entry.playerId()))
+                && (query.opponentId() == null || query.opponentId().equals(entry.opponentId()))
+                && (query.playerKitId() == null || query.playerKitId().equals(entry.playerKitId()))
+                && (query.opponentKitId() == null || query.opponentKitId().equals(entry.opponentKitId()))
+                && (query.arenaId() == null || query.arenaId() == entry.arenaId())
+                && (query.endedAfter() == null || entry.endedAt() >= query.endedAfter())
+                && (query.endedBefore() == null || entry.endedAt() < query.endedBefore());
+    }
+
+    static Comparator<LeaderboardEntry> leaderboardComparator(LeaderboardMetric metric)
+    {
+        return Comparator.comparingDouble((LeaderboardEntry entry) -> entry.value(metric)).reversed()
+                .thenComparing(Comparator.comparingInt((LeaderboardEntry entry) -> entry.stats().matches()).reversed())
+                .thenComparing(LeaderboardEntry::playerName, String.CASE_INSENSITIVE_ORDER);
+    }
+
+    private static String latestName(List<MatchHistoryEntry> history)
+    {
+        return history.stream().max(Comparator.comparingLong(MatchHistoryEntry::endedAt))
+                .map(MatchHistoryEntry::playerName).orElse("Unknown");
+    }
+
+    private static void requirePlayer(StatsQuery query)
+    {
+        if (query.playerId() == null)
+            throw new IllegalArgumentException("A player is required for profile statistics");
     }
 }

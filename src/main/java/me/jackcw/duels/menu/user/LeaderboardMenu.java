@@ -3,135 +3,164 @@ package me.jackcw.duels.menu.user;
 import me.jackcw.duels.Duels;
 import me.jackcw.duels.message.Message;
 import me.jackcw.duels.stats.LeaderboardEntry;
+import me.jackcw.duels.stats.LeaderboardMetric;
 import me.jackcw.duels.stats.StatsManager;
+import me.jackcw.duels.stats.StatsPlayer;
+import me.jackcw.duels.stats.StatsQuery;
+import me.jackcw.jcore.menu.MenuBuilder;
 import me.jackcw.jcore.menu.MenuManager;
-import me.jackcw.jcore.menu.PaginatedMenu;
-import me.jackcw.jcore.message.MessageManager;
+import me.jackcw.jcore.menu.ConfiguredMenu;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
+import java.util.Locale;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public final class LeaderboardMenu
 {
     private static final Logger LOGGER = Logger.getLogger(LeaderboardMenu.class.getName());
-    private static final int TOP_PLAYERS_LIMIT = 10;
-    private static final int YOUR_STATS_SLOT = 51;
+    private static final int LIMIT = 500;
+    private static final int PAGE_SIZE = 45;
 
     private final Duels plugin;
+    private final StatsManager stats;
     private final MenuManager menus;
-    private final StatsManager statsManager;
-    private final MessageManager messageManager;
 
     public LeaderboardMenu(Duels plugin)
     {
         this.plugin = plugin;
+        this.stats = plugin.getStatsManager();
         this.menus = plugin.core().menus();
-        this.statsManager = plugin.getStatsManager();
-        this.messageManager = plugin.core().messages();
     }
 
     public void open(Player player)
     {
-        UUID playerId = player.getUniqueId();
-
-        CompletableFuture<List<LeaderboardEntry>> topFuture = statsManager.getTopPlayers(TOP_PLAYERS_LIMIT);
-        CompletableFuture<Integer> winsFuture = statsManager.getWins(playerId);
-        CompletableFuture<Integer> lossesFuture = statsManager.getLosses(playerId);
-
-        CompletableFuture.allOf(topFuture, winsFuture, lossesFuture)
-                .thenRun(() -> plugin.core().tasks().runSync(() ->
-                {
-                    if (!player.isOnline())
-                        return;
-
-                    render(player, topFuture.join(), winsFuture.join(), lossesFuture.join());
-                }))
-                .exceptionally(e ->
-                {
-                    LOGGER.log(Level.WARNING, "Could not load leaderboard stats", e);
-
-                    if (plugin.isEnabled())
-                    {
-                        plugin.core().tasks().runSync(() ->
-                        {
-                            if (player.isOnline())
-                                messageManager.send(player, Message.STATS_LOAD_FAILED);
-                        });
-                    }
-
-                    return null;
-                });
+        LeaderboardSession session = new LeaderboardSession();
+        menus.open(player, () -> render(player, session));
     }
 
-    private void render(Player player, List<LeaderboardEntry> topPlayers, int wins, int losses)
+    void openWithinNavigation(Player player)
     {
-        PaginatedMenu<LeaderboardEntry> menu = menus.paginatedMenu("stats-leaderboard", topPlayers)
-                .itemFactory(this::playerHead)
-                .onClick((context, entry) ->
-                        messageManager.send(player, Message.PLAYER_RECORD, "player", nameOf(entry.playerId()), "wins", entry.wins()))
-                .back()
-                .build();
-
-        menu.getMenu().setItem(YOUR_STATS_SLOT, yourStatsItem(wins, losses));
-        menu.open(player);
+        render(player, new LeaderboardSession());
     }
 
-    private ItemStack playerHead(LeaderboardEntry entry)
+    private void render(Player player, LeaderboardSession session)
+    {
+        LeaderboardMetric metric = session.metric;
+        if (session.entries != null && session.loadedMetric == metric)
+        {
+            openRendered(player, session, session.entries);
+            return;
+        }
+        stats.getLeaderboard(StatsQuery.leaderboard(), metric, LIMIT).whenComplete((entries, throwable) ->
+        {
+            if (!plugin.isEnabled())
+                return;
+            plugin.core().tasks().runSync(() ->
+            {
+                if (!player.isOnline() || metric != session.metric)
+                    return;
+                if (throwable != null)
+                {
+                    LOGGER.log(Level.WARNING, "Could not load leaderboard stats", throwable);
+                    plugin.core().messages().send(player, Message.STATS_LOAD_FAILED);
+                    return;
+                }
+                session.entries = entries;
+                session.loadedMetric = metric;
+                openRendered(player, session, entries);
+            });
+        });
+    }
+
+    private void openRendered(Player player, LeaderboardSession session, List<LeaderboardEntry> entries)
+    {
+        int totalPages = Math.max(1, (int) Math.ceil(entries.size() / (double) PAGE_SIZE));
+        session.page = Math.min(session.page, totalPages - 1);
+        int start = session.page * PAGE_SIZE;
+        int end = Math.min(start + PAGE_SIZE, entries.size());
+        ConfiguredMenu configured = menus.menu("stats-leaderboard")
+                .placeholders(Map.of("metric", session.metric.displayName()));
+        MenuBuilder menu = configured.builder();
+        for (int index = start, slot = 0; index < end; index++, slot++)
+        {
+            LeaderboardEntry entry = entries.get(index);
+            menu.item(slot, playerHead(entry, session.metric), context ->
+                    plugin.getStatsProfileMenu().openAsChild(
+                            context, new StatsPlayer(entry.playerId(), entry.playerName())));
+        }
+
+        List<String> metricLore = new ArrayList<>();
+        metricLore.add("&7Current: &f" + session.metric.displayName());
+        if (session.metric == LeaderboardMetric.WIN_RATE)
+            metricLore.add("&7Minimum matches: &f" + stats.getWinRateMinimumMatches());
+        metricLore.add("");
+        metricLore.add("&eClick to change category");
+        menu.item(47, StatsMenuItems.item(Material.COMPARATOR, "&eRanking Category", metricLore), context ->
+        {
+            session.metric = session.metric.next();
+            session.page = 0;
+            session.entries = null;
+            context.reopen();
+        });
+        menu.item(51, StatsMenuItems.item(Material.NETHER_STAR, "&aYour Statistics",
+                "&7Open your complete profile.", "", "&eClick to open"), context ->
+                plugin.getStatsProfileMenu().openAsChild(context, new StatsPlayer(player.getUniqueId(), player.getName())));
+        if (session.page > 0)
+            menu.item(48, menus.navigationStyle().previous(), context ->
+            {
+                session.page--;
+                context.reopen();
+            });
+        menu.item(49, menus.navigationStyle().pageIndicator(session.page + 1, totalPages));
+        if (session.page + 1 < totalPages)
+            menu.item(50, menus.navigationStyle().next(), context ->
+            {
+                session.page++;
+                context.reopen();
+            });
+        configured.back().open(player);
+    }
+
+    private ItemStack playerHead(LeaderboardEntry entry, LeaderboardMetric metric)
     {
         ItemStack head = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) head.getItemMeta();
-
-        Player online = Bukkit.getPlayer(entry.playerId());
-
-        if (online != null)
-            meta.setOwningPlayer(online);
-        meta.displayName(color("&f" + nameOf(entry.playerId())));
-        meta.lore(List.of(color("&7Wins: &a" + entry.wins()), Component.empty(), color("&eClick to view")));
-
+        OfflinePlayer owner = Bukkit.getOfflinePlayer(entry.playerId());
+        meta.setOwningPlayer(owner);
+        meta.displayName(StatsMenuItems.color("&f" + entry.playerName()));
+        meta.lore(List.of(
+                StatsMenuItems.color("&7" + metric.displayName() + ": &a" + formatValue(entry, metric)),
+                StatsMenuItems.color("&7Matches: &f" + entry.stats().matches()),
+                StatsMenuItems.color("&7Wins/Losses: &a" + entry.stats().wins() + "&7/&c" + entry.stats().losses()),
+                Component.empty(),
+                StatsMenuItems.color("&eClick to view profile")
+        ));
         head.setItemMeta(meta);
-
         return head;
     }
 
-    private ItemStack yourStatsItem(int wins, int losses)
+    private String formatValue(LeaderboardEntry entry, LeaderboardMetric metric)
     {
-        ItemStack item = new ItemStack(Material.NETHER_STAR);
-        ItemMeta meta = item.getItemMeta();
-
-        meta.displayName(color("&aYour Record"));
-        meta.lore(List.of(color("&7Wins: &a" + wins), color("&7Losses: &c" + losses)));
-
-        item.setItemMeta(meta);
-
-        return item;
+        if (metric == LeaderboardMetric.WIN_RATE)
+            return String.format(Locale.ROOT, "%.1f%%", entry.stats().winRate());
+        return String.valueOf((int) entry.value(metric));
     }
 
-    private String nameOf(UUID playerId)
+    private static final class LeaderboardSession
     {
-        Player online = Bukkit.getPlayer(playerId);
-
-        if (online != null)
-            return online.getName();
-
-        OfflinePlayer offline = Bukkit.getOfflinePlayer(playerId);
-
-        return offline.getName() != null ? offline.getName() : "Unknown";
-    }
-
-    private Component color(String text)
-    {
-        return LegacyComponentSerializer.legacyAmpersand().deserialize(text);
+        private LeaderboardMetric metric = LeaderboardMetric.WINS;
+        private LeaderboardMetric loadedMetric;
+        private List<LeaderboardEntry> entries;
+        private int page;
     }
 }

@@ -29,6 +29,7 @@ import me.jackcw.duels.menu.user.KitSelectorMenu;
 import me.jackcw.duels.menu.user.KitViewMenu;
 import me.jackcw.duels.menu.user.LeaderboardMenu;
 import me.jackcw.duels.menu.user.SpectateMenu;
+import me.jackcw.duels.menu.user.StatsProfileMenu;
 import me.jackcw.duels.player.PlayerStateManager;
 import me.jackcw.duels.spectator.SpectatorManager;
 import me.jackcw.duels.stats.MatchRecord;
@@ -88,6 +89,7 @@ public class Duels extends JavaPlugin
     private KitViewMenu kitViewMenu;
     private KitSelectorMenu kitSelectorMenu;
     private LeaderboardMenu leaderboardMenu;
+    private StatsProfileMenu statsProfileMenu;
     private SpectateMenu spectateMenu;
 
     @Override
@@ -280,6 +282,11 @@ public class Duels extends JavaPlugin
         return leaderboardMenu;
     }
 
+    public StatsProfileMenu getStatsProfileMenu()
+    {
+        return statsProfileMenu;
+    }
+
     public SpectateMenu getSpectateMenu()
     {
         return spectateMenu;
@@ -350,6 +357,7 @@ public class Duels extends JavaPlugin
         kitMainMenu = new KitMainMenu(this, kitListMenu);
         kitViewMenu = new KitViewMenu(this);
         kitSelectorMenu = new KitSelectorMenu(this, kitViewMenu);
+        statsProfileMenu = new StatsProfileMenu(this);
         leaderboardMenu = new LeaderboardMenu(this);
         spectateMenu = new SpectateMenu(this);
 
@@ -491,11 +499,13 @@ public class Duels extends JavaPlugin
             try
             {
                 jCore.database();
+                statsManager.validateStorage();
             }
             catch (RuntimeException exception)
             {
                 getLogger().log(Level.SEVERE, "Could not connect to the stats database or run its migrations; "
-                        + "match results will fail to save until this is resolved. Check database.yml.", exception);
+                        + "match results will fail to save until this is resolved. Check database.yml. If this is "
+                        + "the pre-Phase-5 test schema, delete the test database/schema and restart.", exception);
             }
         }
 

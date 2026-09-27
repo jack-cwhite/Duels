@@ -2,6 +2,7 @@ package me.jackcw.duels.arena;
 
 import me.jackcw.duels.Duels;
 import me.jackcw.duels.match.Match;
+import me.jackcw.duels.match.MatchConclusion;
 import me.jackcw.duels.match.MatchManager;
 import me.jackcw.duels.match.MatchState;
 import me.jackcw.duels.message.Message;
@@ -255,7 +256,8 @@ public final class BoundaryEnforcer
         if (enforcement.mode() == BoundaryMode.FORFEIT)
         {
             forget(uuid);
-            matchManager.endMatch(enforcement.match(), enforcement.match().getOpponent(uuid));
+            matchManager.endMatch(enforcement.match(),
+                    MatchConclusion.boundaryForfeit(enforcement.match().getOpponent(uuid)));
             return;
         }
 
