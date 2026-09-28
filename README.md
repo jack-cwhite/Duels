@@ -17,9 +17,9 @@ JCore is bundled inside the Duels jar (shaded at build time) - you don't need to
 
 ## Config files
 
-- **`config.yml`** - core settings: how long a duel challenge stays pending before expiring, how long the kit-selection/free-roam window lasts before a fight starts, and whether match stats are stored in a database (`SQL`) or a flat file (`YAML`).
+- **`config.yml`** - core settings: challenge and rematch expiry times, kit-selection/free-roam timing, and whether match stats are stored in a database (`SQL`) or a flat file (`YAML`). Set `rematch-expiry-time` to `0` to turn rematches off.
 - **`database.yml`** - only read when `stats-storage: SQL`. Pick `SQLITE` (default, no setup required), `MYSQL`, `MARIADB`, or `POSTGRESQL`, and fill in the matching connection section. For anything other than SQLite, the database itself has to already exist on the server you point it at - Duels creates its own tables, not the database.
-- **`messages.yml`** - every player-facing message, colour-coded with `&` codes and `{placeholder}` substitution. `core.prefix` is prepended to single-line messages; help-list lines are sent as written.
+- **`messages.yml`** - every player-facing message, colour-coded with `&` codes and `{placeholder}` substitution. `duel.actions` sets clickable button labels and hover text; each button's command is fixed in code. Existing message text is preserved during upgrades, so see the [clickable-message test plan](docs/PHASE_5_5_SLICE_4_TEST_PLAN.md) to opt older files into the new buttons. `core.prefix` is prepended to single-line messages; help-list lines are sent as written.
 - **`menus.yml`** - titles, materials, names and lore for every menu button. Some items support `alternate-material`/`alternate-name`/`alternate-lore` keys for state-dependent appearance (e.g. an arena's enabled/disabled toggle) - only the items that actually need it use them, everything else ignores those keys entirely.
 
 ## Permissions
@@ -34,11 +34,12 @@ See `plugin.yml` for the full list with descriptions. One thing worth knowing if
 
 - `/duel <player>` - challenge someone (or accept their pending challenge to you, if they've already sent one).
 - `/duel accept` / `/duel deny` - respond to a pending challenge.
+- `/duel rematch [player]` - request or accept another duel with your recent opponent on the same arena template. Both players choose kits again. Available for a short window after a completed match.
 - `/duel kit` - reopen the kit selection menu if you closed it mid-match.
 - `/duel top` - view the leaderboard.
 - `/duels` - open the admin menu (arenas, kits).
 - `/duels arena create|delete|list|setspawn` and `/duels kit create|delete|list` - command equivalents of the admin menu. Creating a kit and setting arena spawns require a player; list and delete can be used from the console.
-- `/duels diagnostics` - show Duels' live internal state: running matches, countdowns, spectator and edit sessions, pending players and challenges, rollback bookkeeping, scheduled tasks, and the entities standing inside each arena's bounds. `/duels diagnostics baseline` remembers the current numbers and `/duels diagnostics compare` shows only what has changed since - which is the quick way to tell whether a flow left something behind, because a clean flow prints nothing. Works from the console.
+- `/duels diagnostics` - show Duels' live internal state: running matches, countdowns, spectator and edit sessions, pending players, challenges and rematch windows, rollback bookkeeping, scheduled tasks, and the entities standing inside each arena's bounds. `/duels diagnostics baseline` remembers the current numbers and `/duels diagnostics compare` shows only what has changed since - which is the quick way to tell whether a flow left something behind, because a clean flow prints nothing. Works from the console.
 
 ## How a duel plays out
 
@@ -61,6 +62,7 @@ See `plugin.yml` for the full list with descriptions. One thing worth knowing if
 - [Manual release test plan](docs/TESTING.md)
 - [JCore and Duels architecture guide](docs/ARCHITECTURE.md)
 - [Current release review](docs/RELEASE_REVIEW.md)
+- [Completed Phase 5.5 live test record](docs/PHASE_5_5_TEST_PLAN.md)
 - [Project state, per-system confidence and progress estimate](docs/SESSION_CONTEXT.md)
 
 Build and run the automated tests with:

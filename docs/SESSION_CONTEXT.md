@@ -9,9 +9,9 @@ starting work, then inspect the relevant source files before changing code.
 
 The Duels standalone foundation is complete, tested, and manually verified on a real
 Paper server.
-Phases 0-5 and 11 are done, and Phase 5.5 is part-way through: Slices 1-3 (kit effect
-definitions and persistence, the kit effect admin GUI plus `/duels reload`, and the
-runtime kit effect lifecycle) are implemented and verified in game; Slices 4-6 remain.
+Phases 0-5, 5.5 and 11 are done. Phase 5.5's kit effects, clickable interactions,
+rematches and hardening passed automated and live testing on Paper 1.21.11 on
+2026-09-28, including diagnostics returning to baseline with no errors.
 Phase 5's filterable statistics and match-history system passed its in-game acceptance
 run. Arena containment/bounds and dynamic provisioning have passed the complete
 target-Paper run in `docs/IN_GAME_SUITE.md`.
@@ -61,9 +61,24 @@ thread hunting a solid block; in an empty world that froze the server for about 
 seconds and tripped Paper's watchdog. This affected both `/mv create <name> normal -g
 Duels` and the first-ever dynamic arena world.
 
+Clickable chat is rendered by `ActionMessenger`, which sits on top of JCore's
+`MessageManager` rather than replacing it. An administrator turns a message into a button
+by writing a placeholder such as `{accept}` in `messages.yml`; the label, colours and
+hover text under `duel.actions` are configuration, while the command each button carries
+and the permission it requires are fixed in the `ChatAction` enum. That split is the
+security boundary - a message file that could name the command would let anyone who can
+edit `messages.yml` make a player run an arbitrary command by clicking a chat line.
+Actions are located in the configured template *before* placeholders are substituted, so
+a value passed in by code can never smuggle in a button. `ActionMessenger.audit()` runs at
+startup and on every reload and reports three distinct problems: a missing label, a
+placeholder written into a message that is not rendered interactively, and an upgraded
+install whose existing wording means it has no buttons at all.
+`/duels diagnostics buttons` renders every interactive message with sample data so an
+edit can be checked without arranging a real duel.
+
 Verification at this handoff:
 
-- `mvn clean package`: 102 tests passed, 0 failures, 0 errors, 0 skipped. JCore: 303
+- `mvn test`: 149 tests passed, 0 failures, 0 errors, 0 skipped. JCore: 303
   passed, 1 skipped.
 - The shaded jar builds successfully and was copied into the local test-server
   plugin folder.
@@ -73,6 +88,10 @@ Verification at this handoff:
 - Phase 5.5 Slices 1-3 passed live testing: effect definitions surviving restart, the
   admin effect GUI and command fallbacks, `/duels reload`, and the immutable in-match
   baseline resisting potions, milk and `/effect`.
+- Phase 5.5 Slices 4-6 passed live testing: component hover/click behaviour,
+  challenge/stale-click safety, configurable labels, rematch request/deny/accept,
+  consecutive rematches with fresh kit selection, expiry/disable handling and clean
+  diagnostics. No errors or unexpected warnings were observed.
 - Duel isolation and the world-gone restore path passed live testing, including a
   bystander evicted from an idle arena landing at the configured fallback world spawn.
 - Phase 5 passed fresh SQLite and fresh YAML live write/read/filter/history/
@@ -104,6 +123,12 @@ Verification at this handoff:
 - `/duels diagnostics` - a live read of every manager's internal counters, with
   per-admin baseline/compare so a leak shows up as a difference rather than
   having to be inferred.
+- Configurable clickable challenge, help, result, statistics, spectate and rematch
+  actions, backed by the same validated commands players can type.
+- Holder-only permanent kit effects/debuffs with immutable match snapshots and full
+  GUI/command administration.
+- Mutual-consent rematches on the previous arena template with fresh instance
+  allocation and kit selection.
 
 ## Current intentional limitations and remaining release verification
 
@@ -155,6 +180,8 @@ does differently, and a manual pass proves one run rather than an invariant.
 | Post-flow cleanup (no leaks) | **Medium-high** | A clean-match automated test and the measured live baseline/compare pass both returned to baseline. Wider soak testing would add confidence but no leak is currently known. |
 | Kit effects (Phase 5.5 Slices 1-3) | **Medium-high** | Automated serializer and lifecycle coverage, plus a live pass over definition persistence, the admin GUI, command fallbacks and baseline immutability. Newer than the rest of the plugin, so it has less real mileage. |
 | Duel isolation (access and interference guards) | **Medium-high** | Automated eviction and fallback-spawn tests plus a live pass. The intentional gaps - idle arenas stay enterable, and nothing outside arena bounds is touched - are design decisions, not missing coverage. |
+| Clickable messages (Phase 5.5 Slice 4) | **Medium-high** | Automated tests cover rendering, arguments, permission hiding, colour continuity, configuration auditing and the admin preview. The Paper client pass confirmed hover rendering, click dispatch, stale actions, help, result/statistics actions and administrator label/hover customization. |
+| Rematches (Phase 5.5 Slice 5) | **Medium-high** | Automated manager and command-flow tests plus a live Paper pass over request, deny, accept, consecutive rematches, fresh kit selection, exact arena template, expiry, feature disable and diagnostics cleanup. Newer than the core match lifecycle, so it has less production mileage. |
 | JCore infrastructure | **High** | 303 tests, and every system is consumed by Duels rather than existing speculatively. |
 
 ### What could usefully be tested more
@@ -164,9 +191,9 @@ In rough order of how much the coverage is worth:
 1. **Dynamic provisioning end to end.** MockBukkit blocks the obvious route, but
    an integration test could still cover the layout-allocation and recovery
    *bookkeeping* against a fake world, leaving only the paste itself manual.
-2. **Menu click handling.** The skipped slot-conversion test is the blocker. Worth
-   revisiting: a menu mis-wire is easy to introduce and currently only a human
-   clicking every button would catch it.
+2. **Menu click handling.** Nothing drives an `InventoryClickEvent` through a bundled
+   menu, so no test exercises a menu's click handlers. Worth revisiting: a menu mis-wire
+   is easy to introduce and currently only a human clicking every button would catch it.
 3. **Permission-node drift.** A test that walks the command tree and asserts every
    declared permission exists in `plugin.yml` would be cheap and would stay
    correct forever.
@@ -186,7 +213,7 @@ ranked and fixed-backend Velocity phases while preserving simple standalone mode
 | Phases 0-4, 11 (foundation, arenas, instancing, spectators, containment, QoL) | Done | - |
 | Phase 4B (dynamic provisioning) | Done and verified | - |
 | Phase 5 (deeper statistics) | Done and verified | - |
-| Phase 5.5 (kit effects, clickable UX, rematches) | Slices 1-3 done and verified; 4-6 remaining | ~2-3 sessions |
+| Phase 5.5 (kit effects, clickable UX, rematches) | Done and verified | - |
 | Phase 6 (Vault + durable rewards) | Integration planned; detailed design pending | ~3-4 sessions |
 | Phase 7 (local matchmaking queues) | Integration planned; detailed design pending | ~3-4 sessions |
 | Phase 8 (ELO / MMR / SBMM) | Product decisions pending | ~3-4 sessions |
@@ -194,31 +221,23 @@ ranked and fixed-backend Velocity phases while preserving simple standalone mode
 | Phase 9B (Velocity companion/cross-server flows) | Planned | ~5-8+ sessions |
 | Phase 10 (advanced/optional) | Deliberately open-ended | not estimated |
 
-**Against the revised public V1 definition: roughly 60%.** The difficult standalone
+**Against the revised public V1 definition: roughly 65%.** The difficult standalone
 foundation is complete, but the remaining product and network integrations are
 substantial. The fresh external-SQL and clean-install matrices remain useful checkpoint
 tests and will be repeated as part of the final post-Phase-9 release campaign.
 
 Treat both numbers as effort estimates, not deadlines.
 
-## Current development target: Phase 5.5 Slice 4
+## Current development target: Phase 6 reliable outcomes and Vault rewards
 
-Phase 4B and Phase 5 are closed. Phase 5.5's product decisions and slice sequence are
-agreed in `docs/PHASE_5_5_DESIGN.md`. Slice 1 (effect model and persistence), Slice 2
-(effect administration plus `/duels reload`) and Slice 3 (runtime effect lifecycle) are
-implemented, tested and verified in game.
+Phases 4B, 5 and 5.5 are closed. Phase 5.5's six slices are implemented,
+automated-tested and verified in game; the signed-off behaviour and evidence are in
+`docs/PHASE_5_5_DESIGN.md` and `docs/PHASE_5_5_TEST_PLAN.md`.
 
-**Next: Slice 4, interactive message rendering** - Duels-owned safe component-template
-rendering, fully configurable action labels and hover text, and conversion of the
-challenge receive/help/stats discovery surfaces so a player can click instead of typing a
-command. Do Slice 4 before Slice 5: Slice 5's rematch invitations reuse the same clickable
-message machinery, so building rematches first would mean writing those prompts twice.
-
-Then Slice 5 (rematch contexts and invitations) and Slice 6 (product hardening and
-sign-off, which includes writing `docs/PHASE_5_5_TEST_PLAN.md` against the finished
-wording and running it live). After that, follow Phases 6-9 in
-`docs/V1_COMPLETION_PLAN.md`. The final public-release matrix happens after the network
-phase so later features are included in the same clean-install evidence.
+Next, design and implement Phase 6's reliable match-result consumer boundary and
+optional Vault rewards. Then follow Phases 7-9 in `docs/V1_COMPLETION_PLAN.md`. The
+final public-release matrix happens after the network phase so later features are
+included in the same clean-install evidence.
 
 ### Phase 5.5 agreed decisions
 
@@ -294,15 +313,13 @@ retried. See `docs/PHASE_4B_DESIGN.md` and `docs/ROADMAP.md`.
 
 ## Remaining V1 order
 
-1. Phase 5.5 Slices 4-6: clickable UX, then rematches, then phase hardening and
-   sign-off. Slices 1-3 (kit potion effects/debuffs) are done and verified.
-2. Phase 6: reliable match-result consumers and Vault rewards.
-3. Phase 7: local matchmaking queues.
-4. Phase 8: ratings and ranked matchmaking.
-5. Phase 9A: backend identity, capacity and secure handoff contracts.
-6. Phase 9B: Velocity companion and real cross-server flows on fixed backends.
-7. Final V1 clean-install, database, performance and network release matrix.
-8. Hypothetical SkyWars/BedWars architecture exercise, then evidence-based JCore
+1. Phase 6: reliable match-result consumers and Vault rewards.
+2. Phase 7: local matchmaking queues.
+3. Phase 8: ratings and ranked matchmaking.
+4. Phase 9A: backend identity, capacity and secure handoff contracts.
+5. Phase 9B: Velocity companion and real cross-server flows on fixed backends.
+6. Final V1 clean-install, database, performance and network release matrix.
+7. Hypothetical SkyWars/BedWars architecture exercise, then evidence-based JCore
    extraction.
 
 Do not add Redis, distributed locks, cross-server state, or generalized JCore

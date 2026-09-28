@@ -1,7 +1,8 @@
 # Phase 5.5 Design: Kit Effects, Clickable UX, and Rematches
 
-_Status: product behaviour and implementation plan agreed on 2026-09-27.
-Implementation has not started._
+_Status: complete and signed off on Paper 1.21.11 on 2026-09-28. All six
+slices passed automated and live testing, including diagnostics returning to
+baseline with no errors._
 
 ## Purpose
 
@@ -575,7 +576,7 @@ restart without data loss.
 **Checkpoint:** effects behave correctly through every match exit and player state is
 restored exactly.
 
-### Slice 4 - Interactive message rendering
+### Slice 4 - Interactive message rendering (complete)
 
 1. Add Duels-owned safe component-template rendering.
 2. Add fully configurable action labels and hover text.
@@ -585,7 +586,7 @@ restored exactly.
 **Checkpoint:** existing challenge/stat/spectate flows are discoverable without changing
 their service semantics.
 
-### Slice 5 - Rematch contexts and invitations
+### Slice 5 - Rematch contexts and invitations (complete)
 
 1. Add settings, context lifecycle, expiry, and diagnostics.
 2. Extend challenges with origin/explicit expiry without changing direct-challenge
@@ -598,7 +599,7 @@ their service semantics.
 **Checkpoint:** consecutive rematches work without reserving instances or duplicating
 match-start logic.
 
-### Slice 6 - Product hardening and sign-off
+### Slice 6 - Product hardening and sign-off (complete)
 
 1. Run all JCore and Duels automated tests.
 2. Write `docs/PHASE_5_5_TEST_PLAN.md` against the finished command/menu wording and

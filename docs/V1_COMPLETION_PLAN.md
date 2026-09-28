@@ -64,6 +64,8 @@ boundary arrives with rewards before ratings, so both later consumers reuse it.
 
 ## Phase 5.5 - Kit Depth and Player Experience
 
+_Status: complete and signed off on Paper 1.21.11 on 2026-09-28._
+
 ### Problem / opportunity
 
 The functional systems are strong, but common interactions still depend too heavily on
