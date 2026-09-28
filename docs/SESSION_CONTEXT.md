@@ -214,7 +214,7 @@ ranked and fixed-backend Velocity phases while preserving simple standalone mode
 | Phase 4B (dynamic provisioning) | Done and verified | - |
 | Phase 5 (deeper statistics) | Done and verified | - |
 | Phase 5.5 (kit effects, clickable UX, rematches) | Done and verified | - |
-| Phase 6 (Vault + durable rewards) | Integration planned; detailed design pending | ~3-4 sessions |
+| Phase 6 (Vault + durable rewards) | Designed; Slice 1 of 6 done (result identity + dispatcher) | ~3 sessions |
 | Phase 7 (local matchmaking queues) | Integration planned; detailed design pending | ~3-4 sessions |
 | Phase 8 (ELO / MMR / SBMM) | Product decisions pending | ~3-4 sessions |
 | Phase 9A (network contracts/backend readiness) | Planned | ~2-3 sessions |
@@ -234,8 +234,11 @@ Phases 4B, 5 and 5.5 are closed. Phase 5.5's six slices are implemented,
 automated-tested and verified in game; the signed-off behaviour and evidence are in
 `docs/PHASE_5_5_DESIGN.md` and `docs/PHASE_5_5_TEST_PLAN.md`.
 
-Phase 6's design is complete and agreed in `docs/PHASE_6_DESIGN.md`; implementation
-starts at Slice 1. Then follow Phases 7-9 in `docs/V1_COMPLETION_PLAN.md`. The
+Phase 6's design is complete and agreed in `docs/PHASE_6_DESIGN.md`. Slice 1 is built
+and committed: `MatchResult` carries a `resultId`, `MatchResultDispatcher` owns the
+fan-out from `endMatch`, stats are one consumer behind `StatsResultConsumer`, and both
+the SQL and YAML stores reject a result they have already recorded. Implementation
+continues at Slice 2 (the reward model, `rewards.yml` and the preview command). Then follow Phases 7-9 in `docs/V1_COMPLETION_PLAN.md`. The
 final public-release matrix happens after the network phase so later features are
 included in the same clean-install evidence.
 
