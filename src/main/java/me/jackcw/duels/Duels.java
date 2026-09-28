@@ -41,6 +41,7 @@ import me.jackcw.duels.stats.StatsStorageType;
 import me.jackcw.jcore.JCore;
 import me.jackcw.jcore.storage.YamlFile;
 import me.jackcw.jcore.storage.YamlRepository;
+import org.bukkit.generator.ChunkGenerator;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.Bukkit;
 
@@ -113,6 +114,23 @@ public class Duels extends JavaPlugin
 
         registerCommands();
         registerEvents();
+    }
+
+    /**
+     * Offers Duels' void generator to anything that creates worlds, so an admin
+     * can make an empty world to put arenas in with
+     * {@code /mv create <name> normal -g Duels} or the equivalent.
+     *
+     * <p>Duels already generates its dynamic arena world this way. Exposing the
+     * same generator costs nothing and means a static-arena world does not
+     * require a separate void-generator plugin, which matters because building
+     * arenas in a void is the normal way servers do this and Duels is meant to
+     * work without extra dependencies.
+     */
+    @Override
+    public ChunkGenerator getDefaultWorldGenerator(String worldName, String id)
+    {
+        return new VoidArenaChunkGenerator();
     }
 
     @Override
@@ -502,7 +520,7 @@ public class Duels extends JavaPlugin
         dynamicArenaRecovery.recover();
         arenaEditManager = new ArenaEditManager(this);
         challengeManager = new ChallengeManager(jCore.tasks(), settings, new ChallengeExpiryHandler(jCore.messages())::onExpire);
-        playerStateManager = new PlayerStateManager(jCore.files().yaml("playerstates.yml", true), jCore.serializers());
+        playerStateManager = new PlayerStateManager(jCore.files().yaml("playerstates.yml", true), jCore.serializers(), settings);
         statsManager = new StatsManager(this);
 
         // StatsManager already registered its migration by this point, but

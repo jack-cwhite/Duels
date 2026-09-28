@@ -564,7 +564,7 @@ public final class MatchManager
         if (fallback == null)
             return;
 
-        Location target = playerStateManager.has(player) ? playerStateManager.get(player).getLocation() : fallback;
+        Location target = playerStateManager.has(player) ? playerStateManager.restoreDestination(player) : fallback;
         event.setRespawnLocation(target);
 
         plugin.core().tasks().runSyncLater(() ->

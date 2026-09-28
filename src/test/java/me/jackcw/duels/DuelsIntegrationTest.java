@@ -1326,6 +1326,66 @@ class DuelsIntegrationTest
         assertEquals(List.of(), diagnostics.compare(baseline, diagnostics.snapshot()));
     }
 
+    /**
+     * An admin deleting the world a duel was accepted in must not cost the
+     * duellist their inventory. Losing where they stood is unavoidable; losing
+     * what they were carrying is a bug, and discarding the whole snapshot is
+     * how the earlier version handled it.
+     */
+    @Test
+    void aSavedStateWhoseWorldIsGoneIsStillRestoredAtTheFallbackSpawn()
+    {
+        WorldMock hub = server.addSimpleWorld("state_restore_hub");
+        WorldMock mine = server.addSimpleWorld("state_restore_mine");
+        PlayerMock player = addPlayer("Miner");
+
+        player.teleport(new Location(mine, 20, 40, 20));
+        player.getInventory().setItem(0, new ItemStack(Material.DIAMOND_PICKAXE));
+        player.setHealth(7.0);
+
+        plugin.getPlayerStateManager().save(player);
+
+        // What the real flow does next: the duel takes over the player, and the
+        // world they came from stops existing while they are in it.
+        player.getInventory().clear();
+        player.setHealth(20.0);
+        player.teleport(new Location(hub, 500, 70, 500));
+        assertTrue(server.removeWorld(mine));
+
+        assertTrue(plugin.getPlayerStateManager().restore(player));
+
+        assertEquals(Material.DIAMOND_PICKAXE, player.getInventory().getItem(0).getType());
+        assertEquals(7.0, player.getHealth());
+        assertEquals(hub, player.getWorld());
+        assertEquals(hub.getSpawnLocation().getBlockX(), player.getLocation().getBlockX());
+        assertEquals(hub.getSpawnLocation().getBlockZ(), player.getLocation().getBlockZ());
+        assertFalse(plugin.getPlayerStateManager().has(player));
+    }
+
+    /**
+     * The ordinary case, kept alongside the one above so a change that always
+     * used the fallback would fail rather than looking like an improvement.
+     */
+    @Test
+    void aSavedStateWhoseWorldStillExistsIsRestoredExactlyWhereItWasCaptured()
+    {
+        WorldMock hub = server.addSimpleWorld("state_intact_hub");
+        WorldMock mine = server.addSimpleWorld("state_intact_mine");
+        PlayerMock player = addPlayer("Miner");
+
+        Location captured = new Location(mine, 20, 40, 20);
+        player.teleport(captured);
+        plugin.getPlayerStateManager().save(player);
+
+        player.teleport(new Location(hub, 0, 64, 0));
+
+        assertTrue(plugin.getPlayerStateManager().restore(player));
+
+        assertEquals(mine, player.getWorld());
+        assertEquals(captured.getBlockX(), player.getLocation().getBlockX());
+        assertEquals(captured.getBlockZ(), player.getLocation().getBlockZ());
+    }
+
     private Match startSpectatableMatch(String worldName, String arenaName)
     {
         WorldMock world = server.addSimpleWorld(worldName);
@@ -1762,6 +1822,40 @@ class DuelsIntegrationTest
 
         assertFalse(instance.contains(charlie.getLocation()),
                 "a bystander left standing in the arena must be moved out before the match begins");
+    }
+
+    /**
+     * Where an evicted bystander lands is configurable because an arena world's
+     * own spawn is frequently nothing but void. This covers the configured-hub
+     * case: an admin who names a world in {@code fallback-world} expects someone
+     * cleared out of a starting match to arrive at that world's spawn rather
+     * than at whichever world happens to be first on the server.
+     *
+     * <p>It shares {@code DuelsSettings.fallbackSpawn()} with the returning
+     * player whose captured world has gone, so the two paths cannot disagree
+     * about where "somewhere sensible" is.
+     */
+    @Test
+    void anEvictedBystanderLandsAtTheConfiguredFallbackWorldsSpawn()
+    {
+        WorldMock hub = server.addSimpleWorld("access_guard_hub");
+        WorldMock world = server.addSimpleWorld("access_guard_configured_world");
+
+        plugin.core().config().set("fallback-world", hub.getName());
+        plugin.getSettings().reload(plugin.core().config(), plugin.getLogger());
+
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        ArenaInstance instance = createReadyInstance(arena, world);
+
+        PlayerMock charlie = addPlayer("Charlie");
+        charlie.setLocation(new Location(world, 21, 64, 20));
+        assertTrue(instance.contains(charlie.getLocation()));
+
+        assertNotNull(plugin.getMatchManager().startMatch(addPlayer("Alice"), addPlayer("Bob")));
+
+        assertEquals(hub, charlie.getWorld());
+        assertEquals(hub.getSpawnLocation().getBlockX(), charlie.getLocation().getBlockX());
+        assertEquals(hub.getSpawnLocation().getBlockZ(), charlie.getLocation().getBlockZ());
     }
 
     /**

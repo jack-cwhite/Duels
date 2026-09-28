@@ -41,6 +41,21 @@ arena-reset-max-tracked-block-changes: 4000
 # at least 1.
 arena-reset-blocks-per-tick: 64
 
+# The world whose spawn Duels uses when it has to move a player and has no
+# better place to put them. Leave blank to use the main world's spawn.
+#
+# This covers two cases. Someone who is not in a duel but is standing in an
+# arena when a match starts there is moved here, since they have no duel to be
+# returned from. And a player whose pre-duel position cannot be restored -
+# because the world it was in has since been deleted, renamed, or is not loaded
+# - keeps their inventory, health and effects but lands here instead.
+#
+# Set this if players belong at a hub that is not your main world, or if your
+# arenas live in their own world whose spawn is nothing but void. The spawn
+# should be outside every arena's bounds; if it is not, Duels falls back to the
+# main world and then to the edge of the arena.
+fallback-world: ''
+
 # Optional dynamic arena provisioning uses saved Paper structure files. This
 # limit keeps an accidental huge capture from causing a lengthy server-thread
 # paste later; it is intentionally generous enough for normal PvP arenas.

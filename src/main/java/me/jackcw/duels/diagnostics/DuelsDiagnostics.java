@@ -7,6 +7,7 @@ import me.jackcw.duels.arena.BlockChangeRollbackStrategy;
 import me.jackcw.duels.arena.DynamicArenaState;
 import me.jackcw.duels.arena.DynamicArenaSlotManager;
 import me.jackcw.duels.match.Match;
+import org.bukkit.Location;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.AreaEffectCloud;
 import org.bukkit.entity.Entity;
@@ -78,6 +79,7 @@ public final class DuelsDiagnostics
             int spectatorSessions,
             int editSessions,
             int captureDrafts,
+            int savedPlayerStates,
             int dynamicOccupiedSlots,
             int dynamicReservedSlots,
             int dynamicMaximumSlots,
@@ -118,6 +120,7 @@ public final class DuelsDiagnostics
                 plugin.getSpectatorManager().getSessions().size(),
                 plugin.getArenaEditManager().getSessions().size(),
                 plugin.getArenaEditManager().getCaptureDraftCount(),
+                plugin.getPlayerStateManager().getSavedStateCount(),
                 dynamicCapacity.occupied(),
                 dynamicCapacity.reserved(),
                 dynamicCapacity.maximum(),
@@ -227,6 +230,8 @@ public final class DuelsDiagnostics
         lines.add(line("Spectator sessions", snapshot.spectatorSessions()));
         lines.add(line("Edit sessions", snapshot.editSessions()));
         lines.add(line("Capture drafts", snapshot.captureDrafts()));
+        lines.add(line("Saved player states", snapshot.savedPlayerStates()));
+        lines.add("&7Fallback spawn: &f" + describeLocation(plugin.getSettings().fallbackSpawn()));
         lines.add("&7Dynamic arena slots: &f" + snapshot.dynamicOccupiedSlots() + "&7 occupied, &f"
                 + snapshot.dynamicReservedSlots() + "&7 reserved, &f"
                 + (snapshot.dynamicMaximumSlots() - snapshot.dynamicOccupiedSlots() - snapshot.dynamicReservedSlots())
@@ -329,6 +334,7 @@ public final class DuelsDiagnostics
         addDelta(lines, "Spectator sessions", baseline.spectatorSessions(), now.spectatorSessions());
         addDelta(lines, "Edit sessions", baseline.editSessions(), now.editSessions());
         addDelta(lines, "Capture drafts", baseline.captureDrafts(), now.captureDrafts());
+        addDelta(lines, "Saved player states", baseline.savedPlayerStates(), now.savedPlayerStates());
         addDelta(lines, "Dynamic occupied slots", baseline.dynamicOccupiedSlots(), now.dynamicOccupiedSlots());
         addDelta(lines, "Dynamic slot reservations", baseline.dynamicReservedSlots(), now.dynamicReservedSlots());
         addDelta(lines, "Dynamic maximum slots", baseline.dynamicMaximumSlots(), now.dynamicMaximumSlots());
@@ -364,6 +370,22 @@ public final class DuelsDiagnostics
             return;
 
         lines.add("&7" + label + ": &f" + before + " &7-> &f" + after);
+    }
+
+    /**
+     * Shared with {@code DuelsCommand} so a location reads the same wherever
+     * Duels reports one, and tolerates a null world because a location that
+     * came off disk may name a world the server no longer has - which is
+     * exactly the case an admin is trying to diagnose when they ask.
+     */
+    public static String describeLocation(Location location)
+    {
+        if (location == null)
+            return "unknown";
+
+        String world = location.getWorld() == null ? "<missing world>" : location.getWorld().getName();
+
+        return world + " " + location.getBlockX() + ", " + location.getBlockY() + ", " + location.getBlockZ();
     }
 
     private static String line(String label, int value)

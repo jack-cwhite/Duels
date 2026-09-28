@@ -1,10 +1,12 @@
 package me.jackcw.duels.player;
 
+import me.jackcw.duels.DuelsSettings;
 import me.jackcw.duels.arena.ArenaEditSession;
 import me.jackcw.jcore.serialization.PlayerState;
 import me.jackcw.jcore.serialization.SerializerManager;
 import me.jackcw.jcore.storage.YamlFile;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 
@@ -21,12 +23,14 @@ public final class PlayerStateManager
 
     private final YamlFile file;
     private final SerializerManager serializers;
+    private final DuelsSettings settings;
     private final Map<UUID, PlayerState> stateCache = new HashMap<>();
 
-    public PlayerStateManager(YamlFile file, SerializerManager serializers)
+    public PlayerStateManager(YamlFile file, SerializerManager serializers, DuelsSettings settings)
     {
         this.file = file;
         this.serializers = serializers;
+        this.settings = settings;
 
         load();
     }
@@ -65,6 +69,18 @@ public final class PlayerStateManager
         file.save();
     }
 
+    /**
+     * Puts {@code player} back the way they were before Duels took them into a
+     * duel, an arena edit session, or spectating.
+     *
+     * <p>A snapshot whose captured world has since gone - deleted, renamed, or
+     * simply not loaded on this start - is still applied, at
+     * {@link DuelsSettings#fallbackSpawn()} rather than the captured position.
+     * Throwing it away instead would cost the player their inventory in order
+     * to save them a teleport, which is the wrong way round, and admins do
+     * remove worlds: the world a duel was accepted in is not guaranteed to
+     * outlive the duel.
+     */
     public boolean restore(Player player)
     {
         PlayerState state = stateCache.get(player.getUniqueId());
@@ -72,16 +88,12 @@ public final class PlayerStateManager
         if (state == null)
             return false;
 
-        if (state.getLocation() == null || !Bukkit.getWorlds().contains(state.getLocation().getWorld()))
-        {
-            LOGGER.warning("Discarding saved player state for '" + player.getUniqueId() + "': its world is no longer loaded");
+        Location destination = destinationFor(state);
 
-            file.set(ROOT + "." + player.getUniqueId(), null);
-            file.save();
-            stateCache.remove(player.getUniqueId());
-
-            return false;
-        }
+        if (!capturedLocationIsUsable(state))
+            LOGGER.warning("The world '" + player.getName() + "' was in before Duels moved them is no longer loaded,"
+                    + " so they were returned to the spawn of '" + destination.getWorld().getName()
+                    + "' instead; everything else they had has been restored.");
 
         // Restoration runs inside a join event, so anything thrown here would
         // leak into Bukkit's event handling rather than being reported against
@@ -91,7 +103,7 @@ public final class PlayerStateManager
         // deserialize.
         try
         {
-            state.apply(player);
+            state.apply(player, destination);
         }
         catch (RuntimeException e)
         {
@@ -104,6 +116,71 @@ public final class PlayerStateManager
         stateCache.remove(player.getUniqueId());
 
         return true;
+    }
+
+    /**
+     * Where {@link #restore} would put {@code player}, or {@code null} if they
+     * have no saved state.
+     *
+     * <p>Exposed for two callers that need the answer without performing the
+     * restore: {@code MatchManager} choosing a respawn location for a duellist
+     * who died, one tick before the restore itself, so it cannot name a world
+     * that {@code restore} is about to reject; and the diagnostics command,
+     * which reports where a saved state would land. Deliberately silent - the
+     * warning belongs to the restore that actually relocates the player, not to
+     * every question about one.
+     */
+    public Location restoreDestination(Player player)
+    {
+        PlayerState state = stateCache.get(player.getUniqueId());
+
+        return state == null ? null : destinationFor(state);
+    }
+
+    /**
+     * Whether {@code player}'s saved state still names a world Duels can put
+     * them back in, or {@code false} if they have no saved state at all.
+     *
+     * <p>Exposed so the diagnostics command can say why a destination differs
+     * from the captured position rather than leaving an admin to compare
+     * coordinates and guess.
+     */
+    public boolean canRestoreToCapturedLocation(Player player)
+    {
+        PlayerState state = stateCache.get(player.getUniqueId());
+
+        return state != null && capturedLocationIsUsable(state);
+    }
+
+    private Location destinationFor(PlayerState state)
+    {
+        return capturedLocationIsUsable(state) ? state.getLocation() : settings.fallbackSpawn();
+    }
+
+    /**
+     * A captured location survives a restart as world name plus coordinates, so
+     * the world it names may have been deleted or renamed, or may simply not be
+     * loaded yet. Every other field in the snapshot is still good in that case,
+     * which is why this is a question about the destination only.
+     */
+    private boolean capturedLocationIsUsable(PlayerState state)
+    {
+        Location captured = state.getLocation();
+
+        return captured != null && captured.getWorld() != null && Bukkit.getWorlds().contains(captured.getWorld());
+    }
+
+    /**
+     * How many players currently have a snapshot waiting to be applied.
+     *
+     * <p>Exposed for diagnostics: a snapshot outliving the match it was taken
+     * for is a leak that shows up as a player keeping a kit or being unable to
+     * get their own inventory back, and there is otherwise no way to see one
+     * without reading playerstates.yml off disk.
+     */
+    public int getSavedStateCount()
+    {
+        return stateCache.size();
     }
 
     public boolean has(Player player)

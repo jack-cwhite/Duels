@@ -35,6 +35,7 @@ import me.jackcw.duels.menu.admin.kit.KitMainMenu;
 import me.jackcw.duels.menu.admin.kit.KitListMenu;
 import me.jackcw.duels.menu.admin.kit.KitDetailMenu;
 import me.jackcw.duels.message.Message;
+import me.jackcw.duels.player.PlayerStateManager;
 import me.jackcw.jcore.command.ArgumentTypes;
 import me.jackcw.jcore.command.CommandBuilder;
 import me.jackcw.jcore.command.CommandContext;
@@ -42,12 +43,15 @@ import me.jackcw.jcore.command.CommandNode;
 import me.jackcw.jcore.menu.MenuManager;
 import me.jackcw.jcore.message.MessageManager;
 import me.jackcw.jcore.message.CoreMessage;
+import me.jackcw.jcore.serialization.PlayerState;
 import me.jackcw.jcore.util.StringUtil;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -383,7 +387,14 @@ public final class DuelsCommand
                                                 .usage("/duels diagnostics template <arenaId>")
                                                 .permission("duels.admin.diagnostics")
                                                 .argument("arenaId", ArgumentTypes.integer())
-                                                .executes(this::verifyTemplate)))
+                                                .executes(this::verifyTemplate))
+                                .child(
+                                        CommandBuilder.command("state")
+                                                .description("Show the pre-duel state Duels has saved for a player, and where it would put them back")
+                                                .usage("/duels diagnostics state <player>")
+                                                .permission("duels.admin.diagnostics")
+                                                .argument("player", ArgumentTypes.player())
+                                                .executes(this::showPlayerState)))
                 .child(
                         CommandBuilder.command("reload")
                                 .description("Reload config.yml and messages.yml without restarting the server")
@@ -462,6 +473,64 @@ public final class DuelsCommand
 
         messageManager.send(context.getSender(), Message.DIAGNOSTICS_CHANGES_HEADER);
         sendLines(context.getSender(), changes);
+    }
+
+    /**
+     * Reports the snapshot Duels is holding for a player and where a restore
+     * would put them.
+     *
+     * <p>A saved state is invisible otherwise: it lives in memory plus
+     * playerstates.yml, so the only symptoms an admin sees are the bad ones - a
+     * player stuck with a kit, or an inventory that did not come back. It also
+     * answers the question that matters when a world has been removed, which is
+     * whether the snapshot still points somewhere Duels can use, since the
+     * position is the one part of a snapshot that can go stale on its own.
+     */
+    private void showPlayerState(CommandContext context)
+    {
+        CommandSender sender = context.getSender();
+        Player target = context.get("player");
+        PlayerState state = plugin.getPlayerStateManager().get(target);
+
+        if (state == null)
+        {
+            sender.sendMessage(StringUtil.color("&7" + target.getName() + " has no saved pre-duel state."));
+            return;
+        }
+
+        PlayerStateManager states = plugin.getPlayerStateManager();
+        Location captured = state.getLocation();
+        Location destination = states.restoreDestination(target);
+        boolean capturedUsable = states.canRestoreToCapturedLocation(target);
+
+        List<String> lines = new ArrayList<>();
+
+        lines.add("&6&lSaved state: &f" + target.getName());
+        lines.add("&7Captured at: &f" + DuelsDiagnostics.describeLocation(captured));
+        lines.add("&7Captured world loaded: " + (capturedUsable ? "&ayes" : "&cno"));
+        lines.add("&7Would restore to: &f" + DuelsDiagnostics.describeLocation(destination)
+                + (capturedUsable ? "" : " &7(fallback spawn)"));
+        lines.add("&7Health: &f" + state.getHealth() + "&7, food: &f" + state.getFoodLevel()
+                + "&7, xp: &f" + state.getTotalExperience() + "&7, gamemode: &f" + state.getGameMode());
+        lines.add("&7Fire ticks: &f" + state.getFireTicks() + "&7, potion effects: &f" + state.getPotionEffects().size());
+        lines.add("&7Inventory items: &f" + countItems(state.getStorageContents())
+                + "&7, armour: &f" + countItems(state.getArmorContents()));
+
+        sendLines(sender, lines);
+    }
+
+    private static int countItems(ItemStack[] contents)
+    {
+        if (contents == null)
+            return 0;
+
+        int count = 0;
+
+        for (ItemStack item : contents)
+            if (item != null && !item.getType().isAir())
+                count++;
+
+        return count;
     }
 
     /**

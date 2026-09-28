@@ -1,6 +1,7 @@
 package me.jackcw.duels.arena;
 
 import me.jackcw.duels.Duels;
+import me.jackcw.duels.DuelsSettings;
 import me.jackcw.duels.match.Match;
 import me.jackcw.duels.match.MatchManager;
 import me.jackcw.duels.match.MatchState;
@@ -56,6 +57,7 @@ public final class ArenaAccessGuard implements Listener
     private final SpectatorManager spectatorManager;
     private final ArenaInstanceManager arenaInstanceManager;
     private final MessageManager messageManager;
+    private final DuelsSettings settings;
 
     private final Map<UUID, Long> lastDeniedMessageAt = new HashMap<>();
 
@@ -65,6 +67,7 @@ public final class ArenaAccessGuard implements Listener
         this.spectatorManager = plugin.getSpectatorManager();
         this.arenaInstanceManager = plugin.getArenaInstanceManager();
         this.messageManager = plugin.core().messages();
+        this.settings = plugin.getSettings();
     }
 
     @EventHandler(priority = EventPriority.LOW)
@@ -190,29 +193,27 @@ public final class ArenaAccessGuard implements Listener
      * match starting there evicted the player to where they already were and
      * then denied every move they made out of it.
      *
-     * <p>Their own world's spawn keeps them in the world they were in. It is
-     * only passed over if an arena was built across it, since that is a place
-     * the next duel could claim from under them. If no world spawn is usable
-     * either - an admin has built arenas over all of them - the player is put
-     * down just beyond the edge of the arena they are being taken out of,
-     * because leaving them inside a live duel is the one outcome that is
-     * definitely wrong.
+     * <p>{@link DuelsSettings#fallbackSpawn()} chooses between the configured
+     * world and the main one. Deliberately not the player's own world, even
+     * though staying in-world reads as the friendlier choice: arenas are
+     * commonly kept in a dedicated void world, and that world's spawn point is
+     * a hole.
+     *
+     * <p>If that spawn is not usable either - an admin has built arenas over
+     * it - the player is put down just beyond the edge of the arena they are
+     * being taken out of, because leaving them inside a live duel is the one
+     * outcome that is definitely wrong.
      */
     private Location exitLocation(Player player, ArenaInstance instance)
     {
-        Location worldSpawn = player.getWorld().getSpawnLocation();
+        Location fallback = settings.fallbackSpawn();
 
-        if (!insideAnyBounds(worldSpawn))
-            return worldSpawn;
+        if (!insideAnyBounds(fallback))
+            return fallback;
 
-        Location mainSpawn = Bukkit.getWorlds().getFirst().getSpawnLocation();
-
-        if (!insideAnyBounds(mainSpawn))
-            return mainSpawn;
-
-        LOGGER.warning("Arena bounds cover the spawn of both '" + player.getWorld().getName()
-                + "' and the main world, so '" + player.getName() + "' had to be moved to the edge of arena instance "
-                + instance.getId() + " instead; move a world spawn clear of your arena bounds.");
+        LOGGER.warning("Arena bounds cover the spawn Duels would have moved '" + player.getName()
+                + "' to, so they were put at the edge of arena instance " + instance.getId()
+                + " instead; set 'fallback-world' to a world whose spawn is clear of your arena bounds.");
 
         return justOutside(instance);
     }
