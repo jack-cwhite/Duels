@@ -36,6 +36,9 @@ import me.jackcw.duels.menu.admin.kit.KitListMenu;
 import me.jackcw.duels.menu.admin.kit.KitDetailMenu;
 import me.jackcw.duels.message.Message;
 import me.jackcw.duels.player.PlayerStateManager;
+import me.jackcw.duels.reward.RewardOutcome;
+import me.jackcw.duels.reward.RewardReport;
+import me.jackcw.duels.reward.RewardResolution;
 import me.jackcw.jcore.command.ArgumentTypes;
 import me.jackcw.jcore.command.CommandBuilder;
 import me.jackcw.jcore.command.CommandContext;
@@ -50,6 +53,7 @@ import org.bukkit.Material;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.permissions.Permissible;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -404,6 +408,21 @@ public final class DuelsCommand
                                                 .argument("player", ArgumentTypes.player())
                                                 .executes(this::showPlayerState)))
                 .child(
+                        CommandBuilder.command("rewards")
+                                .description("Show what rewards.yml loaded, and what a result would pay")
+                                .usage("/duels rewards [preview <win|loss> [kit] [arena]]")
+                                .permission("duels.admin.rewards")
+                                .executes(this::showRewards)
+                                .child(
+                                        CommandBuilder.command("preview")
+                                                .description("Work out what one result would pay and show which blocks produced it")
+                                                .usage("/duels rewards preview <win|loss> [kit] [arena]")
+                                                .permission("duels.admin.rewards")
+                                                .argument("outcome", ArgumentTypes.enumType(RewardOutcome.class))
+                                                .optionalArgument("kit", ArgumentTypes.string())
+                                                .optionalArgument("arena", ArgumentTypes.string())
+                                                .executes(this::previewRewards)))
+                .child(
                         CommandBuilder.command("reload")
                                 .description("Reload config.yml and messages.yml without restarting the server")
                                 .usage("/duels reload")
@@ -453,6 +472,111 @@ public final class DuelsCommand
     private void showDiagnostics(CommandContext context)
     {
         sendLines(context.getSender(), diagnostics.describe(diagnostics.snapshot()));
+    }
+
+    private void showRewards(CommandContext context)
+    {
+        sendLines(context.getSender(), RewardReport.describe(plugin.getRewardManager()));
+    }
+
+    /**
+     * Resolves one hypothetical result without paying anything.
+     *
+     * <p>The kit and arena are positional and optional, so {@code -} stands for "not
+     * set" - that is the only way to preview an arena without also naming a kit.
+     *
+     * <p>Multipliers are tested against the sender only when the sender is a player.
+     * The console passes every permission check in Bukkit, so resolving against it would
+     * silently apply the highest configured multiplier and report a number no player
+     * could ever earn.
+     */
+    private void previewRewards(CommandContext context)
+    {
+        CommandSender sender = context.getSender();
+        RewardOutcome outcome = context.get("outcome");
+
+        Kit kit = null;
+        Arena arena = null;
+
+        if (isSet(context, "kit"))
+        {
+            kit = findKit(context.get("kit"));
+
+            if (kit == null)
+            {
+                sender.sendMessage(StringUtil.color("&cNo kit called '" + context.get("kit") + "'."));
+                return;
+            }
+        }
+
+        if (isSet(context, "arena"))
+        {
+            arena = findArena(context.get("arena"));
+
+            if (arena == null)
+            {
+                sender.sendMessage(StringUtil.color("&cNo arena called '" + context.get("arena") + "'."));
+                return;
+            }
+        }
+
+        Permissible viewer = sender instanceof Player player ? player : null;
+        String viewerName = viewer == null ? "nobody (console has every permission, so multipliers are skipped)"
+                : sender.getName();
+
+        RewardResolution resolution = plugin.getRewardManager().resolve(outcome,
+                kit == null ? null : kit.getId(), arena == null ? null : arena.getId(), viewer);
+
+        sendLines(sender, RewardReport.preview(resolution, kit, arena, viewerName));
+    }
+
+    private static boolean isSet(CommandContext context, String name)
+    {
+        if (!context.has(name))
+            return false;
+
+        String value = context.get(name);
+        return !value.equals("-");
+    }
+
+    private Kit findKit(String token)
+    {
+        Integer id = parseIdOrNull(token);
+
+        if (id != null && kitManager.getKit(id) != null)
+            return kitManager.getKit(id);
+
+        for (Kit kit : kitManager.getKits())
+            if (kit.getName().equalsIgnoreCase(token))
+                return kit;
+
+        return null;
+    }
+
+    private Arena findArena(String token)
+    {
+        Integer id = parseIdOrNull(token);
+
+        if (id != null && arenaManager.getArena(id) != null)
+            return arenaManager.getArena(id);
+
+        for (Arena arena : arenaManager.getArenas())
+            if (arena.getName().equalsIgnoreCase(token))
+                return arena;
+
+        return null;
+    }
+
+    private static Integer parseIdOrNull(String token)
+    {
+        try
+        {
+            return Integer.valueOf(token.trim());
+        }
+        catch (NumberFormatException exception)
+        {
+            return null;
+        }
     }
 
     private void saveDiagnosticsBaseline(CommandContext context)

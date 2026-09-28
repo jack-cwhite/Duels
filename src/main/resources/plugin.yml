@@ -32,9 +32,13 @@ permissions:
       duels.admin.arena: true
       duels.admin.kit: true
       duels.admin.diagnostics: true
+      duels.admin.rewards: true
       duels.admin.reload: true
   duels.admin.diagnostics:
     description: Inspect Duels' live internal state
+    default: op
+  duels.admin.rewards:
+    description: Inspect rewards.yml and preview what a result would pay
     default: op
   duels.admin.reload:
     description: Reload config.yml and messages.yml without restarting the server

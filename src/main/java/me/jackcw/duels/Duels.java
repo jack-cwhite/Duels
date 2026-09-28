@@ -36,6 +36,7 @@ import me.jackcw.duels.menu.user.SpectateMenu;
 import me.jackcw.duels.menu.user.StatsProfileMenu;
 import me.jackcw.duels.player.PlayerStateManager;
 import me.jackcw.duels.rematch.RematchManager;
+import me.jackcw.duels.reward.RewardManager;
 import me.jackcw.duels.spectator.SpectatorManager;
 import me.jackcw.duels.stats.MatchRecord;
 import me.jackcw.duels.stats.MatchRecordSerializer;
@@ -81,6 +82,7 @@ public class Duels extends JavaPlugin
     private PlayerStateManager playerStateManager;
     private SpectatorManager spectatorManager;
     private StatsManager statsManager;
+    private RewardManager rewardManager;
     private MatchResultDispatcher matchResultDispatcher;
 
     private YamlRepository<Arena> arenaRepository;
@@ -211,6 +213,7 @@ public class Duels extends JavaPlugin
             challengeManager.removeAllRematches();
         }
         jCore.messages().reload();
+        rewardManager.reload();
 
         actionMessenger.forgetWarnings();
         actionMessenger.audit();
@@ -309,6 +312,11 @@ public class Duels extends JavaPlugin
     public StatsManager getStatsManager()
     {
         return statsManager;
+    }
+
+    public RewardManager getRewardManager()
+    {
+        return rewardManager;
     }
 
     public MatchResultDispatcher getMatchResultDispatcher()
@@ -615,6 +623,11 @@ public class Duels extends JavaPlugin
         // rather than rely on this ordering.
         matchResultDispatcher = new MatchResultDispatcher();
         matchResultDispatcher.register(new StatsResultConsumer(statsManager));
+
+        // After the arena and kit managers, because reading rewards.yml resolves the
+        // arena and kit names its overrides are written against. Not yet registered as a
+        // result consumer: this slice only works out what a result would pay.
+        rewardManager = new RewardManager(this);
 
         matchManager = new MatchManager(this);
 

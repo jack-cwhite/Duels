@@ -1,0 +1,139 @@
+# ---------------------------------------------------------------------------
+# Duels rewards
+# ---------------------------------------------------------------------------
+# What players earn for finishing a duel.
+#
+# Money requires Vault plus an economy plugin. If either is missing, money is
+# skipped and the rest of the rewards below still work - nothing here forces
+# you to install anything.
+#
+# Use '/duels rewards' to see what Duels actually loaded from this file, and
+# '/duels rewards preview <win|loss> [kit] [arena]' to see exactly what a
+# result would pay and which blocks below produced it.
+#
+# One important rule: an unknown or misspelled option anywhere in this file is
+# refused outright and rewards stay switched off until it is fixed, with the
+# problem named in the console. That is deliberate. A typo like 'monney: 500'
+# that was quietly ignored would pay the wrong amount for weeks before anyone
+# noticed.
+# ---------------------------------------------------------------------------
+
+# Master switch. Set to false to turn every reward below off without deleting it.
+enabled: true
+
+# Whether a duel that ended because somebody disconnected pays out.
+# A disconnect always counts as a loss for the player who left, so this only
+# decides whether money changes hands for a duel nobody fought to the end.
+#
+# WINNER_ONLY - pay the winner, pay the quitter nothing (default)
+# BOTH        - treat it like any other result
+# NEITHER     - pay nobody
+#
+# Walking out of an arena boundary is not a disconnect: that player was present
+# and chose to leave, so it pays like a normal loss.
+pay-on-disconnect: WINNER_ONLY
+
+# What every duel pays unless an override below changes it.
+#
+# Every field is optional. Leave one out and it pays nothing of that kind; set
+# it to 0 and it also pays nothing, but says so explicitly.
+defaults:
+  win:
+    money: 100.0
+    experience: 25
+
+    # Items use the same format as every other item in Duels, so anything you can
+    # write in menus.yml works here too: material, amount, name, lore,
+    # enchantments, flags, custom-model-data, unbreakable, glow.
+    #
+    #   items:
+    #     - material: DIAMOND
+    #       amount: 2
+    #       name: '&bDuel Prize'
+    #       lore:
+    #         - '&7Won in a duel.'
+    items: []
+
+    # Console commands run once for the rewarded player. Use %player% for their
+    # name. A leading slash is optional.
+    #
+    # Be aware of what Duels can and cannot promise here. Money, experience and
+    # items are checked after being given, and are retried if the server crashes
+    # mid-payout. A command is fire-and-forget: Duels cannot tell whether your
+    # crate plugin actually handed anything over, cannot undo it, and will not
+    # replay it after a crash. Keep anything valuable in money or items.
+    #
+    #   commands:
+    #     - 'crate give %player% duel 1'
+    commands: []
+
+  loss:
+    money: 25.0
+    experience: 5
+    items: []
+    commands: []
+
+# Per-arena, per-kit and per-combination changes to the defaults above.
+#
+# These merge field by field rather than replacing the whole block. An arena that
+# only sets 'money' keeps the default experience, items and commands. To clear a
+# list the defaults set, write an empty one: 'items: []'.
+#
+# Order of precedence, least specific first:
+#   defaults -> arena -> kit -> combination -> multiplier
+#
+# So a kit beats an arena on the same field, because choosing a kit is the more
+# deliberate decision a player makes.
+overrides:
+  # Keyed by arena id or arena name, whichever you find easier to read. Names are
+  # not case sensitive. Blocks naming an arena that no longer exists are skipped
+  # with a warning rather than refusing the file, so deleting one arena can never
+  # switch off rewards for the rest of the server.
+  #
+  #   arenas:
+  #     Colosseum:
+  #       win:
+  #         money: 250.0
+  #     3:
+  #       loss:
+  #         money: 0
+  arenas: {}
+
+  # Keyed by kit id or kit name, same rules as arenas.
+  #
+  #   kits:
+  #     Sumo:
+  #       win:
+  #         experience: 60
+  kits: {}
+
+  # For a specific kit played in a specific arena - the most specific layer there
+  # is. Each entry must name both.
+  #
+  #   combinations:
+  #     - arena: Colosseum
+  #       kit: Sumo
+  #       win:
+  #         money: 500.0
+  #         commands:
+  #           - 'broadcast %player% won a Sumo duel in the Colosseum!'
+  combinations: []
+
+# Permission-based multipliers, for donor ranks and the like.
+#
+# Only the single highest factor a player holds applies - they never stack, so
+# somebody with three ranks does not earn 1.5 x 2.0 x 3.0.
+#
+# The factor scales money and experience only. Items and commands are untouched:
+# "1.5 of a diamond sword" means nothing, and running a crate command twice would
+# hand out a duplicate Duels cannot verify or take back.
+#
+# A factor below 1 is allowed and halves earnings as you would expect. A factor of
+# exactly 0 pays that group nothing at all, including items and commands.
+#
+#   multipliers:
+#     - permission: duels.rewards.multiplier.vip
+#       factor: 1.5
+#     - permission: duels.rewards.multiplier.mvp
+#       factor: 2.0
+multipliers: []
