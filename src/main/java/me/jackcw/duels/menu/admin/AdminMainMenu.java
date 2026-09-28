@@ -39,9 +39,7 @@ public final class AdminMainMenu
         if (player.hasPermission("duels.admin.reload"))
             menu.item("reload", context ->
             {
-                plugin.core().config().reload();
-                plugin.getSettings().reload(plugin.core().config(), plugin.getLogger());
-                plugin.core().messages().reload();
+                plugin.reloadConfiguration();
 
                 messageManager.send(player, Message.CONFIG_RELOADED);
                 context.reopen();

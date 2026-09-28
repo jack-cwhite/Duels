@@ -23,6 +23,7 @@ import me.jackcw.duels.arena.BlockChangeRollbackStrategy;
 import me.jackcw.duels.arena.ArenaBoundsValidator;
 import me.jackcw.duels.arena.BlockBox;
 import me.jackcw.duels.challenge.Challenge;
+import me.jackcw.duels.challenge.ChallengeKind;
 import me.jackcw.duels.kit.Kit;
 import me.jackcw.duels.kit.KitEffectMutationResult;
 import me.jackcw.duels.diagnostics.DuelsDiagnostics;
@@ -1322,8 +1323,132 @@ class DuelsIntegrationTest
         plugin.getMatchManager().endMatch(match, alice.getUniqueId());
         server.getScheduler().performTicks(5L);
 
+        // The one count that legitimately survives a finished duel: both players
+        // are still online, so they are still inside their rematch window. It is
+        // closed here rather than excluded from the comparison, so that the whole
+        // snapshot stays comparable and any field added later is still covered by
+        // default.
+        assertEquals(1, diagnostics.snapshot().rematchWindows());
+        plugin.getRematchManager().clear();
+
         assertEquals(baseline, diagnostics.snapshot());
         assertEquals(List.of(), diagnostics.compare(baseline, diagnostics.snapshot()));
+    }
+
+    @Test
+    void rematchCommandCreatesFixedArenaInvitationAndReverseClickAcceptsIt()
+    {
+        WorldMock world = server.addSimpleWorld("rematch_command_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        createReadyInstance(arena, world);
+        plugin.getKitManager().createKit("Warrior");
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+
+        Match first = startInProgressMatch(alice, bob);
+        plugin.getMatchManager().endMatch(first, alice.getUniqueId());
+        server.getScheduler().performTicks(5L);
+
+        assertTrue(server.dispatchCommand(alice, "duel rematch"));
+        Challenge request = plugin.getChallengeManager().findIncoming(bob.getUniqueId(), alice.getUniqueId());
+        assertNotNull(request);
+        assertEquals(ChallengeKind.REMATCH, request.getKind());
+        assertEquals(ArenaSelection.specific(arena.getId()), request.getSelection());
+        assertEquals(plugin.getRematchManager().get(alice.getUniqueId()).expiry(), request.getExpiry());
+
+        assertTrue(server.dispatchCommand(bob, "duel rematch Alice"));
+        server.getScheduler().performTicks(5L);
+
+        Match second = plugin.getMatchManager().getMatch(alice.getUniqueId());
+        assertNotNull(second);
+        assertSame(second, plugin.getMatchManager().getMatch(bob.getUniqueId()));
+        assertEquals(arena.getId(), second.getArenaInstance().getArenaId());
+        assertNull(plugin.getChallengeManager().getChallengeBetween(alice.getUniqueId(), bob.getUniqueId()));
+        assertEquals(0, plugin.getRematchManager().getContextCount());
+
+        server.getScheduler().performTicks((plugin.getSettings().kitSelectionSeconds() + 1) * 20L);
+        server.getScheduler().performTicks((plugin.getSettings().gracePeriodSeconds() + 1) * 20L);
+        assertEquals(MatchState.IN_PROGRESS, second.getState());
+        plugin.getMatchManager().endMatch(second, bob.getUniqueId());
+        assertEquals(1, plugin.getRematchManager().getContextCount(),
+                "the second completed match offers a fresh rematch window");
+    }
+
+    @Test
+    void rematchCommandDoesNotAcceptAnOrdinaryInvitationFromTheSameOpponent()
+    {
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+        plugin.getRematchManager().register(alice.getUniqueId(), alice.getName(),
+                bob.getUniqueId(), bob.getName(), 1);
+        assertTrue(plugin.getChallengeManager().createChallenge(alice, bob, ArenaSelection.any()));
+
+        assertTrue(server.dispatchCommand(bob, "duel rematch Alice"));
+
+        assertNull(plugin.getMatchManager().getMatch(bob.getUniqueId()));
+        Challenge challenge = plugin.getChallengeManager().getChallengeBetween(alice.getUniqueId(), bob.getUniqueId());
+        assertNotNull(challenge);
+        assertEquals(ChallengeKind.DIRECT, challenge.getKind());
+        assertFalse(challenge.isClaimed());
+    }
+
+    @Test
+    void directChallengeReplacesAnOpenRematchInvitation()
+    {
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        plugin.getRematchManager().register(alice.getUniqueId(), alice.getName(),
+                bob.getUniqueId(), bob.getName(), arena.getId());
+        assertTrue(server.dispatchCommand(alice, "duel rematch"));
+        assertEquals(ChallengeKind.REMATCH,
+                plugin.getChallengeManager().getChallengeBetween(alice.getUniqueId(), bob.getUniqueId()).getKind());
+
+        assertTrue(server.dispatchCommand(bob, "duel challenge Alice"));
+
+        Challenge replacement = plugin.getChallengeManager().getChallengeBetween(alice.getUniqueId(), bob.getUniqueId());
+        assertNotNull(replacement);
+        assertEquals(ChallengeKind.DIRECT, replacement.getKind());
+        assertEquals(0, plugin.getRematchManager().getContextCount());
+        assertEquals(1, plugin.getChallengeManager().getChallengeCount());
+    }
+
+    @Test
+    void disablingRematchesClearsOpenWindowsAndInvitations()
+    {
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        plugin.getRematchManager().register(alice.getUniqueId(), alice.getName(),
+                bob.getUniqueId(), bob.getName(), arena.getId());
+        assertTrue(server.dispatchCommand(alice, "duel rematch"));
+        assertEquals(1, plugin.getChallengeManager().getChallengeCount());
+
+        plugin.core().config().getConfig().set("rematch-expiry-time", 0);
+        plugin.core().config().save();
+        plugin.reloadConfiguration();
+
+        assertEquals(0, plugin.getRematchManager().getContextCount());
+        assertEquals(0, plugin.getChallengeManager().getChallengeCount());
+        assertTrue(server.dispatchCommand(bob, "duel accept Alice"));
+        assertNull(plugin.getMatchManager().getMatch(bob.getUniqueId()));
+    }
+
+    @Test
+    void staleRematchInvitationCannotBeAcceptedAfterItsWindowCloses()
+    {
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        plugin.getRematchManager().register(alice.getUniqueId(), alice.getName(),
+                bob.getUniqueId(), bob.getName(), arena.getId());
+        assertTrue(server.dispatchCommand(alice, "duel rematch"));
+        plugin.getRematchManager().invalidate(alice.getUniqueId());
+
+        assertTrue(server.dispatchCommand(bob, "duel accept Alice"));
+
+        assertNull(plugin.getMatchManager().getMatch(bob.getUniqueId()));
+        assertEquals(0, plugin.getChallengeManager().getChallengeCount());
     }
 
     /**

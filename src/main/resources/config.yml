@@ -11,6 +11,13 @@ statistics:
 # the challenger has to send it again. Set to 0 for challenges to never expire.
 duel-request-expiry-time: 30
 
+# How long (in seconds) after a duel ends the two players can ask each other for
+# a rematch on the same arena. The offer is only ever between those two players,
+# and clicking it sends an ordinary challenge that the other one has to accept.
+# Set to 0 to disable rematches completely - the rematch button then disappears
+# from chat and '/duel rematch' tells players the feature is off.
+rematch-expiry-time: 30
+
 # How long (in seconds) players get to free-roam the arena and pick a kit
 # before the fight actually starts. Must be at least 1. If an arena has no kits enabled this is
 # just a countdown to the fight starting, bare-fisted.

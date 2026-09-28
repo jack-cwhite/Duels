@@ -14,6 +14,7 @@ import me.jackcw.duels.listener.MatchListener;
 import me.jackcw.duels.listener.PlayerStateListener;
 import me.jackcw.duels.listener.SpectatorListener;
 import me.jackcw.duels.match.MatchManager;
+import me.jackcw.duels.message.ActionMessenger;
 import me.jackcw.duels.menu.admin.*;
 import me.jackcw.duels.menu.admin.arena.ArenaDetailMenu;
 import me.jackcw.duels.menu.admin.arena.ArenaInstanceDetailMenu;
@@ -33,6 +34,7 @@ import me.jackcw.duels.menu.user.LeaderboardMenu;
 import me.jackcw.duels.menu.user.SpectateMenu;
 import me.jackcw.duels.menu.user.StatsProfileMenu;
 import me.jackcw.duels.player.PlayerStateManager;
+import me.jackcw.duels.rematch.RematchManager;
 import me.jackcw.duels.spectator.SpectatorManager;
 import me.jackcw.duels.stats.MatchRecord;
 import me.jackcw.duels.stats.MatchRecordSerializer;
@@ -55,6 +57,7 @@ public class Duels extends JavaPlugin
     private JCore jCore;
 
     private DuelsSettings settings;
+    private ActionMessenger actionMessenger;
     private ArenaManager arenaManager;
     private ArenaInstanceManager arenaInstanceManager;
     private ArenaAllocator arenaAllocator;
@@ -71,6 +74,7 @@ public class Duels extends JavaPlugin
     private BlockChangeRollbackStrategy arenaResetStrategy;
     private KitManager kitManager;
     private ChallengeManager challengeManager;
+    private RematchManager rematchManager;
     private MatchManager matchManager;
     private PlayerStateManager playerStateManager;
     private SpectatorManager spectatorManager;
@@ -114,6 +118,11 @@ public class Duels extends JavaPlugin
 
         registerCommands();
         registerEvents();
+
+        // Last, so it reports against the messages.yml the plugin actually
+        // ended up with rather than whatever was on disk before defaults were
+        // merged in.
+        actionMessenger.audit();
     }
 
     /**
@@ -148,6 +157,11 @@ public class Duels extends JavaPlugin
         if (boundaryEnforcer != null)
             boundaryEnforcer.shutdown();
 
+        // Rematch windows are runtime-only; cancelling their tasks here keeps a
+        // reload-style disable from leaving orphaned scheduled work behind.
+        if (rematchManager != null)
+            rematchManager.clear();
+
         if (arenaEditManager != null)
             for (UUID uuid : new ArrayList<>(arenaEditManager.getSessions().keySet()))
                 arenaEditManager.end(uuid);
@@ -164,6 +178,39 @@ public class Duels extends JavaPlugin
     public DuelsSettings getSettings()
     {
         return settings;
+    }
+
+    public ActionMessenger getActionMessenger()
+    {
+        return actionMessenger;
+    }
+
+    /**
+     * Re-reads the two files an administrator edits by hand, then re-checks
+     * messages.yml for the problems {@link ActionMessenger#audit()} reports.
+     *
+     * <p>Kits, arenas and menus.yml are deliberately not reloaded: they are
+     * live-edited through the GUI and commands and persisted on every change,
+     * so re-reading them would only replace memory with what it just wrote.
+     *
+     * <p>This lives here rather than being written out at each call site
+     * because both {@code /duels reload} and the admin menu's reload button
+     * need exactly the same steps, and a copy that forgot to re-audit would
+     * silently stop reporting a broken button until the next restart.
+     */
+    public void reloadConfiguration()
+    {
+        jCore.config().reload();
+        settings.reload(jCore.config(), getLogger());
+        if (!rematchManager.isEnabled())
+        {
+            rematchManager.clear();
+            challengeManager.removeAllRematches();
+        }
+        jCore.messages().reload();
+
+        actionMessenger.forgetWarnings();
+        actionMessenger.audit();
     }
 
     public ArenaManager getArenaManager()
@@ -234,6 +281,11 @@ public class Duels extends JavaPlugin
     public KitManager getKitManager()
     {
         return kitManager;
+    }
+
+    public RematchManager getRematchManager()
+    {
+        return rematchManager;
     }
 
     public ChallengeManager getChallengeManager()
@@ -485,6 +537,7 @@ public class Duels extends JavaPlugin
 
     private void initializeManagers()
     {
+        actionMessenger = new ActionMessenger(jCore.messages(), settings, getLogger());
         kitManager = new KitManager(kitRepository);
         arenaManager = new ArenaManager(arenaRepository);
 
@@ -520,6 +573,7 @@ public class Duels extends JavaPlugin
         dynamicArenaRecovery.recover();
         arenaEditManager = new ArenaEditManager(this);
         challengeManager = new ChallengeManager(jCore.tasks(), settings, new ChallengeExpiryHandler(jCore.messages())::onExpire);
+        rematchManager = new RematchManager(jCore.tasks(), settings);
         playerStateManager = new PlayerStateManager(jCore.files().yaml("playerstates.yml", true), jCore.serializers(), settings);
         statsManager = new StatsManager(this);
 

@@ -6,6 +6,7 @@ import me.jackcw.duels.arena.Arena;
 import me.jackcw.duels.arena.ArenaSelection;
 import me.jackcw.duels.arena.ArenaManager;
 import me.jackcw.duels.challenge.Challenge;
+import me.jackcw.duels.challenge.ChallengeKind;
 import me.jackcw.duels.challenge.ChallengeManager;
 import me.jackcw.duels.match.Match;
 import me.jackcw.duels.match.MatchManager;
@@ -15,7 +16,10 @@ import me.jackcw.duels.menu.user.ArenaSelectionMenu;
 import me.jackcw.duels.menu.user.LeaderboardMenu;
 import me.jackcw.duels.menu.user.SpectateMenu;
 import me.jackcw.duels.menu.user.StatsProfileMenu;
+import me.jackcw.duels.message.ActionMessenger;
 import me.jackcw.duels.message.Message;
+import me.jackcw.duels.rematch.RematchContext;
+import me.jackcw.duels.rematch.RematchManager;
 import me.jackcw.duels.spectator.SpectateResult;
 import me.jackcw.duels.spectator.SpectatorManager;
 import me.jackcw.jcore.command.ArgumentTypes;
@@ -32,6 +36,7 @@ import java.util.UUID;
 public final class DuelCommand
 {
     private final ChallengeManager challengeManager;
+    private final RematchManager rematchManager;
     private final ArenaManager arenaManager;
     private final MatchManager matchManager;
     private final KitSelectorMenu kitSelectorMenu;
@@ -41,12 +46,14 @@ public final class DuelCommand
     private final StatsProfileMenu statsProfileMenu;
     private final SpectatorManager spectatorManager;
     private final MessageManager messageManager;
+    private final ActionMessenger actionMessenger;
     private final DuelsSettings settings;
     private final MenuManager menus;
 
     public DuelCommand(Duels plugin)
     {
         this.challengeManager = plugin.getChallengeManager();
+        this.rematchManager = plugin.getRematchManager();
         this.arenaManager = plugin.getArenaManager();
         this.matchManager = plugin.getMatchManager();
         this.kitSelectorMenu = plugin.getKitSelectorMenu();
@@ -56,6 +63,7 @@ public final class DuelCommand
         this.statsProfileMenu = plugin.getStatsProfileMenu();
         this.spectatorManager = plugin.getSpectatorManager();
         this.messageManager = plugin.core().messages();
+        this.actionMessenger = plugin.getActionMessenger();
         this.settings = plugin.getSettings();
         this.menus = plugin.core().menus();
     }
@@ -98,6 +106,13 @@ public final class DuelCommand
                                 .usage("/duel deny")
                                 .optionalArgument("player", ArgumentTypes.player())
                                 .executes(this::denyDuel))
+                .child(
+                        CommandBuilder.command("rematch")
+                                .description("Ask the player you just duelled for another duel on the same arena")
+                                .usage("/duel rematch")
+                                .playerOnly()
+                                .optionalArgument("player", ArgumentTypes.player())
+                                .executes(this::rematchDuel))
                 .child(
                         CommandBuilder.command("kit")
                                 .description("Reopen the kit selection menu during kit selection")
@@ -151,7 +166,7 @@ public final class DuelCommand
 
         if (!context.has("player"))
         {
-            messageManager.sendList(sender, Message.DUEL_HELP);
+            actionMessenger.sendList(sender, Message.DUEL_HELP);
             return;
         }
 
@@ -225,18 +240,26 @@ public final class DuelCommand
             messageManager.send(sender, Message.TARGET_IN_MATCH, "player", target.getName());
             return;
         }
-        Challenge existing = challengeManager.getChallengeBetween(sender.getUniqueId(), target.getUniqueId());
-        if (existing != null && existing.getChallenged().equals(sender.getUniqueId()))
-        {
-            finishAccept(sender, challengeManager.findIncoming(sender.getUniqueId(), target.getUniqueId()));
-            return;
-        }
         Arena selected = selection.isAny() ? null : arenaManager.getArena(selection.arenaId());
         if (!selection.isAny() && (selected == null || !selected.isEnabled()))
         {
             messageManager.send(sender, Message.NO_ARENA_AVAILABLE);
             return;
         }
+
+        Challenge existing = challengeManager.getChallengeBetween(sender.getUniqueId(), target.getUniqueId());
+        if (existing != null && !existing.isRematch()
+                && existing.getChallenged().equals(sender.getUniqueId()))
+        {
+            finishAccept(sender, existing);
+            return;
+        }
+
+        // A direct challenge asks for new arena terms. It supersedes the old
+        // rematch window and any invitation backed by that window.
+        rematchManager.invalidateAll(sender.getUniqueId(), target.getUniqueId());
+        challengeManager.removeRematchesInvolving(sender.getUniqueId(), target.getUniqueId());
+
         if (!challengeManager.createChallenge(sender, target, selection))
         {
             messageManager.send(sender, Message.CHALLENGE_ALREADY_PENDING, "player", target.getName());
@@ -245,7 +268,112 @@ public final class DuelCommand
 
         String selectedArena = selection.isAny() ? "Any arena" : selected.getName();
         messageManager.send(sender, Message.CHALLENGE_SENT, "player", target.getName(), "expiry", expiryText(), "arena", selectedArena);
-        messageManager.send(target, Message.CHALLENGE_RECEIVED, "player", sender.getName(), "arena", selectedArena);
+        actionMessenger.send(target, Message.CHALLENGE_RECEIVED, "player", sender.getName(), "arena", selectedArena);
+    }
+
+    /**
+     * Asks for, or accepts, a rematch of the duel that just finished.
+     *
+     * <p>Deliberately the same request-or-accept shape as {@code /duel <player>}:
+     * both players see the same button, and whichever of them clicks second is
+     * accepting rather than sending a second request. Without that, two people
+     * clicking at almost the same moment would each be told the other already
+     * has a request pending, which is the least helpful possible answer to two
+     * people who have just agreed to play again.
+     *
+     * <p>Once a request exists it is an ordinary challenge - claimed, expired
+     * and removed by {@link ChallengeManager} like any other - and acceptance
+     * goes through {@link #finishAccept}, so the asynchronous arena allocation
+     * has exactly one implementation.
+     */
+    private void rematchDuel(CommandContext context)
+    {
+        Player sender = context.getPlayer();
+
+        if (!rematchManager.isEnabled())
+        {
+            messageManager.send(sender, Message.REMATCH_DISABLED);
+            return;
+        }
+
+        RematchContext rematch = rematchManager.get(sender.getUniqueId());
+
+        // The button in a result message outlives its window. A click after the
+        // window closed has to read as "that moment has passed", never as an
+        // error, because there is nothing the player did wrong.
+        if (rematch == null)
+        {
+            rematchManager.invalidate(sender.getUniqueId());
+            messageManager.send(sender, Message.REMATCH_UNAVAILABLE);
+            return;
+        }
+
+        UUID opponentId = rematch.opponentOf(sender.getUniqueId());
+        String opponentName = rematch.opponentNameOf(sender.getUniqueId());
+
+        if (context.has("player") && !((Player) context.get("player")).getUniqueId().equals(opponentId))
+        {
+            messageManager.send(sender, Message.REMATCH_WRONG_PLAYER, "player", opponentName);
+            return;
+        }
+
+        Player opponent = Bukkit.getPlayer(opponentId);
+
+        if (opponent == null || !opponent.isOnline())
+        {
+            rematchManager.invalidate(sender.getUniqueId());
+            messageManager.send(sender, Message.REMATCH_OPPONENT_OFFLINE, "player", opponentName);
+            return;
+        }
+
+        Challenge incoming = challengeManager.findIncoming(sender.getUniqueId(), opponentId);
+
+        if (incoming != null && incoming.isRematch())
+        {
+            finishAccept(sender, incoming);
+            return;
+        }
+
+        if (incoming != null)
+        {
+            messageManager.send(sender, Message.REMATCH_ALREADY_REQUESTED, "player", opponent.getName());
+            return;
+        }
+
+        Arena arena = arenaManager.getArena(rematch.arenaId());
+
+        // The arena can be deleted or disabled between the duel ending and the
+        // click. Closing the window is better than silently falling back to a
+        // different arena, because "the same arena" is the whole offer.
+        if (arena == null || !arena.isEnabled())
+        {
+            rematchManager.invalidate(sender.getUniqueId());
+            messageManager.send(sender, Message.REMATCH_ARENA_UNAVAILABLE);
+            return;
+        }
+
+        if (matchManager.getMatch(sender.getUniqueId()) != null || matchManager.isPending(sender.getUniqueId()))
+        {
+            messageManager.send(sender, Message.ALREADY_IN_MATCH);
+            return;
+        }
+
+        if (matchManager.getMatch(opponentId) != null || matchManager.isPending(opponentId))
+        {
+            messageManager.send(sender, Message.TARGET_IN_MATCH, "player", opponent.getName());
+            return;
+        }
+
+        if (!challengeManager.createChallenge(sender, opponent, ArenaSelection.specific(rematch.arenaId()),
+                ChallengeKind.REMATCH, rematch.expiry()))
+        {
+            messageManager.send(sender, Message.REMATCH_ALREADY_REQUESTED, "player", opponent.getName());
+            return;
+        }
+
+        messageManager.send(sender, Message.REMATCH_SENT, "player", opponent.getName(), "arena", arena.getName());
+        actionMessenger.send(opponent, Message.REMATCH_RECEIVED,
+                "player", sender.getName(), "arena", arena.getName());
     }
 
     private String expiryText()
@@ -275,8 +403,30 @@ public final class DuelCommand
     {
         if (challenge == null)
         {
-            messageManager.send(sender, Message.CHALLENGE_NO_PENDING);
+            actionMessenger.send(sender, Message.CHALLENGE_NO_PENDING);
             return;
+        }
+
+        if (challenge.isRematch())
+        {
+            RematchContext rematch = rematchManager.get(sender.getUniqueId());
+            if (!rematchManager.isEnabled() || rematch == null
+                    || !challenge.getChallenger().equals(rematch.opponentOf(sender.getUniqueId()))
+                    || !challenge.getSelection().equals(ArenaSelection.specific(rematch.arenaId())))
+            {
+                challengeManager.remove(challenge);
+                messageManager.send(sender, Message.REMATCH_UNAVAILABLE);
+                return;
+            }
+
+            Arena arena = arenaManager.getArena(rematch.arenaId());
+            if (arena == null || !arena.isEnabled())
+            {
+                challengeManager.remove(challenge);
+                rematchManager.invalidate(sender.getUniqueId());
+                messageManager.send(sender, Message.REMATCH_ARENA_UNAVAILABLE);
+                return;
+            }
         }
 
         if (matchManager.getMatch(sender.getUniqueId()) != null || matchManager.isPending(sender.getUniqueId()))
@@ -289,7 +439,7 @@ public final class DuelCommand
 
         if (challenger == null)
         {
-            messageManager.send(sender, Message.CHALLENGE_NO_PENDING);
+            actionMessenger.send(sender, Message.CHALLENGE_NO_PENDING);
             return;
         }
 
@@ -301,7 +451,7 @@ public final class DuelCommand
 
         if (!challengeManager.claim(challenge))
         {
-            messageManager.send(sender, Message.CHALLENGE_NO_PENDING);
+            actionMessenger.send(sender, Message.CHALLENGE_NO_PENDING);
             return;
         }
 
@@ -322,8 +472,11 @@ public final class DuelCommand
             }
 
             challengeManager.remove(challenge);
-            messageManager.send(sender, Message.CHALLENGE_ACCEPTED, "player", challenger.getName());
-            messageManager.send(challenger, Message.CHALLENGE_ACCEPTED_OPPONENT, "player", sender.getName());
+            messageManager.send(sender, challenge.isRematch() ? Message.REMATCH_ACCEPTED : Message.CHALLENGE_ACCEPTED,
+                    "player", challenger.getName());
+            messageManager.send(challenger,
+                    challenge.isRematch() ? Message.REMATCH_ACCEPTED_OPPONENT : Message.CHALLENGE_ACCEPTED_OPPONENT,
+                    "player", sender.getName());
             if (settings.removeOutstandingChallenges())
                 challengeManager.removeAll(sender.getUniqueId(), challenger.getUniqueId());
         });
@@ -367,7 +520,7 @@ public final class DuelCommand
             return;
         }
 
-        messageManager.send(sender, Message.SPECTATE_STARTED, "player", target.getName());
+        actionMessenger.send(sender, Message.SPECTATE_STARTED, "player", target.getName());
     }
 
     private void leaveSpectating(CommandContext context)
@@ -424,7 +577,7 @@ public final class DuelCommand
 
         if (challenge == null)
         {
-            messageManager.send(sender, Message.CHALLENGE_NO_PENDING);
+            actionMessenger.send(sender, Message.CHALLENGE_NO_PENDING);
             return;
         }
 
@@ -434,11 +587,16 @@ public final class DuelCommand
 
         if (other == null)
         {
-            messageManager.send(sender, Message.CHALLENGE_NO_PENDING);
+            actionMessenger.send(sender, Message.CHALLENGE_NO_PENDING);
             return;
         }
 
-        messageManager.send(senderWasChallenger ? other : sender, Message.CHALLENGE_DECLINED, "player", senderWasChallenger ? sender.getName() : other.getName());
-        messageManager.send(senderWasChallenger ? sender : other, Message.CHALLENGE_DECLINED_OPPONENT, "player", senderWasChallenger ? other.getName() : sender.getName());
+        Message declined = challenge.isRematch() ? Message.REMATCH_DECLINED : Message.CHALLENGE_DECLINED;
+        Message declinedOpponent = challenge.isRematch()
+                ? Message.REMATCH_DECLINED_OPPONENT
+                : Message.CHALLENGE_DECLINED_OPPONENT;
+
+        messageManager.send(senderWasChallenger ? other : sender, declined, "player", senderWasChallenger ? sender.getName() : other.getName());
+        messageManager.send(senderWasChallenger ? sender : other, declinedOpponent, "player", senderWasChallenger ? other.getName() : sender.getName());
     }
 }

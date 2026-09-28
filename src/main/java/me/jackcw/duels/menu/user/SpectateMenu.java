@@ -6,6 +6,7 @@ import me.jackcw.duels.arena.ArenaManager;
 import me.jackcw.duels.match.Match;
 import me.jackcw.duels.match.MatchManager;
 import me.jackcw.duels.match.MatchState;
+import me.jackcw.duels.message.ActionMessenger;
 import me.jackcw.duels.message.Message;
 import me.jackcw.duels.spectator.SpectateResult;
 import me.jackcw.duels.spectator.SpectatorManager;
@@ -31,6 +32,7 @@ public final class SpectateMenu
     private final SpectatorManager spectatorManager;
     private final ArenaManager arenaManager;
     private final MessageManager messageManager;
+    private final ActionMessenger actionMessenger;
 
     public SpectateMenu(Duels plugin)
     {
@@ -39,6 +41,7 @@ public final class SpectateMenu
         this.spectatorManager = plugin.getSpectatorManager();
         this.arenaManager = plugin.getArenaManager();
         this.messageManager = plugin.core().messages();
+        this.actionMessenger = plugin.getActionMessenger();
     }
 
     public void open(Player player)
@@ -47,7 +50,7 @@ public final class SpectateMenu
 
         if (live.isEmpty())
         {
-            messageManager.send(player, Message.SPECTATE_NO_MATCHES);
+            actionMessenger.send(player, Message.SPECTATE_NO_MATCHES);
             return;
         }
 
@@ -77,7 +80,7 @@ public final class SpectateMenu
 
         player.closeInventory();
 
-        messageManager.send(player, Message.SPECTATE_STARTED, "player", nameOf(match.getPlayer1Id()));
+        actionMessenger.send(player, Message.SPECTATE_STARTED, "player", nameOf(match.getPlayer1Id()));
     }
 
     public static Message messageFor(SpectateResult result)

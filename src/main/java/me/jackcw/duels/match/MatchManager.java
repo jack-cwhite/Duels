@@ -5,8 +5,10 @@ import me.jackcw.duels.DuelsSettings;
 import me.jackcw.duels.arena.*;
 import me.jackcw.duels.kit.Kit;
 import me.jackcw.duels.kit.KitManager;
+import me.jackcw.duels.message.ActionMessenger;
 import me.jackcw.duels.message.Message;
 import me.jackcw.duels.player.PlayerStateManager;
+import me.jackcw.duels.rematch.RematchManager;
 import me.jackcw.duels.spectator.SpectatorManager;
 import me.jackcw.jcore.countdown.Countdown;
 import me.jackcw.jcore.message.MessageManager;
@@ -37,6 +39,7 @@ public final class MatchManager
     private final KitManager kitManager;
     private final PlayerStateManager playerStateManager;
     private final MessageManager messageManager;
+    private final ActionMessenger actionMessenger;
     private final DuelsSettings settings;
     private final Duels plugin;
     private final Map<UUID, Match> matches = new HashMap<>();
@@ -59,6 +62,7 @@ public final class MatchManager
         this.kitManager = plugin.getKitManager();
         this.playerStateManager = plugin.getPlayerStateManager();
         this.messageManager = plugin.core().messages();
+        this.actionMessenger = plugin.getActionMessenger();
         this.settings = plugin.getSettings();
     }
 
@@ -207,6 +211,12 @@ public final class MatchManager
         plugin.getArenaEditManager().end(player1);
         plugin.getArenaEditManager().end(player2);
 
+        // A new duel supersedes whatever either player could previously rematch.
+        // Leaving the old window open would let someone finish a duel with A,
+        // start one with B, and on finishing that still be offered A's arena.
+        plugin.getRematchManager().invalidateAll(player1.getUniqueId(), player2.getUniqueId());
+        plugin.getChallengeManager().removeRematchesInvolving(player1.getUniqueId(), player2.getUniqueId());
+
         storePlayerState(player1, player2);
 
         prepareForMatch(player1);
@@ -284,6 +294,10 @@ public final class MatchManager
             LOGGER.log(Level.SEVERE, "Failed to record match result; continuing match cleanup. "
                     + "Result was: " + result, e);
         }
+
+        // Opened before the result messages go out, so the {rematch} button in
+        // them is already backed by a live window when the player sees it.
+        openRematchWindow(match);
 
         endParticipant(match, match.getPlayer1Id(), winnerId);
         endParticipant(match, match.getPlayer2Id(), winnerId);
@@ -527,6 +541,35 @@ public final class MatchManager
         }
     }
 
+    /**
+     * Gives the two players a short window in which either may ask for another
+     * duel on the same arena.
+     *
+     * <p>Only opened when both are still online. A window naming someone who
+     * has already left would only produce a button that fails, and a duel
+     * someone disconnected from is not one either player is waiting to replay.
+     * Aborted matches deliberately do not call this: nobody won, and the arena
+     * they would be sent back to is the one that just failed them.
+     */
+    private void openRematchWindow(Match match)
+    {
+        RematchManager rematches = plugin.getRematchManager();
+
+        if (rematches == null || !rematches.isEnabled())
+            return;
+
+        Player player1 = Bukkit.getPlayer(match.getPlayer1Id());
+        Player player2 = Bukkit.getPlayer(match.getPlayer2Id());
+
+        if (player1 == null || player2 == null)
+            return;
+
+        rematches.register(
+                player1.getUniqueId(), player1.getName(),
+                player2.getUniqueId(), player2.getName(),
+                match.getArenaInstance().getArenaId());
+    }
+
     private void endParticipant(Match match, UUID playerId, UUID winnerId)
     {
         restoreParticipant(match, playerId, winnerId, true);
@@ -554,7 +597,7 @@ public final class MatchManager
 
         Message result = playerId.equals(winnerId) ? Message.MATCH_WIN : Message.MATCH_LOSE;
 
-        messageManager.send(player, result, "player", nameOf(match.getOpponent(playerId)));
+        actionMessenger.send(player, result, "player", nameOf(match.getOpponent(playerId)));
     }
 
     public void handleRespawn(Player player, PlayerRespawnEvent event)

@@ -22,11 +22,16 @@ public final class ChallengeExpiryHandler
         Player challenger = Bukkit.getPlayer(challenge.getChallenger());
         Player challenged = Bukkit.getPlayer(challenge.getChallenged());
 
+        // A rematch request that runs out says so in its own words. The two
+        // cases feel different to a player: an unanswered challenge is somebody
+        // ignoring you, an unanswered rematch is the moment simply passing.
+        Message expired = challenge.isRematch() ? Message.REMATCH_EXPIRED : Message.CHALLENGE_EXPIRED;
+
         if (challenger != null)
-            messageManager.send(challenger, Message.CHALLENGE_EXPIRED, "player", nameOf(challenge.getChallenged()));
+            messageManager.send(challenger, expired, "player", nameOf(challenge.getChallenged()));
 
         if (challenged != null)
-            messageManager.send(challenged, Message.CHALLENGE_EXPIRED, "player", nameOf(challenge.getChallenger()));
+            messageManager.send(challenged, expired, "player", nameOf(challenge.getChallenger()));
     }
 
     private String nameOf(UUID uuid)

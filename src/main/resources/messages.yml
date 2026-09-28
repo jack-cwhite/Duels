@@ -13,6 +13,39 @@
 # current help text, delete the whole 'help:' block (under 'admin:' and/or
 # 'duel:') and restart; it will be regenerated in full. Do this only if you
 # haven't reworded those lines yourself, since regenerating replaces them.
+#
+# CLICKABLE BUTTONS
+#
+# Some messages can carry clickable buttons. Write a button's placeholder
+# anywhere in the message text and it becomes a button in chat:
+#
+#   {challenge} {select} {accept} {deny} {kit} {rematch}
+#   {spectate}  {leave}  {stats}  {opponent-stats} {top}
+#
+# What each button looks like and says on hover is yours to change, under
+# 'duel.actions' below. What each button DOES is fixed in code - it runs or
+# suggests the same /duel command a player could type - so a message file can
+# never make somebody click a command you did not intend.
+#
+# Buttons only work in these messages: duel.help, duel.challenge-received,
+# duel.no-pending, duel.match-win, duel.match-lose, duel.spectate-started,
+# duel.spectate-no-matches and duel.rematch-received. Put one anywhere else and
+# Duels warns you on startup, because players would just see the literal text
+# "{accept}".
+#
+# A button whose command needs a player name ({opponent-stats}) is shown without
+# a click if the message it is in does not know one. {spectate} and {leave} are
+# hidden from anyone without the duels.spectate permission, and a help line that
+# contains a button you cannot use is not printed at all.
+#
+# {rematch} disappears completely - including its help line - when
+# 'rematch-expiry-time' is set to 0 in config.yml, so turning rematches off
+# never leaves a button behind that could only say "rematches are disabled".
+#
+# To check an edit without arranging a real duel, run
+# '/duels diagnostics buttons' in game. It prints every message that can carry
+# buttons using sample data, then each button on its own with the exact command
+# it would run.
 core:
   prefix: '&8&l[&c&lDuels&8&l]'
   no-permission: '&cYou do not have permission to use this command!'
@@ -114,21 +147,25 @@ admin:
 
 duel:
   help:
-    - '&e/duel <player> &7- challenge a player to a duel'
+    - '&8&m                                        '
+    - '&c&lDuels &7- click a button, or type the command'
+    - '&e/duel <player> &7- challenge a player to a duel {challenge}'
     - '&e/duel challenge <player> &7- same as above, but works even if their name matches a subcommand below'
-    - '&e/duel select <player> &7- choose Any or a specific arena in a menu'
-    - '&e/duel accept &7- accept a pending challenge'
-    - '&e/duel deny &7- decline a pending challenge'
-    - '&e/duel kit &7- reopen the kit selection menu mid-match'
-    - '&e/duel spectate [player] &7- watch a live duel, or list the ones running'
-    - '&e/duel leave &7- stop spectating'
-    - '&e/duel stats [player] &7- view detailed duel statistics'
-    - '&e/duel top &7- view duel leaderboards'
+    - '&e/duel select <player> &7- choose Any or a specific arena in a menu {select}'
+    - '&e/duel accept &7- accept a pending challenge {accept}'
+    - '&e/duel deny &7- decline a pending challenge {deny}'
+    - '&e/duel rematch &7- play the same opponent again, right after a duel {rematch}'
+    - '&e/duel kit &7- reopen the kit selection menu mid-match {kit}'
+    - '&e/duel spectate [player] &7- watch a live duel, or list the ones running {spectate}'
+    - '&e/duel leave &7- stop spectating {leave}'
+    - '&e/duel stats [player] &7- view detailed duel statistics {stats}'
+    - '&e/duel top &7- view duel leaderboards {top}'
+    - '&8&m                                        '
   cannot-challenge-self: '&cYou cannot challenge yourself to a duel!'
   already-pending: '&cYou already have a pending challenge with &e{player}'
   challenge-sent: '&7You have challenged &e{player} &7to a duel in &e{arena}&7! It will expire in &e{expiry}'
-  challenge-received: '&e{player} &7has challenged you to a duel in &e{arena}&7! Use &e/duel &7accept or &e/duel deny'
-  no-pending: '&cYou have no pending challenge to respond to!'
+  challenge-received: '&e{player} &7has challenged you to a duel in &e{arena}&7! {accept} &8| {deny}'
+  no-pending: '&cYou have no pending challenge to respond to! {challenge}'
   accepted: '&7You &aaccepted &e{player}''s &7duel challenge'
   accepted-opponent: '&e{player} &aaccepted &7your duel challenge'
   declined: '&7You &cdeclined &e{player}''s &7duel challenge'
@@ -153,7 +190,7 @@ duel:
   cannot-build-outside-arena: '&cYou can only build inside the arena bounds.'
   cannot-enter-arena: '&cYou cannot enter an arena that is not yours to fight or spectate in.'
   removed-from-arena: '&cA duel is taking place here, so you have been moved out of the arena.'
-  spectate-started: '&7You are now spectating &e{player}&7''s duel. Use &e/duel leave &7to stop.'
+  spectate-started: '&7You are now spectating &e{player}&7''s duel. {leave}'
   spectate-stopped: '&7You have &cstopped &7spectating.'
   spectate-restored: '&7You were returned to where you were before you started spectating.'
   spectate-match-ended: '&7The duel you were watching has &cended&7.'
@@ -165,9 +202,62 @@ duel:
   spectate-match-unavailable: '&cThat duel is no longer running.'
   spectate-arena-no-bounds: '&cThat duel''s arena has no bounds set, so it cannot be spectated safely.'
   spectate-teleport-failed: '&cYou could not be moved right now. Try again in a moment.'
-  spectate-no-matches: '&cThere are no duels being played right now.'
-  match-win: '&aYou won the duel against &e{player}'
-  match-lose: '&cYou lost the duel against &e{player}'
+  spectate-no-matches: '&cThere are no duels being played right now. {challenge}'
+  match-win: '&aYou won the duel against &e{player}&a! {rematch} &8| {stats} &8| {opponent-stats}'
+  match-lose: '&cYou lost the duel against &e{player}&c. {rematch} &8| {stats} &8| {opponent-stats}'
+
+  # Rematches. The window these refer to is set by 'rematch-expiry-time' in
+  # config.yml; set that to 0 and none of these are ever sent.
+  rematch-disabled: '&cRematches are turned off on this server.'
+  rematch-unavailable: '&cYou have no rematch available. One is offered for a short time after a duel ends.'
+  rematch-wrong-player: '&cThe only player you can rematch right now is &e{player}&c.'
+  rematch-opponent-offline: '&e{player} &cis no longer online, so there is nobody to rematch.'
+  rematch-arena-unavailable: '&cThe arena you just played on is no longer available, so a rematch is not possible.'
+  rematch-already-requested: '&cYou have already asked &e{player} &cfor a rematch.'
+  rematch-sent: '&7You have asked &e{player} &7for a rematch in &e{arena}&7!'
+  rematch-received: '&e{player} &7wants a rematch in &e{arena}&7! {accept} &8| {deny}'
+  rematch-expired: '&7Your rematch with &e{player} &7has &cexpired!'
+  rematch-accepted: '&7You &aaccepted &e{player}''s &7rematch'
+  rematch-accepted-opponent: '&e{player} &aaccepted &7your rematch'
+  rematch-declined: '&7You &cdeclined &e{player}''s &7rematch'
+  rematch-declined-opponent: '&e{player} &cdeclined &7your rematch'
+
+  # What each clickable button looks like. The command behind each one is fixed
+  # in code; only the wording, colours and hover text below are yours.
+  actions:
+    challenge:
+      text: '&a&l[CHALLENGE]'
+      hover: '&7Click, then type the name of the player you want to duel.'
+    select:
+      text: '&b&l[PICK ARENA]'
+      hover: '&7Click, then type a player''s name to choose an arena first.'
+    accept:
+      text: '&a&l[ACCEPT]'
+      hover: '&7Accept the duel challenge.'
+    deny:
+      text: '&c&l[DENY]'
+      hover: '&7Decline the duel challenge.'
+    rematch:
+      text: '&a&l[REMATCH]'
+      hover: '&7Ask for another duel on the same arena.'
+    kit:
+      text: '&e&l[KITS]'
+      hover: '&7Reopen the kit selection menu.'
+    spectate:
+      text: '&d&l[SPECTATE]'
+      hover: '&7Watch a duel that is being played right now.'
+    leave:
+      text: '&c&l[STOP WATCHING]'
+      hover: '&7Stop spectating and go back to where you were.'
+    stats:
+      text: '&b&l[MY STATS]'
+      hover: '&7Open your own duel statistics.'
+    opponent-stats:
+      text: '&b&l[THEIR STATS]'
+      hover: '&7Open your opponent''s duel statistics.'
+    top:
+      text: '&6&l[LEADERBOARD]'
+      hover: '&7Open the duel leaderboards.'
 
 menu:
   arena-create-prompt: '&7Type the new arena''s name in chat.'

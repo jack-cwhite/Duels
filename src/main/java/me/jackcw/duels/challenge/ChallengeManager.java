@@ -7,6 +7,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.time.Instant;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -16,8 +17,6 @@ import java.util.function.Consumer;
 
 public final class ChallengeManager
 {
-    private static final long TICKS_PER_SECOND = 20L;
-
     private final TaskManager taskManager;
     private final DuelsSettings settings;
     private final Consumer<Challenge> onExpire;
@@ -44,6 +43,30 @@ public final class ChallengeManager
 
     public boolean createChallenge(Player challenger, Player challenged, ArenaSelection selection)
     {
+        return createChallenge(challenger, challenged, selection, ChallengeKind.DIRECT,
+                settings.challengeExpirySeconds());
+    }
+
+    /**
+     * Creates a challenge with an explicit lifetime and origin.
+     *
+     * <p>A rematch supplies its own expiry - whatever is left of the post-match
+     * window - rather than the configured challenge expiry, so a request can
+     * never outlive the opportunity that justified it. Everything after that
+     * point is identical to a direct challenge on purpose: pair uniqueness,
+     * claiming during arena allocation and removal all stay in one place.
+     */
+    public boolean createChallenge(Player challenger, Player challenged, ArenaSelection selection,
+                                   ChallengeKind kind, int expirySeconds)
+    {
+        Instant expiry = expirySeconds > 0 ? Instant.now().plusSeconds(expirySeconds) : Instant.MAX;
+        return createChallenge(challenger, challenged, selection, kind, expiry);
+    }
+
+    /** Uses the rematch window's exact deadline, without rounding away its last second. */
+    public boolean createChallenge(Player challenger, Player challenged, ArenaSelection selection,
+                                   ChallengeKind kind, Instant expiry)
+    {
         if (challenger == null || !challenger.isOnline())
             return false;
 
@@ -53,14 +76,18 @@ public final class ChallengeManager
         if (getChallengeBetween(challenger.getUniqueId(), challenged.getUniqueId()) != null)
             return false;
 
-        int expirySeconds = settings.challengeExpirySeconds();
-        Instant expiry = expirySeconds > 0 ? Instant.now().plusSeconds(expirySeconds) : Instant.MAX;
+        if (expiry == null || !expiry.isAfter(Instant.now()))
+            return false;
 
-        Challenge challenge = new Challenge(challenger.getUniqueId(), challenged.getUniqueId(), expiry, selection);
+        Challenge challenge = new Challenge(challenger.getUniqueId(), challenged.getUniqueId(), expiry, selection, kind);
         challenges.add(challenge);
 
-        if (expirySeconds > 0)
-            expiryTasks.put(challenge, taskManager.runSyncLater(() -> expire(challenge), expirySeconds * TICKS_PER_SECOND));
+        if (!Instant.MAX.equals(expiry))
+        {
+            long millis = Duration.between(Instant.now(), expiry).toMillis();
+            long ticks = Math.max(1L, (millis + 49L) / 50L);
+            expiryTasks.put(challenge, taskManager.runSyncLater(() -> expire(challenge), ticks));
+        }
 
         return true;
     }
@@ -160,6 +187,12 @@ public final class ChallengeManager
         if (challenge == null || !challenges.contains(challenge) || challenge.isClaimed())
             return false;
 
+        if (!challenge.getExpiry().isAfter(Instant.now()))
+        {
+            expire(challenge);
+            return false;
+        }
+
         challenge.setClaimed(true);
         return true;
     }
@@ -189,6 +222,23 @@ public final class ChallengeManager
     {
         for (UUID playerId : playerIds)
             for (Challenge challenge : getChallenges(playerId))
+                discard(challenge);
+    }
+
+    /** Drops rematch invitations when their eligibility window is cancelled. */
+    public void removeRematchesInvolving(UUID... playerIds)
+    {
+        for (UUID playerId : playerIds)
+            if (playerId != null)
+                for (Challenge challenge : getChallenges(playerId))
+                    if (challenge.isRematch())
+                        discard(challenge);
+    }
+
+    public void removeAllRematches()
+    {
+        for (Challenge challenge : new ArrayList<>(challenges))
+            if (challenge.isRematch())
                 discard(challenge);
     }
 

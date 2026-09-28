@@ -84,6 +84,7 @@ public final class DuelsDiagnostics
             int dynamicReservedSlots,
             int dynamicMaximumSlots,
             int pendingChallenges,
+            int rematchWindows,
             int boundaryTrackedPlayers,
             boolean boundaryCheckTaskActive,
             int trackedInstances,
@@ -125,6 +126,7 @@ public final class DuelsDiagnostics
                 dynamicCapacity.reserved(),
                 dynamicCapacity.maximum(),
                 plugin.getChallengeManager().getChallengeCount(),
+                plugin.getRematchManager().getContextCount(),
                 plugin.getBoundaryEnforcer().getTrackedPlayerCount(),
                 plugin.getBoundaryEnforcer().isCheckTaskActive(),
                 rollback == null ? 0 : rollback.getTrackedInstanceCount(),
@@ -227,6 +229,7 @@ public final class DuelsDiagnostics
         lines.add(line("Pending players", snapshot.pendingPlayers()));
         lines.add(line("Pending respawn restores", snapshot.pendingRespawnRestores()));
         lines.add(line("Pending challenges", snapshot.pendingChallenges()));
+        lines.add(line("Open rematch windows", snapshot.rematchWindows()));
         lines.add(line("Spectator sessions", snapshot.spectatorSessions()));
         lines.add(line("Edit sessions", snapshot.editSessions()));
         lines.add(line("Capture drafts", snapshot.captureDrafts()));
@@ -331,6 +334,7 @@ public final class DuelsDiagnostics
         addDelta(lines, "Pending players", baseline.pendingPlayers(), now.pendingPlayers());
         addDelta(lines, "Pending respawn restores", baseline.pendingRespawnRestores(), now.pendingRespawnRestores());
         addDelta(lines, "Pending challenges", baseline.pendingChallenges(), now.pendingChallenges());
+        addDelta(lines, "Open rematch windows", baseline.rematchWindows(), now.rematchWindows());
         addDelta(lines, "Spectator sessions", baseline.spectatorSessions(), now.spectatorSessions());
         addDelta(lines, "Edit sessions", baseline.editSessions(), now.editSessions());
         addDelta(lines, "Capture drafts", baseline.captureDrafts(), now.captureDrafts());

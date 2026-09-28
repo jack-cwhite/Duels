@@ -363,6 +363,11 @@ public final class MatchListener implements Listener
 
         boundaryEnforcer.forget(player.getUniqueId());
 
+        // A rematch offer is only ever between two players who are both here to
+        // take it, so one leaving closes the window for the other rather than
+        // leaving them a button that can only report an offline opponent.
+        plugin.getRematchManager().invalidate(player.getUniqueId());
+
         // A spectator's session is dropped but its saved row is kept, so they
         // are put back by the join handler next time rather than teleported now
         // - the player is already on their way out, and this runs whether or

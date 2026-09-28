@@ -16,6 +16,7 @@ public final class DuelsSettings
     private StatsStorageType statsStorage;
     private int statsWinRateMinimumMatches;
     private int challengeExpirySeconds;
+    private int rematchExpirySeconds;
     private int kitSelectionSeconds;
     private boolean removeOutstandingChallenges;
     private boolean enableGracePeriod;
@@ -52,6 +53,11 @@ public final class DuelsSettings
 
         this.challengeExpirySeconds = readNonNegativeInt(
                 config, logger, "duel-request-expiry-time", 30,
+                "must be a whole number of 0 or greater"
+        );
+
+        this.rematchExpirySeconds = readNonNegativeInt(
+                config, logger, "rematch-expiry-time", 30,
                 "must be a whole number of 0 or greater"
         );
 
@@ -115,6 +121,17 @@ public final class DuelsSettings
     public int challengeExpirySeconds()
     {
         return challengeExpirySeconds;
+    }
+
+    /**
+     * How long after a duel ends the two players may ask each other for a
+     * rematch, or 0 to switch rematches off entirely. Read live by
+     * {@code RematchManager} and by the button renderer, so a reload can enable
+     * or disable the feature without a restart.
+     */
+    public int rematchExpirySeconds()
+    {
+        return rematchExpirySeconds;
     }
 
     public int kitSelectionSeconds()

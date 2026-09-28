@@ -389,7 +389,15 @@ public final class DuelsCommand
                                                 .argument("arenaId", ArgumentTypes.integer())
                                                 .executes(this::verifyTemplate))
                                 .child(
+                                        CommandBuilder.command("buttons")
+                                                .description("Preview every message that can carry clickable buttons")
+                                                .usage("/duels diagnostics buttons")
+                                                .permission("duels.admin.diagnostics")
+                                                .playerOnly()
+                                                .executes(this::previewButtons))
+                                .child(
                                         CommandBuilder.command("state")
+
                                                 .description("Show the pre-duel state Duels has saved for a player, and where it would put them back")
                                                 .usage("/duels diagnostics state <player>")
                                                 .permission("duels.admin.diagnostics")
@@ -404,17 +412,17 @@ public final class DuelsCommand
                 .build();
     }
 
-    /**
-     * Only config.yml and messages.yml are reloaded here. Kits, arenas and
-     * menus.yml are live-edited through the GUI/commands and persisted on
-     * every change, so there is nothing stale on disk for them to pick up -
-     * reloading their files would just re-read what is already in memory.
-     */
-    private void reloadConfig(CommandContext context)
+    private void previewButtons(CommandContext context)
     {
-        plugin.core().config().reload();
-        plugin.getSettings().reload(plugin.core().config(), plugin.getLogger());
-        plugin.core().messages().reload();
+        Player viewer = context.getPlayer();
+
+        plugin.getActionMessenger().preview(viewer, viewer.getName());
+    }
+
+    private void reloadConfig(CommandContext context)
+
+    {
+        plugin.reloadConfiguration();
 
         messageManager.send(context.getSender(), Message.CONFIG_RELOADED);
     }
