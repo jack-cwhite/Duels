@@ -234,10 +234,40 @@ Phases 4B, 5 and 5.5 are closed. Phase 5.5's six slices are implemented,
 automated-tested and verified in game; the signed-off behaviour and evidence are in
 `docs/PHASE_5_5_DESIGN.md` and `docs/PHASE_5_5_TEST_PLAN.md`.
 
-Next, design and implement Phase 6's reliable match-result consumer boundary and
-optional Vault rewards. Then follow Phases 7-9 in `docs/V1_COMPLETION_PLAN.md`. The
+Phase 6's design is complete and agreed in `docs/PHASE_6_DESIGN.md`; implementation
+starts at Slice 1. Then follow Phases 7-9 in `docs/V1_COMPLETION_PLAN.md`. The
 final public-release matrix happens after the network phase so later features are
 included in the same clean-install evidence.
+
+### Phase 6 agreed decisions
+
+- **One result, several consumers.** `MatchResult` gains a `UUID resultId` minted in
+  `MatchManager.endMatch`, and a small `MatchResultDispatcher` fans it out. Statistics
+  becomes a consumer rather than an inline call, and its insert becomes idempotent on
+  that id. The dispatcher deliberately does **not** own durability - statistics needs
+  only a unique index, rewards need a ledger, and forcing both through one generic
+  outbox would be an abstraction over two consumers that do not share a problem.
+  Revisit if Phase 8's ratings consumer needs the same durable retry.
+- **All four reward types, with unequal promises.** Currency, XP and items are
+  verifiable and covered by the retry guarantee; console commands are necessary (giving
+  a crate key from another plugin) but unverifiable and unreversible, so they are
+  explicitly best-effort and are never auto-replayed during recovery.
+- **Crash policy is FLAG.** Intent is written before granting, so a crash leaves a
+  recorded ambiguity rather than an invisible one. `PENDING` rows are safely auto-
+  regranted; `GRANTING` rows become `AMBIGUOUS` for admin resolution, because a missing
+  reward is bounded and fixable while duplicated currency inflates an economy and may be
+  reproducible. `RETRY` and `DISCARD` remain configurable.
+- **Rewards ship disabled**, in their own `rewards.yml`, with active anti-farm defaults
+  once enabled (minimum duration, repeat-opponent decay; daily cap opt-in). A plugin
+  should not inject currency into an existing economy unasked, nor ship trivially
+  farmable. IP-based anti-alt checks were considered and rejected as punishing real
+  players.
+- **Vault stays optional** behind `softdepend` and the `ServicesManager`, with a
+  one-method internal economy seam so the ledger never knows whether Vault,
+  VaultUnlocked or Treasury is installed. Only the Vault implementation is being built.
+- Reward *tables* are file-edited rather than GUI-edited - a deliberate deviation from
+  the GUI-first convention, because nested per-kit/per-arena tables with item and
+  command lists are more legible and diffable in YAML.
 
 ### Phase 5.5 agreed decisions
 

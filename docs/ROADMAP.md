@@ -1532,7 +1532,14 @@ consecutive rematches, expiry/disable handling and diagnostics cleanup. The comp
 testing and commit plan is in `docs/PHASE_5_5_DESIGN.md`; the public-V1 boundary remains
 in `docs/V1_COMPLETION_PLAN.md`.
 
-## Phase 6 - Vault Integration & Rewards `[ ]` (V1 product)
+## Phase 6 - Vault Integration & Rewards `[~]` (V1 product)
+
+The complete design is agreed and specified in `docs/PHASE_6_DESIGN.md`: a stable
+`MatchResult` identity dispatched to independent consumers, four configurable grant
+types (currency, XP, items, console commands) with per-kit/per-arena overrides and
+non-stacking permission multipliers, a durable reward ledger whose crash-ambiguous
+entries are flagged for admin resolution rather than auto-paid, anti-farm limits, and
+offline/full-inventory claims. Implementation has not started.
 
 ### Problem / Opportunity
 
