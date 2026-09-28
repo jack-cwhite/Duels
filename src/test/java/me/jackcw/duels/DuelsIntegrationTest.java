@@ -31,6 +31,8 @@ import me.jackcw.duels.match.Match;
 import me.jackcw.duels.match.MatchResult;
 import me.jackcw.duels.match.MatchEndReason;
 import me.jackcw.duels.match.MatchState;
+import me.jackcw.duels.match.MatchResultConsumer;
+import me.jackcw.duels.match.MatchResultDispatcher;
 import me.jackcw.duels.match.MatchStartResult;
 import me.jackcw.duels.spectator.SpectateResult;
 import me.jackcw.duels.stats.LeaderboardEntry;
@@ -2504,6 +2506,96 @@ class DuelsIntegrationTest
         assertEquals(1, plugin.getStatsManager().getLosses(loser.getUniqueId()).join());
     }
 
+    /**
+     * endMatch no longer calls the stats manager itself, so this is the test that
+     * would catch the dispatcher being left unregistered or unwired - a mistake
+     * that would otherwise silently stop every match being recorded.
+     */
+    @Test
+    void aFinishedMatchStillReachesStatsThroughTheDispatcher()
+    {
+        WorldMock world = server.addSimpleWorld("dispatch_stats_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        createReadyInstance(arena, world);
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+        Match match = startInProgressMatch(alice, bob);
+
+        plugin.getMatchManager().endMatch(match, alice.getUniqueId());
+
+        assertEquals(1, plugin.getStatsManager().getWins(alice.getUniqueId()).join());
+        assertEquals(1, plugin.getStatsManager().getLosses(bob.getUniqueId()).join());
+    }
+
+    /**
+     * Both stores must agree that a result id identifies a result, not an attempt
+     * at storing one. Phase 6 depends on this: a reward that was paid can only be
+     * recognised as already paid if the result it belongs to cannot be recorded
+     * twice under two different match ids.
+     */
+    @Test
+    void recordingTheSameResultTwiceStoresItOnce()
+    {
+        UUID alice = UUID.randomUUID();
+        UUID bob = UUID.randomUUID();
+        MatchResult duplicated = result(1, alice, "Alice", null, bob, "Bob", null,
+                alice, 1_000L, 2_000L, 5_000L, MatchEndReason.DEFEAT, MatchState.IN_PROGRESS);
+
+        YamlStatsRepository yaml = new YamlStatsRepository(plugin);
+        plugin.getStatsManager().recordMatch(duplicated);
+        plugin.getStatsManager().recordMatch(duplicated);
+        yaml.recordMatch(duplicated);
+        yaml.recordMatch(duplicated);
+
+        StatsQuery query = StatsQuery.forPlayer(alice);
+        assertEquals(1, plugin.getStatsManager().getPlayerStats(query).join().matches(),
+                "SQL must reject a result it has already stored");
+        assertEquals(1, yaml.getPlayerStats(query).join().matches(),
+                "YAML must reject a result it has already stored");
+    }
+
+    @Test
+    void theDispatcherDeliversOnceAndSurvivesAFailingConsumer()
+    {
+        List<String> delivered = new ArrayList<>();
+        MatchResultDispatcher dispatcher = new MatchResultDispatcher();
+        dispatcher.register(recordingConsumer("first", delivered, false));
+        dispatcher.register(recordingConsumer("broken", delivered, true));
+        dispatcher.register(recordingConsumer("last", delivered, false));
+
+        UUID alice = UUID.randomUUID();
+        MatchResult result = result(1, alice, "Alice", null, UUID.randomUUID(), "Bob", null,
+                alice, 1_000L, 2_000L, 5_000L, MatchEndReason.DEFEAT, MatchState.IN_PROGRESS);
+        dispatcher.dispatch(result);
+
+        assertEquals(List.of("first", "broken", "last"), delivered,
+                "one consumer throwing must not cost the consumers after it their notification");
+
+        dispatcher.dispatch(result);
+        assertEquals(List.of("first", "broken", "last"), delivered,
+                "a result already dispatched must not be delivered again");
+    }
+
+    private MatchResultConsumer recordingConsumer(String name, List<String> delivered, boolean fail)
+    {
+        return new MatchResultConsumer()
+        {
+            @Override
+            public String name()
+            {
+                return name;
+            }
+
+            @Override
+            public void accept(MatchResult result)
+            {
+                delivered.add(name);
+                if (fail)
+                    throw new IllegalStateException("deliberate failure from " + name);
+            }
+        };
+    }
+
     @Test
     void deepStatsComposeArenaKitOpponentAndTimeFilters()
     {
@@ -2568,7 +2660,7 @@ class DuelsIntegrationTest
                                long startedAt, Long combatStartedAt, long endedAt,
                                MatchEndReason reason, MatchState state)
     {
-        return new MatchResult(arenaId, player1, player1Name, player2, player2Name, winner,
+        return new MatchResult(UUID.randomUUID(), arenaId, player1, player1Name, player2, player2Name, winner,
                 kit1, kit2, startedAt, combatStartedAt, endedAt, reason, state,
                 reason == MatchEndReason.DEFEAT ? "ENTITY_ATTACK" : null);
     }

@@ -58,13 +58,41 @@ public final class SqlStatsRepository implements StatsRepository
                         "CREATE INDEX idx_duels_matches_ended ON duels_matches(ended_at)");
             }
         }));
+
+        // Phase 6. Migration 1 is deliberately left alone rather than having
+        // result_id folded into its CREATE TABLE: a migration that has already
+        // run on someone's database can never be edited, because they will never
+        // run it again. A fresh database simply applies both in order.
+        //
+        // The column is nullable even though every new row sets it. SQLite cannot
+        // add a NOT NULL column without a default and cannot alter a column to
+        // NOT NULL at all without rebuilding the table, so demanding it here
+        // would mean a table rebuild on one dialect and not the others. The
+        // unique index gives us the property that actually matters - no two rows
+        // may claim the same result - portably. The backfill immediately below
+        // then gives pre-Phase-6 rows an identity so nothing is left NULL in
+        // practice, and the index would tolerate it anyway, since every dialect
+        // we support permits repeated NULLs in a unique index.
+        plugin.core().migrations().add(new Migration(2, connection ->
+        {
+            try (Statement statement = connection.createStatement())
+            {
+                if (!columnExists(connection, "duels_matches", "result_id"))
+                    statement.executeUpdate("ALTER TABLE duels_matches ADD COLUMN result_id VARCHAR(36)");
+
+                backfillResultIds(connection);
+
+                createIndexIfMissing(connection, statement, "duels_matches", "idx_duels_matches_result",
+                        "CREATE UNIQUE INDEX idx_duels_matches_result ON duels_matches(result_id)");
+            }
+        }));
     }
 
     /** Fails during startup, rather than after the first real result, if the old test schema remains. */
     void validateSchema()
     {
         database().query(
-                "SELECT started_at, combat_started_at, end_reason, ended_state, damage_cause FROM duels_matches WHERE 1 = 0",
+                "SELECT result_id, started_at, combat_started_at, end_reason, ended_state, damage_cause FROM duels_matches WHERE 1 = 0",
                 ignored -> {});
         database().query(
                 "SELECT player_name FROM duels_match_participants WHERE 1 = 0",
@@ -124,6 +152,55 @@ public final class SqlStatsRepository implements StatsRepository
         }
     }
 
+    private static boolean columnExists(Connection connection, String tableName, String columnName) throws SQLException
+    {
+        try (ResultSet columns = connection.getMetaData().getColumns(
+                connection.getCatalog(), null, tableName, null))
+        {
+            while (columns.next())
+            {
+                if (columnName.equalsIgnoreCase(columns.getString("COLUMN_NAME")))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Gives every row written before Phase 6 an identity. These ids are freshly
+     * generated rather than recovered, so they cannot be matched back to anything
+     * that happened at the time - which is fine, because nothing existed to record
+     * one against. Their only job is to make the column uniformly populated so the
+     * unique index and the duplicate check below can rely on it.
+     */
+    private static void backfillResultIds(Connection connection) throws SQLException
+    {
+        List<Long> unidentified = new ArrayList<>();
+        try (Statement statement = connection.createStatement();
+             ResultSet rows = statement.executeQuery("SELECT id FROM duels_matches WHERE result_id IS NULL"))
+        {
+            while (rows.next())
+                unidentified.add(rows.getLong(1));
+        }
+
+        if (unidentified.isEmpty())
+            return;
+
+        try (PreparedStatement statement = connection.prepareStatement(
+                "UPDATE duels_matches SET result_id = ? WHERE id = ?"))
+        {
+            for (long id : unidentified)
+            {
+                statement.setString(1, UUID.randomUUID().toString());
+                statement.setLong(2, id);
+                statement.addBatch();
+            }
+            statement.executeBatch();
+        }
+
+        LOGGER.info("Assigned result ids to " + unidentified.size() + " match record(s) stored before Phase 6");
+    }
+
     private static boolean indexAlreadyExists(SQLException exception)
     {
         String message = exception.getMessage();
@@ -149,20 +226,41 @@ public final class SqlStatsRepository implements StatsRepository
 
     private void insertMatch(Connection connection, MatchResult result) throws SQLException
     {
+        // Checked with an explicit SELECT rather than by inserting and catching a
+        // constraint violation. Every dialect reports that violation with its own
+        // SQLState and message, so telling "already stored, nothing to do" apart
+        // from a real failure after the fact would mean dialect-sniffing an
+        // exception - and by then the surrounding transaction has already been
+        // rolled back regardless.
+        //
+        // Two concurrent inserts of the same result could still both pass this
+        // check and race, in which case the unique index rejects the loser and
+        // recordMatch reports a failed write. That is the correct outcome and the
+        // data stays right; it also needs a duplicate dispatch to happen at all,
+        // which MatchResultDispatcher already refuses.
+        Long alreadyStored = findMatchIdByResultId(connection, result.resultId());
+        if (alreadyStored != null)
+        {
+            LOGGER.info("Match result " + result.resultId() + " is already stored as match "
+                    + alreadyStored + "; ignoring the duplicate");
+            return;
+        }
+
         long matchId;
         try (PreparedStatement statement = connection.prepareStatement(
-                "INSERT INTO duels_matches (arena_id, winner_id, started_at, combat_started_at, ended_at, "
-                        + "end_reason, ended_state, damage_cause) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO duels_matches (result_id, arena_id, winner_id, started_at, combat_started_at, ended_at, "
+                        + "end_reason, ended_state, damage_cause) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 Statement.RETURN_GENERATED_KEYS))
         {
-            statement.setInt(1, result.arenaId());
-            statement.setString(2, result.winnerId().toString());
-            statement.setLong(3, result.startedAt());
-            setNullableLong(statement, 4, result.combatStartedAt());
-            statement.setLong(5, result.endedAt());
-            statement.setString(6, result.endReason().name());
-            statement.setString(7, result.endedState().name());
-            setNullableString(statement, 8, result.damageCause());
+            statement.setString(1, result.resultId().toString());
+            statement.setInt(2, result.arenaId());
+            statement.setString(3, result.winnerId().toString());
+            statement.setLong(4, result.startedAt());
+            setNullableLong(statement, 5, result.combatStartedAt());
+            statement.setLong(6, result.endedAt());
+            statement.setString(7, result.endReason().name());
+            statement.setString(8, result.endedState().name());
+            setNullableString(statement, 9, result.damageCause());
             statement.executeUpdate();
 
             try (ResultSet keys = statement.getGeneratedKeys())
@@ -177,6 +275,19 @@ public final class SqlStatsRepository implements StatsRepository
                 result.player1Id().equals(result.winnerId()));
         insertParticipant(connection, matchId, result.player2Id(), result.player2Name(), result.kitId2(),
                 result.player2Id().equals(result.winnerId()));
+    }
+
+    private static Long findMatchIdByResultId(Connection connection, UUID resultId) throws SQLException
+    {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT id FROM duels_matches WHERE result_id = ?"))
+        {
+            statement.setString(1, resultId.toString());
+            try (ResultSet rows = statement.executeQuery())
+            {
+                return rows.next() ? rows.getLong(1) : null;
+            }
+        }
     }
 
     @Override

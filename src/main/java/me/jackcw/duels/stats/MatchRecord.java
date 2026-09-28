@@ -9,6 +9,14 @@ import java.util.UUID;
 public final class MatchRecord
 {
     private final int id;
+
+    /**
+     * Null only for records written before Phase 6 introduced result identity.
+     * Left nullable rather than backfilled on load so that a legacy record keeps
+     * being the same record across restarts - inventing an id each time the file
+     * is read would defeat the point of having one.
+     */
+    private final UUID resultId;
     private final int arenaId;
     private final UUID player1Id;
     private final String player1Name;
@@ -24,12 +32,13 @@ public final class MatchRecord
     private final MatchState endedState;
     private final String damageCause;
 
-    public MatchRecord(int id, int arenaId, UUID player1Id, String player1Name, UUID player2Id,
+    public MatchRecord(int id, UUID resultId, int arenaId, UUID player1Id, String player1Name, UUID player2Id,
                        String player2Name, UUID winnerId, Integer kitId1, Integer kitId2,
                        long startedAt, Long combatStartedAt, long endedAt, MatchEndReason endReason,
                        MatchState endedState, String damageCause)
     {
         this.id = id;
+        this.resultId = resultId;
         this.arenaId = arenaId;
         this.player1Id = player1Id;
         this.player1Name = player1Name;
@@ -47,6 +56,7 @@ public final class MatchRecord
     }
 
     public int getId() { return id; }
+    public UUID getResultId() { return resultId; }
     public int getArenaId() { return arenaId; }
     public UUID getPlayer1Id() { return player1Id; }
     public String getPlayer1Name() { return player1Name; }

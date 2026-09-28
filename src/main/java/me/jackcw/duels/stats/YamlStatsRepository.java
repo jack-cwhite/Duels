@@ -35,14 +35,31 @@ public final class YamlStatsRepository implements StatsRepository
     @Override
     public CompletableFuture<Void> recordMatch(MatchResult result)
     {
+        // Same guarantee the SQL repository gives: recording a result twice must
+        // leave one record, not two. Here that is a scan rather than an index
+        // lookup, which is acceptable because YAML storage is the small-server
+        // option and this list is already held entirely in memory.
+        if (isAlreadyRecorded(result.resultId()))
+            return CompletableFuture.completedFuture(null);
+
         int id = nextId++;
-        MatchRecord record = new MatchRecord(id, result.arenaId(), result.player1Id(), result.player1Name(),
+        MatchRecord record = new MatchRecord(id, result.resultId(), result.arenaId(), result.player1Id(), result.player1Name(),
                 result.player2Id(), result.player2Name(), result.winnerId(), result.kitId1(), result.kitId2(),
                 result.startedAt(), result.combatStartedAt(), result.endedAt(), result.endReason(),
                 result.endedState(), result.damageCause());
         matches.add(record);
         repository.save(record);
         return CompletableFuture.completedFuture(null);
+    }
+
+    private boolean isAlreadyRecorded(UUID resultId)
+    {
+        for (MatchRecord record : matches)
+        {
+            if (resultId.equals(record.getResultId()))
+                return true;
+        }
+        return false;
     }
 
     @Override

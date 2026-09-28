@@ -187,19 +187,33 @@ RewardGrant      sealed interface
   CommandGrant(String command)
 ```
 
-Resolution order, applied in this sequence:
+Resolution is a **sparse field merge** in ascending order of specificity, not a
+whole-bundle replacement:
 
 1. `defaults.<outcome>`
-2. arena override, if one exists for that arena id
-3. kit override, if one exists for that kit id
-4. the single **highest** applicable permission multiplier
+2. arena override for that arena id
+3. kit override for that kit id
+4. `overrides.combinations` entry naming **both** that arena and that kit
+5. the single **highest** applicable permission multiplier
+
+Each layer overrides only the fields it actually specifies. If an arena sets
+`money: 200` and a kit sets `experience: 50`, the player gets both - they only compete
+when they set the same field, and then the more specific layer wins.
+
+That sparse merge matters more than it looks. A whole-bundle replacement would mean
+configuring a kit's XP silently discarded the arena's money, which is the kind of
+surprise an admin discovers weeks later from a complaint. The explicit
+`overrides.combinations` layer then exists so "the Sword kit *on* the Sky arena pays
+500" can be stated directly rather than being an emergent consequence of precedence
+nobody wants to reason about.
+
+Where arena and kit do set the same field, kit wins: a kit is the closer description of
+what was actually played, and per-kit balance is the finer-grained knob. Any admin who
+disagrees writes a `combinations` entry and gets exactly what they asked for.
 
 Multipliers do not stack. A player holding both `donor` (1.5x) and `staff` (2x) gets
 2x, not 3x. Stacking is the behaviour that produces an accidental 4x payout on a live
 server, and "highest wins" is what admins expect from every plugin that does this.
-
-Kit beating arena is the deliberate choice: a kit is the closer description of what was
-actually played, and per-kit balance is the finer-grained knob.
 
 ### Grant tiers - what Duels can and cannot promise
 
@@ -419,13 +433,21 @@ baseline/compare flow.
 Player-facing: `/duel claim`, a join notification when something is waiting, and
 feedback naming what was granted and why ("You won 150 coins - Sword kit bonus").
 
-**One deliberate deviation from the GUI-first convention.** The admin GUI will *view*
-pending, ambiguous and claim entries and resolve them, but the reward *tables* stay
-file-edited. Nested per-kit and per-arena tables with item lists and command lists are
-genuinely more legible and diffable in YAML than in chest inventories, and an admin
-setting up an economy is already in their config files. The middle ground worth building
-if it feels lacking in testing: a "reward" button in the existing kit and arena editors
-that writes just the money amount for that resource back into `rewards.yml`.
+**A partial deviation from the GUI-first convention, with a GUI path.** Slice 6 adds a
+**Rewards button to the existing kit and arena editors** that sets that resource's money
+and experience amounts for win and loss, written back into `rewards.yml` as the
+corresponding override. That covers the common case - "this arena pays more" - without
+leaving the editors.
+
+What stays file-only is the rest of the structure: item lists, command lists,
+multipliers, combination overrides and anti-farm. Those are genuinely more legible and
+diffable in YAML than in chest inventories, an admin configuring an economy is already
+in their config files, and building a chest-inventory editor for a list of console
+command strings would be worse to use than a text editor, not better.
+
+The GUI must therefore treat the file as the source of truth and re-read before writing,
+so an amount set in a menu cannot silently discard a hand-edited item list in the same
+override block.
 
 ## JCore vs Duels
 

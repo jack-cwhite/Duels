@@ -14,6 +14,7 @@ import me.jackcw.duels.listener.MatchListener;
 import me.jackcw.duels.listener.PlayerStateListener;
 import me.jackcw.duels.listener.SpectatorListener;
 import me.jackcw.duels.match.MatchManager;
+import me.jackcw.duels.match.MatchResultDispatcher;
 import me.jackcw.duels.message.ActionMessenger;
 import me.jackcw.duels.menu.admin.*;
 import me.jackcw.duels.menu.admin.arena.ArenaDetailMenu;
@@ -39,6 +40,7 @@ import me.jackcw.duels.spectator.SpectatorManager;
 import me.jackcw.duels.stats.MatchRecord;
 import me.jackcw.duels.stats.MatchRecordSerializer;
 import me.jackcw.duels.stats.StatsManager;
+import me.jackcw.duels.stats.StatsResultConsumer;
 import me.jackcw.duels.stats.StatsStorageType;
 import me.jackcw.jcore.JCore;
 import me.jackcw.jcore.storage.YamlFile;
@@ -79,6 +81,7 @@ public class Duels extends JavaPlugin
     private PlayerStateManager playerStateManager;
     private SpectatorManager spectatorManager;
     private StatsManager statsManager;
+    private MatchResultDispatcher matchResultDispatcher;
 
     private YamlRepository<Arena> arenaRepository;
     private YamlRepository<ArenaInstance> arenaInstanceRepository;
@@ -306,6 +309,11 @@ public class Duels extends JavaPlugin
     public StatsManager getStatsManager()
     {
         return statsManager;
+    }
+
+    public MatchResultDispatcher getMatchResultDispatcher()
+    {
+        return matchResultDispatcher;
     }
 
     public AdminMainMenu getAdminMainMenu()
@@ -598,6 +606,15 @@ public class Duels extends JavaPlugin
                         + "the pre-Phase-5 test schema, delete the test database/schema and restart.", exception);
             }
         }
+
+        // Registration order is delivery order, and stats go first as the
+        // authoritative record of what happened. Note that this orders the
+        // *calls*, not their completion: each consumer does its own work
+        // asynchronously, so no consumer may assume an earlier one has finished
+        // writing. If one ever genuinely needs to, it has to say so explicitly
+        // rather than rely on this ordering.
+        matchResultDispatcher = new MatchResultDispatcher();
+        matchResultDispatcher.register(new StatsResultConsumer(statsManager));
 
         matchManager = new MatchManager(this);
 

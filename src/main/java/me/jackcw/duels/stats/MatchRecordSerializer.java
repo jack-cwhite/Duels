@@ -14,6 +14,7 @@ public final class MatchRecordSerializer implements RepositorySerializer<MatchRe
     public Object serialize(MatchRecord record)
     {
         Map<String, Object> data = new LinkedHashMap<>();
+        data.put("resultId", record.getResultId() == null ? null : record.getResultId().toString());
         data.put("arenaId", record.getArenaId());
         data.put("player1Id", record.getPlayer1Id().toString());
         data.put("player1Name", record.getPlayer1Name());
@@ -39,6 +40,7 @@ public final class MatchRecordSerializer implements RepositorySerializer<MatchRe
 
         return new MatchRecord(
                 id,
+                uuidOrNull(map.get("resultId")),
                 ((Number) map.get("arenaId")).intValue(),
                 UUID.fromString((String) map.get("player1Id")),
                 (String) map.get("player1Name"),
@@ -54,6 +56,12 @@ public final class MatchRecordSerializer implements RepositorySerializer<MatchRe
                 MatchState.valueOf((String) map.get("endedState")),
                 (String) map.get("damageCause")
         );
+    }
+
+    /** Absent on any record written before Phase 6 gave results an identity. */
+    private static UUID uuidOrNull(Object value)
+    {
+        return value instanceof String text && !text.isBlank() ? UUID.fromString(text) : null;
     }
 
     private static Integer numberOrNull(Object value)

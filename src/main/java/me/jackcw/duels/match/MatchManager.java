@@ -265,6 +265,7 @@ public final class MatchManager
         ejectSpectators(match, false);
 
         MatchResult result = new MatchResult(
+                UUID.randomUUID(),
                 match.getArenaInstance().getArenaId(),
                 match.getPlayer1Id(),
                 match.getPlayer1Name(),
@@ -281,19 +282,11 @@ public final class MatchManager
                 conclusion.damageCause()
         );
 
-        // A stats-persistence failure must never stop the players being restored
-        // and the arena being released - recordMatch already durably logs the
-        // result itself on failure, so this is purely to stop that failure from
-        // breaking the rest of match cleanup.
-        try
-        {
-            plugin.getStatsManager().recordMatch(result);
-        }
-        catch (Exception e)
-        {
-            LOGGER.log(Level.SEVERE, "Failed to record match result; continuing match cleanup. "
-                    + "Result was: " + result, e);
-        }
+        // Every consumer of the result - stats, and from Phase 6 rewards - is
+        // reached through the dispatcher, which isolates each one's failures so
+        // that none of them can stop the players being restored and the arena
+        // being released.
+        plugin.getMatchResultDispatcher().dispatch(result);
 
         // Opened before the result messages go out, so the {rematch} button in
         // them is already backed by a live window when the player sees it.
