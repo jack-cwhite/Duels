@@ -8,12 +8,10 @@ import me.jackcw.duels.match.MatchState;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
-import org.bukkit.entity.AreaEffectCloud;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Hanging;
-import org.bukkit.entity.Item;
-import org.bukkit.entity.Projectile;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
@@ -307,18 +305,19 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
     }
 
     /**
-     * Removes leftover arrows, potion clouds and dropped items from the
-     * instance's bounds before it is handed to another match.
+     * Removes every non-player entity from the instance's bounds before it is
+     * handed to another match - arrows, potion clouds, dropped items, and any
+     * mob that spawned or wandered in while nothing was tracking the arena.
      *
      * <p>These are entities, not blocks, so nothing above tracks or restores
-     * them - an arrow stuck in a wall, or a lingering splash/lingering-potion
-     * cloud, would otherwise still be there for whichever match claims this
-     * instance next, silently affecting a fight neither combatant caused.
-     * Decoration - item frames, paintings, armour stands - is deliberately
-     * left alone: {@link ArenaContainmentGuard} already protects it from the
-     * duel itself, so it belongs to the arena rather than to the match that
-     * just ended. Where a duel displaces it anyway, {@link #restoreDecoration}
-     * puts it back once the blocks are in place.
+     * them, and unlike a block change there is no "nobody touched this" case
+     * to leave alone: an idle arena is not a place anything should be able to
+     * leave a trace in between matches. Decoration - item frames, paintings,
+     * armour stands - is deliberately left alone: {@link ArenaContainmentGuard}
+     * already protects it from the duel itself, so it belongs to the arena
+     * rather than to the match that just ended. Where a duel displaces it
+     * anyway, {@link #restoreDecoration} puts it back once the blocks are in
+     * place.
      *
      * <p>Skipped entirely when the instance has no bounds, matching every
      * other bounds-gated behaviour here: without a defined box there is no
@@ -337,9 +336,29 @@ public final class BlockChangeRollbackStrategy implements Listener, ArenaResetSt
 
         for (Entity entity : bounds.world().getNearbyEntities(box))
         {
-            if (entity instanceof Projectile || entity instanceof AreaEffectCloud || entity instanceof Item)
+            if (!(entity instanceof Player) && !(entity instanceof Hanging) && !(entity instanceof ArmorStand))
                 entity.remove();
         }
+    }
+
+    /**
+     * Sweeps an instance immediately before a new match starts, rather than
+     * only relying on the sweep that already runs when the previous match
+     * ended.
+     *
+     * <p>That end-of-match sweep only ever runs for a match that actually
+     * held the instance. Nothing wraps an idle arena sitting between matches,
+     * so a mob that spawned there, or the drops from a bystander's death, had
+     * no reset to be caught by and simply carried into whichever match claimed
+     * the instance next. Running the same entity sweep again right before a
+     * match starts catches that gap, and costs nothing extra when the
+     * end-of-match sweep already did the job - there is simply nothing left
+     * to remove.
+     */
+    @Override
+    public void prepareForMatch(ArenaInstance instance)
+    {
+        clearTransientEntities(instance);
     }
 
     /**

@@ -27,6 +27,8 @@ public enum Message implements MessageKey
     OUT_OF_BOUNDS_WARNING("duel.out-of-bounds-warning"),
     OUT_OF_BOUNDS_RETURNED("duel.out-of-bounds-returned"),
     CANNOT_BUILD_OUTSIDE_ARENA("duel.cannot-build-outside-arena"),
+    CANNOT_ENTER_ARENA("duel.cannot-enter-arena"),
+    REMOVED_FROM_ARENA("duel.removed-from-arena"),
     SPECTATE_STARTED("duel.spectate-started"),
     SPECTATE_STOPPED("duel.spectate-stopped"),
     SPECTATE_RESTORED("duel.spectate-restored"),

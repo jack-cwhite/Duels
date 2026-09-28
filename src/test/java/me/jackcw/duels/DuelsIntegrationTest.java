@@ -16,6 +16,8 @@ import me.jackcw.duels.arena.ArenaProvisioningMode;
 import me.jackcw.duels.arena.ArenaTemplateDefinition;
 import me.jackcw.duels.arena.RelativeArenaLocation;
 import me.jackcw.duels.arena.RelativeBlockPosition;
+import me.jackcw.duels.arena.ArenaAccessGuard;
+import me.jackcw.duels.arena.MatchInterferenceGuard;
 import me.jackcw.duels.arena.ArenaContainmentGuard;
 import me.jackcw.duels.arena.BlockChangeRollbackStrategy;
 import me.jackcw.duels.arena.ArenaBoundsValidator;
@@ -45,6 +47,11 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.damage.DamageSource;
 import org.bukkit.damage.DamageType;
+import org.bukkit.entity.Arrow;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.FishHook;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
@@ -53,6 +60,12 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityCombustByBlockEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.entity.ProjectileHitEvent;
+import org.bukkit.event.entity.ProjectileLaunchEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -1558,6 +1571,386 @@ class DuelsIntegrationTest
         BlockFromToEvent unrelated = new BlockFromToEvent(world.getBlockAt(200, 64, 200), world.getBlockAt(201, 64, 200));
         guard.onBlockFromTo(unrelated);
         assertFalse(unrelated.isCancelled(), "flow with no connection to a duel must be untouched");
+    }
+
+    /**
+     * An idle arena - no live match, nothing still resetting - is ordinary
+     * ground. This has to hold even though the arena has bounds configured,
+     * since arena editing and simply walking through a static arena between
+     * fights both depend on entry not being restricted until a match actually
+     * claims the instance.
+     */
+    @Test
+    void aBystanderMayFreelyEnterAnIdleArenasBounds()
+    {
+        WorldMock world = server.addSimpleWorld("access_guard_idle_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        ArenaInstance instance = createReadyInstance(arena, world);
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 1, new Location(world, -10, 60, -10));
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 2, new Location(world, 10, 70, 10));
+
+        PlayerMock charlie = addPlayer("Charlie");
+        Location outside = new Location(world, 100, 64, 100);
+        charlie.setLocation(outside);
+
+        ArenaAccessGuard guard = new ArenaAccessGuard(plugin);
+
+        Location into = new Location(world, 5, 64, 5);
+        PlayerMoveEvent entering = new PlayerMoveEvent(charlie, outside, into);
+        guard.onMove(entering);
+
+        assertFalse(entering.isCancelled());
+        assertEquals(into.getBlockX(), entering.getTo().getBlockX(),
+                "an idle arena with no active match must be freely enterable");
+    }
+
+    /**
+     * Once a match is actually live in an instance, a bystander walking
+     * towards its bounds is turned back the same way a combatant is kept in.
+     * Entry is denied by cancelling the move rather than by redirecting it:
+     * a player walking in is by definition coming from somewhere outside, so
+     * where they already were is the correct place to leave them, and it needs
+     * no destination to be computed or remembered.
+     */
+    @Test
+    void aBystanderCannotWalkIntoAnArenaWhileAMatchIsLiveThere()
+    {
+        WorldMock world = server.addSimpleWorld("access_guard_move_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        ArenaInstance instance = createReadyInstance(arena, world);
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 1, new Location(world, -10, 60, -10));
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 2, new Location(world, 10, 70, 10));
+
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+        startInProgressMatch(alice, bob);
+
+        PlayerMock charlie = addPlayer("Charlie");
+        Location outside = new Location(world, 100, 64, 100);
+        charlie.setLocation(outside);
+
+        ArenaAccessGuard guard = new ArenaAccessGuard(plugin);
+
+        PlayerMoveEvent entering = new PlayerMoveEvent(charlie, outside, new Location(world, 5, 64, 5));
+        guard.onMove(entering);
+
+        assertTrue(entering.isCancelled(), "a bystander must not be let into the bounds while a match is live there");
+    }
+
+    /**
+     * The failure mode that made the first version of eviction unusable: a
+     * player who is <em>already</em> inside must be taken out rather than
+     * stopped in place, because a move that both starts and ends inside the
+     * arena cannot be cancelled without pinning them in the duel and denying
+     * every attempt they make to walk out of it.
+     *
+     * <p>This also makes the guard self-healing. Whatever put someone inside a
+     * live arena - logging in there, another plugin, an admin teleport Duels
+     * deliberately does not intercept - their first step takes them out.
+     */
+    @Test
+    void aPlayerAlreadyInsideALiveArenaIsTakenOutRatherThanPinnedInPlace()
+    {
+        WorldMock world = server.addSimpleWorld("access_guard_stuck_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        ArenaInstance instance = createReadyInstance(arena, world);
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 1, new Location(world, -10, 60, -10));
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 2, new Location(world, 10, 70, 10));
+
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+        startInProgressMatch(alice, bob);
+
+        PlayerMock charlie = addPlayer("Charlie");
+        charlie.setLocation(new Location(world, 5, 64, 5));
+
+        ArenaAccessGuard guard = new ArenaAccessGuard(plugin);
+
+        PlayerMoveEvent walkingAround = new PlayerMoveEvent(
+                charlie, new Location(world, 5, 64, 5), new Location(world, 6, 64, 5)
+        );
+        guard.onMove(walkingAround);
+
+        assertFalse(walkingAround.isCancelled(), "cancelling a move inside the arena would pin the player in the duel");
+        assertFalse(instance.contains(charlie.getLocation()), "a player already inside a live arena must be moved out of it");
+    }
+
+    /**
+     * Covers entry that never fires {@link PlayerMoveEvent} at all - a command
+     * teleport here, but the same path also covers warps and ender pearls.
+     * {@link PlayerTeleportEvent.TeleportCause#PLUGIN} is the one cause this
+     * guard must never second-guess, since Duels' own restorations (a
+     * spectator session returning a player to wherever they stood before)
+     * rely on it landing unchallenged.
+     */
+    @Test
+    void aBystanderCannotTeleportIntoALiveArenaViaANonPluginTeleport()
+    {
+        WorldMock world = server.addSimpleWorld("access_guard_teleport_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        ArenaInstance instance = createReadyInstance(arena, world);
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 1, new Location(world, -10, 60, -10));
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 2, new Location(world, 10, 70, 10));
+
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+        startInProgressMatch(alice, bob);
+
+        PlayerMock charlie = addPlayer("Charlie");
+        Location outside = new Location(world, 100, 64, 100);
+        charlie.setLocation(outside);
+
+        ArenaAccessGuard guard = new ArenaAccessGuard(plugin);
+
+        PlayerTeleportEvent commandTeleport = new PlayerTeleportEvent(
+                charlie, outside, new Location(world, 5, 64, 5), PlayerTeleportEvent.TeleportCause.COMMAND
+        );
+        guard.onTeleport(commandTeleport);
+        assertTrue(commandTeleport.isCancelled(), "a non-plugin teleport into a live arena's bounds must be denied");
+
+        PlayerTeleportEvent pluginTeleport = new PlayerTeleportEvent(
+                charlie, outside, new Location(world, 5, 64, 5), PlayerTeleportEvent.TeleportCause.PLUGIN
+        );
+        guard.onTeleport(pluginTeleport);
+        assertFalse(pluginTeleport.isCancelled(), "a plugin-chosen destination, such as a spectator restore, must never be second-guessed");
+    }
+
+    /**
+     * The primary way a bystander is ever removed from an instance a match
+     * has just claimed: an idle arena is freely walkable, so nothing stops
+     * someone standing in it right up until the moment a duel starts around
+     * them, and this sweep is what moves them out at exactly that moment.
+     *
+     * <p>The bystander is walked in through real move events rather than
+     * positioned directly, because that is what exposes the bug this test
+     * exists for. An earlier version sent evicted players to a remembered
+     * "last safe location", and walking through an idle arena is precisely
+     * what filled that memory with positions inside the arena - so eviction
+     * teleported the player to where they already stood, and the guard then
+     * denied every move they made to get out.
+     */
+    @Test
+    void aBystanderWhoWalkedIntoAnIdleArenaIsEvictedWhenAMatchStartsThere()
+    {
+        WorldMock world = server.addSimpleWorld("access_guard_evict_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        ArenaInstance instance = createReadyInstance(arena, world);
+
+        PlayerMock charlie = addPlayer("Charlie");
+        Location outside = new Location(world, 200, 64, 200);
+        charlie.setLocation(outside);
+
+        ArenaAccessGuard guard = plugin.getArenaAccessGuard();
+
+        Location firstStepIn = new Location(world, 20, 64, 20);
+        PlayerMoveEvent walkingIn = new PlayerMoveEvent(charlie, outside, firstStepIn);
+        guard.onMove(walkingIn);
+        assertFalse(walkingIn.isCancelled(), "an idle arena must be freely enterable");
+        charlie.setLocation(firstStepIn);
+
+        PlayerMoveEvent walkingAround = new PlayerMoveEvent(charlie, firstStepIn, new Location(world, 21, 64, 20));
+        guard.onMove(walkingAround);
+        charlie.setLocation(new Location(world, 21, 64, 20));
+
+        assertTrue(instance.contains(charlie.getLocation()));
+
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+
+        Match match = plugin.getMatchManager().startMatch(alice, bob);
+        assertNotNull(match);
+
+        assertFalse(instance.contains(charlie.getLocation()),
+                "a bystander left standing in the arena must be moved out before the match begins");
+    }
+
+    /**
+     * The concrete bug this closes: a bystander's death drops (or anything
+     * else that wandered in) during idle time between matches, with no match
+     * ever wrapping around that idle time to trigger the end-of-match sweep.
+     * {@code prepareForMatch} runs the same broadened sweep at the start of
+     * every match instead, so idle-time mess never survives into the next fight.
+     */
+    @Test
+    void strayEntitiesInTheArenaAreClearedBeforeEachMatchNotJustAfterOne()
+    {
+        WorldMock world = server.addSimpleWorld("access_guard_sweep_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        createReadyInstance(arena, world);
+
+        Location inside = new Location(world, 5, 64, 5);
+        Item strayItem = world.dropItem(inside, new ItemStack(Material.DIAMOND));
+        Entity strayMob = world.spawnEntity(inside, EntityType.ZOMBIE);
+
+        assertTrue(world.getEntities().contains(strayItem));
+        assertTrue(world.getEntities().contains(strayMob));
+
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+
+        Match match = plugin.getMatchManager().startMatch(alice, bob);
+        assertNotNull(match);
+
+        assertFalse(world.getEntities().contains(strayItem),
+                "a stray item left over from idle time must not survive into the next match");
+        assertFalse(world.getEntities().contains(strayMob),
+                "a stray mob left over from idle time must not survive into the next match");
+    }
+
+    /**
+     * Stops a duellist reaching across their own boundary to collect an item
+     * lying just outside it, whether it is a stray death drop or something
+     * thrown over the wall by someone helping them from outside.
+     */
+    @Test
+    void aDuellistCannotPickUpAnItemLyingOutsideTheArenaBounds()
+    {
+        WorldMock world = server.addSimpleWorld("containment_pickup_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        ArenaInstance instance = createReadyInstance(arena, world);
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 1, new Location(world, -10, 60, -10));
+        plugin.getArenaInstanceManager().setBoundsCorner(instance.getId(), 2, new Location(world, 10, 70, 10));
+
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+
+        startInProgressMatch(alice, bob);
+        alice.setLocation(new Location(world, 9, 64, 9));
+
+        ArenaContainmentGuard guard = new ArenaContainmentGuard(plugin);
+
+        Item outsideItem = world.dropItem(new Location(world, 15, 64, 15), new ItemStack(Material.DIAMOND));
+        EntityPickupItemEvent outsidePickup = new EntityPickupItemEvent(alice, outsideItem, 1);
+        guard.onItemPickup(outsidePickup);
+        assertTrue(outsidePickup.isCancelled(), "an item lying outside the arena must not be collectible by a duellist inside it");
+
+        Item insideItem = world.dropItem(new Location(world, 9, 64, 9), new ItemStack(Material.DIAMOND));
+        EntityPickupItemEvent insidePickup = new EntityPickupItemEvent(alice, insideItem, 1);
+        guard.onItemPickup(insidePickup);
+        assertFalse(insidePickup.isCancelled(), "an item inside the arena is normal pickup and must not be blocked");
+    }
+
+    /**
+     * The other half of the boundary being one-way for objects: the arena wall
+     * stops a bystander walking in, but nothing stops them throwing a spare
+     * sword over it, and an item that lands inside the bounds passes every
+     * check {@link ArenaContainmentGuard} makes.
+     *
+     * <p>Also asserts the two cases that must keep working, because the failure
+     * mode of getting this wrong is confiscating things: a duellist collecting
+     * their own dropped gear, and the bystander collecting the item they threw.
+     */
+    @Test
+    void anItemThrownInByANonCombatantCannotBePickedUpByADuellist()
+    {
+        WorldMock world = server.addSimpleWorld("interference_pickup_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        createReadyInstance(arena, world);
+
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+        PlayerMock charlie = addPlayer("Charlie");
+
+        startInProgressMatch(alice, bob);
+
+        MatchInterferenceGuard guard = new MatchInterferenceGuard(plugin);
+        Location insideArena = new Location(world, 0, 64, 0);
+
+        Item thrownIn = world.dropItem(insideArena, new ItemStack(Material.DIAMOND_SWORD));
+        guard.onDropItem(new PlayerDropItemEvent(charlie, thrownIn));
+
+        EntityPickupItemEvent foreignPickup = new EntityPickupItemEvent(alice, thrownIn, 1);
+        guard.onItemPickup(foreignPickup);
+        assertTrue(foreignPickup.isCancelled(),
+                "a duellist must not be able to collect an item a non-combatant threw into the duel");
+
+        EntityPickupItemEvent throwerPickup = new EntityPickupItemEvent(charlie, thrownIn, 1);
+        guard.onItemPickup(throwerPickup);
+        assertFalse(throwerPickup.isCancelled(),
+                "the bystander must still be able to collect their own item back - Duels must never cost them it");
+
+        Item ownDrop = world.dropItem(insideArena, new ItemStack(Material.DIAMOND_SWORD));
+        guard.onDropItem(new PlayerDropItemEvent(alice, ownDrop));
+
+        EntityPickupItemEvent ownPickup = new EntityPickupItemEvent(alice, ownDrop, 1);
+        guard.onItemPickup(ownPickup);
+        assertFalse(ownPickup.isCancelled(), "a duellist's own dropped gear must still be collectible");
+    }
+
+    /**
+     * Covers the marking half of the rule for projectiles, which is what the
+     * splash-potion and lingering-cloud rules read. Whether a bystander's arrow
+     * can hurt a duellist is a separate question already settled by
+     * {@code MatchListener}, which cancels any hit not thrown by the opponent.
+     */
+    @Test
+    void aProjectileLaunchedByANonCombatantIsMarkedAsForeignToTheDuel()
+    {
+        WorldMock world = server.addSimpleWorld("interference_projectile_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        createReadyInstance(arena, world);
+
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+        PlayerMock charlie = addPlayer("Charlie");
+
+        startInProgressMatch(alice, bob);
+
+        MatchInterferenceGuard guard = new MatchInterferenceGuard(plugin);
+
+        Arrow bystanderArrow = world.spawn(new Location(world, 0, 64, 0), Arrow.class);
+        bystanderArrow.setShooter(charlie);
+        guard.onProjectileLaunch(new ProjectileLaunchEvent(bystanderArrow));
+        assertTrue(guard.isForeignToDuels(bystanderArrow),
+                "anything launched by someone outside the duel must be marked as foreign to it");
+
+        Arrow duellistArrow = world.spawn(new Location(world, 0, 64, 0), Arrow.class);
+        duellistArrow.setShooter(alice);
+        guard.onProjectileLaunch(new ProjectileLaunchEvent(duellistArrow));
+        assertFalse(guard.isForeignToDuels(duellistArrow),
+                "a duellist's own projectile is part of the duel and must not be marked");
+    }
+
+    /**
+     * A fishing line that has latched onto a duellist is drawn across their
+     * screen until the caster retrieves it, so blocking only the reel leaves
+     * the duel visibly interfered with. The hook must never fasten on at all -
+     * except when it is the opponent casting, which is ordinary combat.
+     */
+    @Test
+    void aNonCombatantsFishingHookCannotFastenOntoADuellist()
+    {
+        WorldMock world = server.addSimpleWorld("interference_fishing_world");
+        Arena arena = plugin.getArenaManager().createArena("Colosseum");
+        createReadyInstance(arena, world);
+
+        PlayerMock alice = addPlayer("Alice");
+        PlayerMock bob = addPlayer("Bob");
+        PlayerMock charlie = addPlayer("Charlie");
+
+        startInProgressMatch(alice, bob);
+
+        MatchInterferenceGuard guard = new MatchInterferenceGuard(plugin);
+        Location castFrom = new Location(world, 0, 64, 0);
+
+        FishHook bystanderHook = world.spawn(castFrom, FishHook.class);
+        bystanderHook.setShooter(charlie);
+
+        ProjectileHitEvent bystanderHit = new ProjectileHitEvent(bystanderHook, alice);
+        guard.onProjectileHit(bystanderHit);
+
+        assertTrue(bystanderHit.isCancelled(), "a bystander's hook must not be allowed to catch a duellist");
+        assertNull(bystanderHook.getHookedEntity(), "the hook must not be left attached to the duellist");
+        assertFalse(world.getEntities().contains(bystanderHook),
+                "the bobber must be gone, so no line can be drawn to the duellist");
+
+        FishHook opponentHook = world.spawn(castFrom, FishHook.class);
+        opponentHook.setShooter(bob);
+
+        ProjectileHitEvent opponentHit = new ProjectileHitEvent(opponentHook, alice);
+        guard.onProjectileHit(opponentHit);
+
+        assertFalse(opponentHit.isCancelled(), "the opponent rodding a duellist is ordinary combat and must still work");
     }
 
     /**

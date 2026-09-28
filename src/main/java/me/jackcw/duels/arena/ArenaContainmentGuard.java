@@ -23,6 +23,7 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityCombustEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.hanging.HangingBreakEvent;
 import org.bukkit.event.player.PlayerArmorStandManipulateEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
@@ -241,6 +242,27 @@ public final class ArenaContainmentGuard implements Listener
             return;
 
         if (matchManager.getLiveInstanceAt(event.getEntity().getLocation()) != null)
+            event.setCancelled(true);
+    }
+
+    /**
+     * Stops a duellist reaching across their own boundary to collect an item
+     * lying just outside it - a stray death drop from a bystander, or one
+     * thrown over the wall by someone helping them from outside. The same
+     * rule that keeps a duel's own changes inside its arena also keeps
+     * whatever the arena is bordered by from feeding into it.
+     *
+     * <p>Left silent rather than reported: pickup is automatic on touch, not
+     * an aimed action, so a duellist grazing the boundary while fighting
+     * would otherwise be messaged every time, unlike a deliberate block place.
+     */
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onItemPickup(EntityPickupItemEvent event)
+    {
+        if (!(event.getEntity() instanceof Player player))
+            return;
+
+        if (!isAllowedLocation(player, event.getItem().getLocation()))
             event.setCancelled(true);
     }
 

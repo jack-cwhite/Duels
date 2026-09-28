@@ -151,6 +151,8 @@ duel:
   out-of-bounds-warning: '&cYou are leaving the arena bounds!'
   out-of-bounds-returned: '&cYou were returned to the arena.'
   cannot-build-outside-arena: '&cYou can only build inside the arena bounds.'
+  cannot-enter-arena: '&cYou cannot enter an arena that is not yours to fight or spectate in.'
+  removed-from-arena: '&cA duel is taking place here, so you have been moved out of the arena.'
   spectate-started: '&7You are now spectating &e{player}&7''s duel. Use &e/duel leave &7to stop.'
   spectate-stopped: '&7You have &cstopped &7spectating.'
   spectate-restored: '&7You were returned to where you were before you started spectating.'

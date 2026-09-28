@@ -147,6 +147,9 @@ public final class MatchManager
 
     private Match commitStartedMatch(ArenaInstance arenaInstance, Player player1, Player player2)
     {
+        plugin.getArenaResetStrategy().prepareForMatch(arenaInstance);
+        plugin.getArenaAccessGuard().evictBystanders(arenaInstance, player1.getUniqueId(), player2.getUniqueId());
+
         Match match = createMatch(arenaInstance, player1, player2);
 
         matches.put(player1.getUniqueId(), match);
@@ -377,18 +380,37 @@ public final class MatchManager
      */
     public boolean isInsideUnsafeArena(Location location)
     {
-        if (getLiveInstanceAt(location) != null)
-            return true;
+        return getUnsafeInstanceAt(location) != null;
+    }
+
+    /**
+     * The instance whose bounds contain this location and are currently
+     * unsafe or off-limits for a bystander to walk into - a duel is being
+     * fought there, or one just ended and its rollback has not finished -
+     * or {@code null} if the location is not inside any such instance.
+     *
+     * <p>An idle arena with no live or resetting match is deliberately not
+     * "unsafe": arena editing, and simply walking around a static arena
+     * between fights, both need to work, so entry is only ever restricted
+     * while this instance actually holds something a bystander should be
+     * kept out of.
+     */
+    public ArenaInstance getUnsafeInstanceAt(Location location)
+    {
+        ArenaInstance live = getLiveInstanceAt(location);
+
+        if (live != null)
+            return live;
 
         for (int instanceId : resettingInstanceIds)
         {
             ArenaInstance instance = plugin.getArenaInstanceManager().getInstance(instanceId);
 
             if (instance != null && instance.contains(location))
-                return true;
+                return instance;
         }
 
-        return false;
+        return null;
     }
 
     public boolean selectKit(UUID playerId, Kit kit)

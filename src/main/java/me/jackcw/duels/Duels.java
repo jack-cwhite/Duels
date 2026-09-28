@@ -64,6 +64,8 @@ public class Duels extends JavaPlugin
     private DynamicArenaRecovery dynamicArenaRecovery;
     private ArenaEditManager arenaEditManager;
     private BoundaryEnforcer boundaryEnforcer;
+    private ArenaAccessGuard arenaAccessGuard;
+    private MatchInterferenceGuard matchInterferenceGuard;
     private DuelsDiagnostics diagnostics;
     private BlockChangeRollbackStrategy arenaResetStrategy;
     private KitManager kitManager;
@@ -189,6 +191,16 @@ public class Duels extends JavaPlugin
     public BoundaryEnforcer getBoundaryEnforcer()
     {
         return boundaryEnforcer;
+    }
+
+    public ArenaAccessGuard getArenaAccessGuard()
+    {
+        return arenaAccessGuard;
+    }
+
+    public MatchInterferenceGuard getMatchInterferenceGuard()
+    {
+        return matchInterferenceGuard;
     }
 
     public DuelsDiagnostics getDiagnostics()
@@ -521,6 +533,8 @@ public class Duels extends JavaPlugin
         // BoundaryEnforcer resolves spectators through SpectatorManager.
         spectatorManager = new SpectatorManager(this, jCore.files().yaml("spectators.yml"));
         boundaryEnforcer = new BoundaryEnforcer(this);
+        arenaAccessGuard = new ArenaAccessGuard(this);
+        matchInterferenceGuard = new MatchInterferenceGuard(this);
         arenaResetStrategy = new BlockChangeRollbackStrategy(this);
 
         // Last: it reads every manager above it and owns none of them.
@@ -537,6 +551,8 @@ public class Duels extends JavaPlugin
         getServer().getPluginManager().registerEvents(new ArenaEditListener(this), this);
         getServer().getPluginManager().registerEvents(new SpectatorListener(this), this);
         getServer().getPluginManager().registerEvents(new ArenaContainmentGuard(this), this);
+        getServer().getPluginManager().registerEvents(arenaAccessGuard, this);
+        getServer().getPluginManager().registerEvents(matchInterferenceGuard, this);
         getServer().getPluginManager().registerEvents(arenaResetStrategy, this);
     }
 

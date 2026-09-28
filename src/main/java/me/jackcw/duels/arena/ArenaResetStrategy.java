@@ -13,4 +13,12 @@ package me.jackcw.duels.arena;
 public interface ArenaResetStrategy
 {
     void reset(ArenaInstance instance, Runnable onComplete);
+
+    /**
+     * Clears anything that accumulated in an instance while it sat idle
+     * between matches - a mob that spawned there, a bystander's death drops -
+     * so a fresh match never inherits mess {@link #reset} had no reason to
+     * have run against.
+     */
+    void prepareForMatch(ArenaInstance instance);
 }
