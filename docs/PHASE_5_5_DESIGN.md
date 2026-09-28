@@ -284,24 +284,25 @@ is this player in a live Match?
   -> does that kit require a baseline of this effect type?
 ```
 
-The listener's policy is:
+The listener's policy is full immutability, decided after live testing overturned the
+original "stronger temporary effect wins" design (see the superseded reconsideration
+trigger below):
 
-- if the new active effect is stronger than the baseline, leave it untouched;
-- if the required baseline remains active at equal or greater strength, do nothing;
-- if the effect is removed, expires, or becomes weaker, schedule one recheck for the
-  next server tick;
-- on that recheck, confirm the same player is still in the same live match with the
-  same required baseline before applying it; and
-- never interact with a player or `Match` from an asynchronous thread.
+- a same-type change is cancelled outright unless its amplifier exactly matches the
+  baseline, which in practice only happens when the kit machinery reapplies its own
+  effect; and
+- nothing else - ordinary or splash potions, beacons, milk, `/effect`, or an opponent's
+  debuff - can weaken, strengthen or remove a baseline while the kit is held.
 
-The delayed recheck avoids mutating an effect collection inside its own change event,
-deduplicates mass-removal events such as milk, and revalidates against matches that may
-have ended during the tick.
+Cancelling the event rather than repairing the effect afterwards is what makes this
+airtight: there is no window in which the player briefly has the wrong strength, and
+no need to schedule a recheck on the next tick or to revalidate against a match that
+may have ended in the meantime.
 
 Temporary effects of the same type are not tracked in a parallel custom stack. The
-listener observes the current Paper state and restores only the match-owned minimum.
-This is enough to produce the agreed stronger-temporary-then-baseline behaviour without
-reimplementing Minecraft's potion engine.
+listener observes Paper's own change events and refuses the ones that would move a
+match-owned baseline, rather than reimplementing Minecraft's potion engine. Once the
+match ends and the kit is no longer held, the effect type is not protected at all.
 
 ### Cleanup and restoration
 

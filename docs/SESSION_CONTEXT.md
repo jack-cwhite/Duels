@@ -1,6 +1,6 @@
 # Duels Current Session Context
 
-_Last verified: 2026-09-27_
+_Last verified: 2026-09-28_
 
 This file is the compact handoff for a new development session. Read it before
 starting work, then inspect the relevant source files before changing code.
@@ -9,9 +9,12 @@ starting work, then inspect the relevant source files before changing code.
 
 The Duels standalone foundation is complete, tested, and manually verified on a real
 Paper server.
-Phases 0-5 and 11 are done. Phase 5's filterable statistics and match-history
-system passed its in-game acceptance run. Arena containment/bounds and dynamic
-provisioning have passed the complete target-Paper run in `docs/IN_GAME_SUITE.md`.
+Phases 0-5 and 11 are done, and Phase 5.5 is part-way through: Slices 1-3 (kit effect
+definitions and persistence, the kit effect admin GUI plus `/duels reload`, and the
+runtime kit effect lifecycle) are implemented and verified in game; Slices 4-6 remain.
+Phase 5's filterable statistics and match-history system passed its in-game acceptance
+run. Arena containment/bounds and dynamic provisioning have passed the complete
+target-Paper run in `docs/IN_GAME_SUITE.md`.
 
 Terminology changed on 2026-09-27: this completed system is now the **standalone
 foundation baseline**, not the intended public V1. Jack's public V1 also includes kit
@@ -32,15 +35,46 @@ reserved, available and maximum counts are visible in admin arena menus and
 does not mutate either participant. Retiring a copy is the explicit way to return
 its slot.
 
+Three guards now keep a live duel isolated from everyone not in it.
+`ArenaContainmentGuard` keeps duellists inside their own bounds, `ArenaAccessGuard` stops
+anyone else walking into an arena that is currently hosting a match, and
+`MatchInterferenceGuard` stops an outsider affecting a duel from outside it. Two
+deliberate boundaries: the access guard does **not** block entry to an *idle* arena,
+because that broke arena edit mode; and nothing outside arena bounds is touched, so a
+bystander who dies outside an arena remains an ordinary untouched vanilla event and Duels
+can never cause item loss on a survival server.
+
+Player state restoration never trades an inventory for a teleport. If the world a player
+was in before Duels moved them has gone - unloaded, renamed or deleted - the snapshot is
+still applied and they are placed at the `fallback-world` spawn with a warning, instead of
+the restore failing. Velocity and fall distance are only meaningful at the captured
+position, so they are zeroed whenever a substitute destination is used. If applying a
+snapshot throws, the snapshot is deliberately left on disk so a later attempt can retry it
+rather than silently eating an inventory. `/duels diagnostics state <player>` reads a saved
+snapshot back, including where it would put the player and whether the captured world is
+still loaded, and `/duels diagnostics` now reports the saved-state count and the resolved
+fallback spawn.
+
+`VoidArenaChunkGenerator` names its own fixed spawn. A `ChunkGenerator` that returns null
+there delegates to vanilla's spawn search, which loads chunks synchronously on the main
+thread hunting a solid block; in an empty world that froze the server for about eleven
+seconds and tripped Paper's watchdog. This affected both `/mv create <name> normal -g
+Duels` and the first-ever dynamic arena world.
+
 Verification at this handoff:
 
-- `mvn clean package`: 75 tests passed, 0 failures, 0 errors, 0 skipped. JCore: 303
+- `mvn clean package`: 102 tests passed, 0 failures, 0 errors, 0 skipped. JCore: 303
   passed, 1 skipped.
 - The shaded jar builds successfully and was copied into the local test-server
   plugin folder.
 - Manual in-game testing passed for arena management, matches, kits, bounds,
   instancing, dynamic provisioning/recovery, rollback, spectators,
   GUI/command parity, advancements, diagnostics and containment.
+- Phase 5.5 Slices 1-3 passed live testing: effect definitions surviving restart, the
+  admin effect GUI and command fallbacks, `/duels reload`, and the immutable in-match
+  baseline resisting potions, milk and `/effect`.
+- Duel isolation and the world-gone restore path passed live testing, including a
+  bystander evicted from an idle arena landing at the configured fallback world spawn.
 - Phase 5 passed fresh SQLite and fresh YAML live write/read/filter/history/
   leaderboard testing, including restart persistence. The earlier schema was
   exercised on MySQL, MariaDB and PostgreSQL; Phase 5's fresh schema still needs
@@ -115,10 +149,12 @@ does differently, and a manual pass proves one run rather than an invariant.
 | Stats, YAML backend | **Medium-high** | Automated SQL/YAML parity plus a fresh live write/read/filter/history/leaderboard pass and restart-persistence check. |
 | Stats, SQL backend | **High** | SQLite has automated coverage and passed the fresh live write/read/filter/history/leaderboard flow, restart persistence, and paging beyond 45 records. The Phase 5 external-dialect matrix remains a release check. |
 | Non-SQLite dialects (MySQL, MariaDB, PostgreSQL) | **Medium-high** | Each backend passed repeated live match/stat checks. They are not covered automatically and the exact tested engine versions were not recorded, so future migration work should repeat the matrix. |
-| Menus (admin and user) | **Medium** | Automated for layout rules - bottom row reserved, static/dynamic screen separation, slot upgrade - but **not for click handling**, because the MockBukkit slot-conversion test is skipped. Every menu action has been driven by hand in game instead. |
+| Menus (admin and user) | **Medium** | Automated for layout rules - bottom row reserved, static/dynamic screen separation, slot upgrade - but **not for click handling**: nothing drives an `InventoryClickEvent` through a bundled menu. Every menu action has been driven by hand in game instead. |
 | Commands and permissions | **Medium-high** | In-game GUI/command parity pass. Permission nodes are declared in `plugin.yml` and were checked by hand; nothing asserts they stay in sync with the code. |
 | Diagnostics (`/duels diagnostics`) | **High** | Automated coverage compares whole `Snapshot` records, and baseline/compare was used successfully during the live suite. |
 | Post-flow cleanup (no leaks) | **Medium-high** | A clean-match automated test and the measured live baseline/compare pass both returned to baseline. Wider soak testing would add confidence but no leak is currently known. |
+| Kit effects (Phase 5.5 Slices 1-3) | **Medium-high** | Automated serializer and lifecycle coverage, plus a live pass over definition persistence, the admin GUI, command fallbacks and baseline immutability. Newer than the rest of the plugin, so it has less real mileage. |
+| Duel isolation (access and interference guards) | **Medium-high** | Automated eviction and fallback-spawn tests plus a live pass. The intentional gaps - idle arenas stay enterable, and nothing outside arena bounds is touched - are design decisions, not missing coverage. |
 | JCore infrastructure | **High** | 303 tests, and every system is consumed by Duels rather than existing speculatively. |
 
 ### What could usefully be tested more
@@ -150,7 +186,7 @@ ranked and fixed-backend Velocity phases while preserving simple standalone mode
 | Phases 0-4, 11 (foundation, arenas, instancing, spectators, containment, QoL) | Done | - |
 | Phase 4B (dynamic provisioning) | Done and verified | - |
 | Phase 5 (deeper statistics) | Done and verified | - |
-| Phase 5.5 (kit effects, clickable UX, rematches) | Planned | ~3-5 sessions |
+| Phase 5.5 (kit effects, clickable UX, rematches) | Slices 1-3 done and verified; 4-6 remaining | ~2-3 sessions |
 | Phase 6 (Vault + durable rewards) | Integration planned; detailed design pending | ~3-4 sessions |
 | Phase 7 (local matchmaking queues) | Integration planned; detailed design pending | ~3-4 sessions |
 | Phase 8 (ELO / MMR / SBMM) | Product decisions pending | ~3-4 sessions |
@@ -158,28 +194,42 @@ ranked and fixed-backend Velocity phases while preserving simple standalone mode
 | Phase 9B (Velocity companion/cross-server flows) | Planned | ~5-8+ sessions |
 | Phase 10 (advanced/optional) | Deliberately open-ended | not estimated |
 
-**Against the revised public V1 definition: roughly 55-60%.** The difficult standalone
+**Against the revised public V1 definition: roughly 60%.** The difficult standalone
 foundation is complete, but the remaining product and network integrations are
 substantial. The fresh external-SQL and clean-install matrices remain useful checkpoint
 tests and will be repeated as part of the final post-Phase-9 release campaign.
 
 Treat both numbers as effort estimates, not deadlines.
 
-## Current development target: Phase 5.5 design and implementation
+## Current development target: Phase 5.5 Slice 4
 
-Phase 4B and Phase 5 are closed. Phase 5.5's product decisions and implementation
-sequence are agreed in `docs/PHASE_5_5_DESIGN.md`; implementation has not started.
-Begin with the kit-effect model/persistence slice, then its admin and runtime lifecycle,
-clickable Adventure interactions, and rematches. After that, follow Phases 6-9 in
+Phase 4B and Phase 5 are closed. Phase 5.5's product decisions and slice sequence are
+agreed in `docs/PHASE_5_5_DESIGN.md`. Slice 1 (effect model and persistence), Slice 2
+(effect administration plus `/duels reload`) and Slice 3 (runtime effect lifecycle) are
+implemented, tested and verified in game.
+
+**Next: Slice 4, interactive message rendering** - Duels-owned safe component-template
+rendering, fully configurable action labels and hover text, and conversion of the
+challenge receive/help/stats discovery surfaces so a player can click instead of typing a
+command. Do Slice 4 before Slice 5: Slice 5's rematch invitations reuse the same clickable
+message machinery, so building rematches first would mean writing those prompts twice.
+
+Then Slice 5 (rematch contexts and invitations) and Slice 6 (product hardening and
+sign-off, which includes writing `docs/PHASE_5_5_TEST_PLAN.md` against the finished
+wording and running it live). After that, follow Phases 6-9 in
 `docs/V1_COMPLETION_PLAN.md`. The final public-release matrix happens after the network
 phase so later features are included in the same clean-install evidence.
 
 ### Phase 5.5 agreed decisions
 
-- Kit effects apply only to their holder and form a permanent match baseline. Stronger
-  temporary same-type effects may override it; on expiration or milk removal the kit
-  baseline returns. Instant effects and finite built-in durations are not part of this
-  phase.
+- Kit effects apply only to their holder and form a permanent match baseline that is
+  **immutable while the kit is held**. Nothing in a live match - potions, splash
+  potions, beacons, milk, `/effect`, an opponent's debuff - can weaken, strengthen or
+  remove it; only an identical-amplifier change is let through, which is the kit
+  reapplying its own effect. This overturned the original "a stronger temporary effect
+  wins" rule after live testing, because it let a player exceed their kit's intended
+  balance and let an opponent push a debuff further than the kit intended. Instant
+  effects and finite built-in durations are not part of this phase.
 - Effect administration is GUI-first with complete command fallbacks. Persist canonical
   registry keys, user-facing levels and configurable ambient/particle/icon flags.
 - Every clickable message's visible text and hover content is configurable. Duels owns
@@ -244,7 +294,8 @@ retried. See `docs/PHASE_4B_DESIGN.md` and `docs/ROADMAP.md`.
 
 ## Remaining V1 order
 
-1. Phase 5.5: potion effects/debuffs in kits, clickable UX and rematches.
+1. Phase 5.5 Slices 4-6: clickable UX, then rematches, then phase hardening and
+   sign-off. Slices 1-3 (kit potion effects/debuffs) are done and verified.
 2. Phase 6: reliable match-result consumers and Vault rewards.
 3. Phase 7: local matchmaking queues.
 4. Phase 8: ratings and ranked matchmaking.

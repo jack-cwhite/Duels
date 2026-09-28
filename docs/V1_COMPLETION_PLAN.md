@@ -75,8 +75,11 @@ or debuffs, which limits game-mode variety.
 - Kits can store validated holder-only potion effects, including level, ambient,
   particle and icon visibility. Kit effects are permanent match baselines rather than
   finite-duration effects; instant effects are rejected.
-- A stronger temporary same-type effect can replace the baseline. When it expires, or
-  milk removes effects, the required kit baseline returns while the match remains live.
+- A kit effect baseline is immutable while the kit is held: no potion, beacon, milk,
+  `/effect` command or opponent debuff can weaken, strengthen or remove it. Live testing
+  overturned the original "a stronger temporary effect replaces the baseline" rule,
+  because it let a player exceed the balance their kit was given and let an opponent
+  push a debuff further than the kit intended.
 - Applied kit effects are part of the immutable match kit snapshot. Editing a live kit
   affects future matches only.
 - Player restoration removes duel effects and restores the player's captured effects on
